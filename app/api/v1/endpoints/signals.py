@@ -246,6 +246,133 @@ async def get_file_signals(
     return signals
 
 
+@router.get("/files/{file_id}/signal-data")
+async def get_signal_data(
+    file_id: int,
+    start_time: float = 0.0,
+    duration: float = 10.0,
+    db: Session = Depends(get_db)
+):
+    """Get signal data for a specific time range"""
+    
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal file not found"
+        )
+    
+    signals = db.query(Signal).filter(Signal.file_id == file_id).all()
+    
+    # For now, return basic signal info
+    # In a real implementation, you'd load the actual signal data from the file
+    signal_data = []
+    for signal in signals:
+        signal_data.append({
+            "channel_name": signal.channel_name,
+            "sampling_rate": signal.sampling_rate,
+            "duration": signal.duration,
+            "data_points": signal.data_points,
+            "start_time": start_time,
+            "end_time": start_time + duration,
+            "samples_per_second": signal.sampling_rate,
+            "total_samples": int(signal.sampling_rate * signal.duration)
+        })
+    
+    return {
+        "file_id": file_id,
+        "file_info": {
+            "filename": file.filename,
+            "condition": file.condition,
+            "total_duration": max([s.duration for s in signals]) if signals else 0
+        },
+        "signals": signal_data,
+        "time_range": {
+            "start": start_time,
+            "end": start_time + duration,
+            "duration": duration
+        }
+    }
+
+
+@router.get("/stats")
+async def get_signal_stats(
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get statistics for the dashboard"""
+    
+    # Get all files for the authenticated user's patients
+    files = db.query(SignalFile).join(User).filter(
+        User.auth_user_id == current_user.id
+    ).all()
+    
+    if not files:
+        return {
+            "total_files": 0,
+            "total_patients": 0,
+            "condition_counts": {"normal": 0, "abnormal": 0, "checking": 0, "failed": 0},
+            "recent_files": [],
+            "file_stats": {
+                "average_duration": 0,
+                "longest_duration": 0,
+                "shortest_duration": 0,
+                "average_size": 0,
+                "total_size": 0
+            }
+        }
+    
+    # Count files by condition
+    condition_counts = {"normal": 0, "abnormal": 0, "checking": 0, "failed": 0}
+    for file in files:
+        condition = file.condition or "checking"
+        if condition in condition_counts:
+            condition_counts[condition] += 1
+        else:
+            condition_counts["failed"] += 1
+    
+    # Get recent files (last 3)
+    recent_files = []
+    for file in sorted(files, key=lambda x: x.upload_time, reverse=True)[:3]:
+        recent_files.append({
+            "id": file.id,
+            "filename": file.filename,
+            "condition": file.condition,
+            "uploaded_at": file.upload_time.isoformat() if file.upload_time else None,
+            "patient_name": file.user.name if file.user else "Unknown"
+        })
+    
+    # Calculate file statistics
+    # Get durations from related signals (each file can have multiple signals)
+    durations = []
+    for file in files:
+        for signal in file.signals:
+            if signal.duration is not None:
+                durations.append(signal.duration)
+    
+    # Get file sizes from SignalFile
+    file_sizes = [file.file_size for file in files if file.file_size is not None]
+    
+    file_stats = {
+        "average_duration": sum(durations) / len(durations) if durations else 0,
+        "longest_duration": max(durations) if durations else 0,
+        "shortest_duration": min(durations) if durations else 0,
+        "average_size": sum(file_sizes) / len(file_sizes) if file_sizes else 0,
+        "total_size": sum(file_sizes) if file_sizes else 0
+    }
+    
+    # Get unique patients count
+    unique_patients = len(set(file.user_id for file in files if file.user_id))
+    
+    return {
+        "total_files": len(files),
+        "total_patients": unique_patients,
+        "condition_counts": condition_counts,
+        "recent_files": recent_files,
+        "file_stats": file_stats
+    }
+
+
 @router.get("/files/{file_id}/inference-status")
 async def check_inference_status(
     file_id: int,

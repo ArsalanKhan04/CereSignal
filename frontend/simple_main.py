@@ -94,6 +94,20 @@ class APIClient:
         response = self.session.get(f"{self.base_url}/signals/files/{file_id}/inference-status")
         return response.json(), response.status_code
     
+    def get_stats(self) -> Dict[str, Any]:
+        """Get dashboard statistics"""
+        response = self.session.get(f"{self.base_url}/signals/stats")
+        return response.json(), response.status_code
+    
+    def get_signal_data(self, file_id: int, start_time: float = 0.0, duration: float = 10.0) -> Dict[str, Any]:
+        """Get signal data for a specific time range"""
+        params = {
+            'start_time': start_time,
+            'duration': duration
+        }
+        response = self.session.get(f"{self.base_url}/signals/files/{file_id}/signal-data", params=params)
+        return response.json(), response.status_code
+    
     def delete_file(self, file_id: int) -> Dict[str, Any]:
         """Delete a file"""
         response = self.session.delete(f"{self.base_url}/signals/files/{file_id}")
@@ -176,17 +190,140 @@ def dashboard_page():
         
         # Navigation tabs
         with ui.tabs().classes('w-full mb-6') as tabs:
+            dashboard_tab = ui.tab('Dashboard')
             patients_tab = ui.tab('Patients')
             files_tab = ui.tab('Files')
-            processing_tab = ui.tab('Processing')
         
-        with ui.tab_panels(tabs, value=patients_tab).classes('w-full'):
+        with ui.tab_panels(tabs, value=dashboard_tab).classes('w-full'):
+            with ui.tab_panel(dashboard_tab):
+                show_dashboard()
             with ui.tab_panel(patients_tab):
                 show_patients_section()
             with ui.tab_panel(files_tab):
                 show_files_section()
-            with ui.tab_panel(processing_tab):
-                show_processing_section()
+
+
+def show_dashboard():
+    """Show dashboard with statistics and charts"""
+    with ui.column().classes('w-full'):
+        ui.html('<h2 class="text-2xl font-bold mb-6">Dashboard</h2>')
+        
+        # Load and display stats
+        try:
+            stats_data, status_code = api_client.get_stats()
+            if status_code == 200:
+                display_dashboard_stats(stats_data)
+            else:
+                ui.html('<p class="text-red-500">Failed to load dashboard data</p>')
+        except Exception as e:
+            ui.html(f'<p class="text-red-500">Error loading dashboard: {str(e)}</p>')
+
+
+def display_dashboard_stats(stats):
+    """Display dashboard statistics and charts"""
+    
+    # Top row: Key metrics
+    with ui.row().classes('w-full gap-4 mb-6'):
+        with ui.card().classes('p-4 flex-1'):
+            ui.html(f'<div class="text-3xl font-bold text-blue-600">{stats["total_files"]}</div>')
+            ui.html('<div class="text-sm text-gray-600">Total EEG Files</div>')
+        
+        with ui.card().classes('p-4 flex-1'):
+            ui.html(f'<div class="text-3xl font-bold text-green-600">{stats["total_patients"]}</div>')
+            ui.html('<div class="text-sm text-gray-600">Total Patients</div>')
+        
+        with ui.card().classes('p-4 flex-1'):
+            normal_count = stats["condition_counts"]["normal"]
+            abnormal_count = stats["condition_counts"]["abnormal"]
+            total_processed = normal_count + abnormal_count
+            if total_processed > 0:
+                normal_percentage = (normal_count / total_processed) * 100
+                ui.html(f'<div class="text-3xl font-bold text-green-600">{normal_percentage:.1f}%</div>')
+            else:
+                ui.html('<div class="text-3xl font-bold text-gray-600">0%</div>')
+            ui.html('<div class="text-sm text-gray-600">Normal Rate</div>')
+    
+    # Second row: Condition breakdown and recent files
+    with ui.row().classes('w-full gap-4 mb-6'):
+        # Condition pie chart
+        with ui.card().classes('p-4 flex-1'):
+            ui.html('<h3 class="text-lg font-semibold mb-4">EEG File Conditions</h3>')
+            display_condition_chart(stats["condition_counts"])
+        
+        # Recent files
+        with ui.card().classes('p-4 flex-1'):
+            ui.html('<h3 class="text-lg font-semibold mb-4">Recent EEG Files</h3>')
+            display_recent_files(stats["recent_files"])
+    
+    # Third row: File statistics
+    with ui.card().classes('p-4 w-full'):
+        ui.html('<h3 class="text-lg font-semibold mb-4">File Statistics</h3>')
+        display_file_stats(stats["file_stats"])
+
+
+def display_condition_chart(condition_counts):
+    """Display a simple text-based condition breakdown"""
+    total = sum(condition_counts.values())
+    
+    if total == 0:
+        ui.html('<p class="text-gray-500">No files uploaded yet</p>')
+        return
+    
+    with ui.column().classes('gap-2'):
+        for condition, count in condition_counts.items():
+            if count > 0:
+                percentage = (count / total) * 100
+                color = {
+                    'normal': 'text-green-600',
+                    'abnormal': 'text-red-600', 
+                    'checking': 'text-yellow-600',
+                    'failed': 'text-gray-600'
+                }.get(condition, 'text-gray-600')
+                
+                with ui.row().classes('items-center gap-2'):
+                    ui.html(f'<div class="w-4 h-4 rounded-full bg-{condition}-500"></div>')
+                    ui.html(f'<span class="capitalize {color} font-medium">{condition}: {count} ({percentage:.1f}%)</span>')
+
+
+def display_recent_files(recent_files):
+    """Display recent EEG files"""
+    if not recent_files:
+        ui.html('<p class="text-gray-500">No recent files</p>')
+        return
+    
+    with ui.column().classes('gap-2'):
+        for file in recent_files:
+            condition = file.get('condition', 'checking')
+            color = {
+                'normal': 'text-green-600',
+                'abnormal': 'text-red-600',
+                'checking': 'text-yellow-600',
+                'failed': 'text-gray-600'
+            }.get(condition, 'text-gray-600')
+            
+            with ui.row().classes('items-center gap-2 p-2 bg-gray-50 rounded'):
+                ui.html(f'<span class="font-medium">{file["filename"]}</span>')
+                ui.html(f'<span class="text-sm {color}">({condition})</span>')
+                ui.html(f'<span class="text-xs text-gray-500 ml-auto">{file["patient_name"]}</span>')
+
+
+def display_file_stats(file_stats):
+    """Display file statistics"""
+    with ui.row().classes('w-full gap-4'):
+        with ui.column().classes('flex-1'):
+            ui.html('<h4 class="font-semibold text-gray-700 mb-2">Duration Statistics</h4>')
+            ui.html(f'<p>Average: {file_stats["average_duration"]:.1f} seconds</p>')
+            ui.html(f'<p>Longest: {file_stats["longest_duration"]:.1f} seconds</p>')
+            ui.html(f'<p>Shortest: {file_stats["shortest_duration"]:.1f} seconds</p>')
+        
+        with ui.column().classes('flex-1'):
+            ui.html('<h4 class="font-semibold text-gray-700 mb-2">File Size Statistics</h4>')
+            ui.html(f'<p>Average: {file_stats["average_size"] / (1024*1024):.1f} MB</p>')
+            ui.html(f'<p>Total: {file_stats["total_size"] / (1024*1024):.1f} MB</p>')
+
+
+
+
 
 
 def show_patients_section():
