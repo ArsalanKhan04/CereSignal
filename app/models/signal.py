@@ -27,8 +27,8 @@ class SignalFile(Base):
     
     # Relationships
     user = relationship("User", back_populates="signal_files")
-    signals = relationship("Signal", back_populates="file")
-    processing_results = relationship("ProcessingResult", back_populates="file")
+    signals = relationship("Signal", back_populates="file", cascade="all, delete-orphan")
+    processing_results = relationship("ProcessingResult", back_populates="file", cascade="all, delete-orphan")
 
 
 class Signal(Base):
@@ -53,7 +53,7 @@ class Signal(Base):
     
     # Relationships
     file = relationship("SignalFile", back_populates="signals")
-    processing_results = relationship("ProcessingResult", back_populates="signal")
+    processing_results = relationship("ProcessingResult", back_populates="signal", cascade="all, delete-orphan")
 
 
 class ProcessingResult(Base):

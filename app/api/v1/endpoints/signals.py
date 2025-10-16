@@ -126,19 +126,23 @@ async def upload_signal_file(
                                 None
                             )
                             if channel_index is not None:
-                                signal_data = f.readSignal(channel_index).tolist()
-                                signal_data = json.dumps(signal_data)
+                                # Read signal data and convert to JSON string
+                                raw_data = f.readSignal(channel_index)
+                                # Convert to list and then to JSON string
+                                signal_data = json.dumps(raw_data.tolist())
+                                print(f"Debug: Signal data type: {type(signal_data)}, length: {len(signal_data) if signal_data else 0}")
                     except Exception as e:
                         print(f"Warning: Could not read signal data for {signal_info['channel_name']}: {e}")
+                        signal_data = None
                 
                 # Create signal record
                 signal_record = Signal(
                     file_id=db_file.id,
                     channel_name=signal_info["channel_name"],
-                    sampling_rate=signal_info["sampling_rate"],
-                    duration=signal_info.get("samples", 0) / signal_info["sampling_rate"],
-                    data_points=signal_info.get("samples", 0),
-                    signal_data=signal_data,
+                    sampling_rate=float(signal_info["sampling_rate"]),
+                    duration=float(signal_info.get("samples", 0) / signal_info["sampling_rate"]),
+                    data_points=int(signal_info.get("samples", 0)),
+                    signal_data=signal_data,  # This should be a JSON string or None
                     physical_max=signal_info.get("physical_max"),
                     physical_min=signal_info.get("physical_min"),
                     digital_max=signal_info.get("digital_max"),

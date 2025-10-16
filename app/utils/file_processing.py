@@ -38,8 +38,6 @@ def process_signal_file(file_path: str) -> dict:
     
     if file_extension == ".edf":
         return process_edf_file(file_path)
-    elif file_extension == ".csv":
-        return process_csv_file(file_path)
     else:
         raise ValueError(f"Unsupported file type: {file_extension}")
 
@@ -51,14 +49,14 @@ def process_edf_file(file_path: str) -> dict:
         with pyedflib.EdfReader(file_path) as f:
             # Get file info
             file_info = {
-                "channels": f.getNSignals(),
+                "channels": f.signals_in_file,
                 "duration": f.file_duration,
                 "start_time": f.getStartdatetime(),
                 "signals": []
             }
             
             # Get signal info for each channel
-            for i in range(f.getNSignals()):
+            for i in range(f.signals_in_file):
                 signal_info = {
                     "channel_name": f.getLabel(i),
                     "sampling_rate": f.getSampleFrequency(i),
