@@ -1,0 +1,3 @@
+[submodule "external/CereProcess"]
+	path = external/CereProcess
+	url = https://github.com/DeepMind-Companions/CereProcess.git
