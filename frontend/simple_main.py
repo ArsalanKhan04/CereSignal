@@ -5,8 +5,9 @@ CereSignal Frontend - Simple NiceGUI Application
 from nicegui import ui, app
 import requests
 import json
-from typing import Optional, Dict, Any
 import os
+import tempfile
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -71,7 +72,8 @@ class APIClient:
     def upload_file(self, file_path: str, patient_id: int = None) -> Dict[str, Any]:
         """Upload a file for a patient"""
         with open(file_path, 'rb') as f:
-            files = {'file': f}
+            files = {'file': (os.path.basename(file_path), f, 'application/octet-stream')}
+            print('patient_id', patient_id)
             data = {'patient_id': patient_id} if patient_id else {}
             response = self.session.post(f"{self.base_url}/signals/upload", files=files, data=data)
         return response.json(), response.status_code
@@ -310,7 +312,7 @@ def show_upload_dialog(patient):
         ).classes('w-full mb-4')
         upload.props('accept=.edf,.csv,.json,.txt')
         
-        ui.html('<p class="text-sm text-gray-600 mb-4">Supported formats: EDF, CSV, JSON, TXT (max 100MB)</p>')
+        ui.html('<p class="text-sm text-gray-600 mb-4">Supported format: EDF files only (max 100MB)</p>')
         
         with ui.row().classes('w-full justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('outline')
@@ -321,19 +323,34 @@ def show_upload_dialog(patient):
 def handle_file_upload(upload_event, patient_id: int, dialog):
     """Handle file upload"""
     try:
-        # Get the uploaded file
-        file_path = upload_event.name
+        # Get the uploaded file content and name
+        file_content = upload_event.content.read()
+        file_name = upload_event.name
         
-        # Upload to backend
-        data, status_code = api_client.upload_file(file_path, patient_id)
+        # Create a temporary file
+        import tempfile
+        import os
         
-        if status_code == 200:
-            show_success(f'File uploaded successfully: {data["filename"]}')
-            dialog.close()
-            # Refresh the page to show updated files
-            ui.open('/dashboard')
-        else:
-            show_error(f'Upload failed: {data.get("detail", "Unknown error")}')
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file_name)[1]) as temp_file:
+            temp_file.write(file_content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Upload to backend using the temporary file
+            data, status_code = api_client.upload_file(temp_file_path, patient_id)
+            
+            if status_code == 200:
+                show_success(f'File uploaded successfully: {data["filename"]}')
+                dialog.close()
+                # Refresh the page to show updated files
+                ui.open('/dashboard')
+            else:
+                show_error(f'Upload failed: {data.get("detail", "Unknown error")}')
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            
     except Exception as e:
         show_error(f'Upload error: {str(e)}')
 

@@ -2,7 +2,7 @@
 Signal management endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -30,12 +30,13 @@ router = APIRouter()
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_signal_file(
     file: UploadFile = File(...),
-    patient_id: int = None,  # Optional: specify which patient this file belongs to
+    patient_id: int = Form(None),  # Optional: specify which patient this file belongs to
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Upload a signal file for processing"""
     
+    print('patient_id', patient_id)
     # Validate file type
     if not file.filename:
         raise HTTPException(
@@ -57,6 +58,35 @@ async def upload_signal_file(
         )
     
     try:
+        # Determine which patient this file belongs to
+        if patient_id:
+            # Check if the specified patient exists and belongs to the authenticated user
+            user = db.query(User).filter(
+                User.id == patient_id,
+                User.auth_user_id == current_user.id
+            ).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Patient not found or you don't have access to this patient"
+                )
+        else:
+            # If no patient specified, create a default patient for this auth user
+            user = db.query(User).filter(
+                User.auth_user_id == current_user.id,
+                User.name == f"Default Patient for {current_user.username}"
+            ).first()
+            
+            if not user:
+                # Create a default patient
+                user = User(
+                    name=f"Default Patient for {current_user.username}",
+                    auth_user_id=current_user.id
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+        
         # Generate unique filename
         file_id = str(uuid.uuid4())
         filename = f"{file_id}{file_extension}"

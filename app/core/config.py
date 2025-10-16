@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     
     # File upload settings
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
-    ALLOWED_FILE_TYPES: list = [".edf"]
+    ALLOWED_FILE_TYPES: list = [".edf", ".csv", ".json", ".txt"]
     
     # Processing settings
     MAX_CONCURRENT_PROCESSES: int = 4
