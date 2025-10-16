@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status,
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
-import uuid
 import json
 from datetime import datetime
 
@@ -23,6 +22,7 @@ from app.schemas.signal import (
 )
 from app.core.config import settings
 from app.utils.file_processing import save_uploaded_file, process_signal_file
+from app.services.inference_service import inference_service
 
 router = APIRouter()
 
@@ -87,17 +87,23 @@ async def upload_signal_file(
                 db.commit()
                 db.refresh(user)
         
-        # Generate unique filename
-        file_id = str(uuid.uuid4())
-        filename = f"{file_id}{file_extension}"
+        # Use original filename (save_uploaded_file will add unique suffix)
+        original_filename = file.filename
+        if not original_filename:
+            # Fallback if no filename provided
+            file_id = str(uuid.uuid4())
+            original_filename = f"{file_id}{file_extension}"
         
-        # Save file
-        file_path = await save_uploaded_file(file, filename)
+        # Save file (this will add unique suffix to preserve original name)
+        file_path = await save_uploaded_file(file, original_filename)
+        
+        # Extract the actual saved filename from the path
+        saved_filename = os.path.basename(file_path)
         
         # Create database record
         db_file = SignalFile(
             user_id=user.id,
-            filename=filename,
+            filename=saved_filename,
             original_filename=file.filename,
             file_path=file_path,
             file_size=file.size,
@@ -131,6 +137,18 @@ async def upload_signal_file(
             db_file.processed = True
             db_file.processing_status = "completed"
             db.commit()
+            
+            # Start inference task
+            try:
+                task_id = inference_service.start_inference(file_path)
+                db_file.task_id = task_id
+                db.commit()
+                print(f"Inference task started for file {db_file.id}: {task_id}")
+            except Exception as e:
+                print(f"Error starting inference task: {e}")
+                # Don't fail the upload if inference fails to start
+                db_file.condition = "failed"
+                db.commit()
             
         except Exception as e:
             # Mark as failed but don't rollback the file record
@@ -226,6 +244,70 @@ async def get_file_signals(
     
     signals = db.query(Signal).filter(Signal.file_id == file_id).all()
     return signals
+
+
+@router.get("/files/{file_id}/inference-status")
+async def check_inference_status(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """Check the status of inference for a specific file"""
+    
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal file not found"
+        )
+    
+    # If no task ID, inference hasn't started
+    if not file.task_id:
+        return {
+            "file_id": file_id,
+            "condition": file.condition,
+            "inference_status": "not_started",
+            "message": "Inference not started"
+        }
+    
+    try:
+        # Check task status
+        task_status = inference_service.get_task_status(file.task_id)
+        
+        # If task is completed, update the database
+        if task_status['status'] in ['completed', 'failed']:
+            if task_status['status'] == 'completed':
+                result = task_status.get('result', {})
+                if result and 'result' in result:
+                    # Map inference result to condition
+                    if result['result'].lower() == 'normal':
+                        file.condition = 'normal'
+                    elif result['result'].lower() == 'abnormal':
+                        file.condition = 'abnormal'
+                    else:
+                        file.condition = 'failed'
+                else:
+                    file.condition = 'failed'
+            else:  # failed
+                file.condition = 'failed'
+            
+            db.commit()
+        
+        return {
+            "file_id": file_id,
+            "condition": file.condition,
+            "inference_status": task_status['status'],
+            "message": task_status['message'],
+            "task_id": file.task_id
+        }
+        
+    except Exception as e:
+        return {
+            "file_id": file_id,
+            "condition": file.condition,
+            "inference_status": "error",
+            "message": f"Error checking inference status: {str(e)}",
+            "task_id": file.task_id
+        }
 
 
 @router.delete("/files/{file_id}")

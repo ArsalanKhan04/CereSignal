@@ -4,6 +4,7 @@ File processing utilities
 
 import os
 import shutil
+import secrets
 from pathlib import Path
 from typing import Optional
 import pyedflib
@@ -15,14 +16,26 @@ from app.core.config import settings
 
 
 async def save_uploaded_file(file: UploadFile, filename: str) -> str:
-    """Save uploaded file to the filesystem"""
+    """Save uploaded file to the filesystem with original name + unique suffix"""
     
     # Create uploads directory if it doesn't exist
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
     
+    # Parse the original filename
+    original_path = Path(filename)
+    name_without_ext = original_path.stem
+    extension = original_path.suffix
+    
+    # Generate unique 3-character suffix
+    unique_suffix = secrets.token_hex(2)  # 4 hex chars = 2 bytes, but we want 3 chars
+    unique_suffix = unique_suffix[:3]  # Take first 3 characters
+    
+    # Create new filename: originalname_suffix.ext
+    new_filename = f"{name_without_ext}_{unique_suffix}{extension}"
+    
     # Create file path
-    file_path = upload_dir / filename
+    file_path = upload_dir / new_filename
     
     # Save file
     with open(file_path, "wb") as buffer:

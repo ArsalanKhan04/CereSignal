@@ -27,6 +27,7 @@ class SignalFileResponse(SignalFileBase):
     upload_time: datetime
     processed: bool
     processing_status: str
+    condition: str
     user_name: Optional[str] = None  # Will be populated from relationship
     
     class Config:

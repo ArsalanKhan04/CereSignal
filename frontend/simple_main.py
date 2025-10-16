@@ -89,6 +89,11 @@ class APIClient:
         response = self.session.get(f"{self.base_url}/signals/files/{file_id}/signals")
         return response.json(), response.status_code
     
+    def check_inference_status(self, file_id: int) -> Dict[str, Any]:
+        """Check inference status for a file"""
+        response = self.session.get(f"{self.base_url}/signals/files/{file_id}/inference-status")
+        return response.json(), response.status_code
+    
     def delete_file(self, file_id: int) -> Dict[str, Any]:
         """Delete a file"""
         response = self.session.delete(f"{self.base_url}/signals/files/{file_id}")
@@ -388,6 +393,22 @@ def load_patient_files(patient_id: int, container):
                                     }.get(status, 'gray')
                                     
                                     ui.html(f'<span class="px-2 py-1 text-xs rounded text-white" style="background-color: {status_color};">{status.upper()}</span>')
+                                    
+                                    # Condition badge
+                                    condition = file.get('condition', 'checking')
+                                    condition_color = {
+                                        'normal': 'green',
+                                        'abnormal': 'red',
+                                        'checking': 'gray'
+                                    }.get(condition, 'gray')
+                                    
+                                    condition_display = {
+                                        'normal': '✅ Normal',
+                                        'abnormal': '❌ Abnormal', 
+                                        'checking': '⏳ Checking'
+                                    }.get(condition, '⏳ Checking')
+                                    
+                                    ui.html(f'<span class="px-2 py-1 text-xs rounded ml-2" style="background-color: {condition_color}; color: white;">{condition_display}</span>')
                                 
                                 with ui.row():
                                     ui.button('View', on_click=lambda f=file: view_file_details(f)).props('icon=visibility outline')
@@ -547,7 +568,7 @@ def show_files_section():
 
 
 def load_all_files(container):
-    """Load and display all files"""
+    """Load and display all files grouped by condition"""
     try:
         data, status_code = api_client.get_files()
         
@@ -561,34 +582,104 @@ def load_all_files(container):
                 with container:
                     ui.html('<p class="text-gray-500 text-center py-8">No files uploaded yet.</p>')
             else:
+                # Group files by condition
+                normal_files = [f for f in files if f.get('condition') == 'normal']
+                abnormal_files = [f for f in files if f.get('condition') == 'abnormal']
+                checking_files = [f for f in files if f.get('condition') == 'checking']
+                
                 with container:
-                    for file in files:
-                        with ui.card().classes('w-full mb-4'):
-                            with ui.row().classes('w-full justify-between items-center'):
-                                with ui.column().classes('flex-1'):
-                                    ui.html(f'<h5 class="font-medium">{file["original_filename"]}</h5>')
-                                    ui.html(f'<p class="text-sm text-gray-600">Patient: {file.get("user_name", "Unknown")} | Size: {file["file_size"]} bytes | Type: {file["file_type"]}</p>')
-                                    
-                                    # Status badge
-                                    status = file.get('processing_status', 'unknown')
-                                    status_color = {
-                                        'pending': 'orange',
-                                        'processing': 'blue', 
-                                        'completed': 'green',
-                                        'failed': 'red'
-                                    }.get(status, 'gray')
-                                    
-                                    ui.html(f'<span class="px-2 py-1 text-xs rounded text-white" style="background-color: {status_color};">{status.upper()}</span>')
-                                
-                                with ui.row():
-                                    ui.button('View', on_click=lambda f=file: view_file_details(f)).props('icon=visibility outline')
-                                    ui.button('Delete', on_click=lambda f=file: delete_file(f['id'])).props('icon=delete outline color=red')
+                    # Normal files section
+                    if normal_files:
+                        ui.html('<h3 class="text-lg font-semibold mb-3 text-green-600">✅ Normal EEG Signals</h3>')
+                        for file in normal_files:
+                            create_file_card(file, 'green')
+                        ui.html('<div class="mb-6"></div>')  # Spacing
+                    
+                    # Abnormal files section
+                    if abnormal_files:
+                        ui.html('<h3 class="text-lg font-semibold mb-3 text-red-600">❌ Abnormal EEG Signals</h3>')
+                        for file in abnormal_files:
+                            create_file_card(file, 'red')
+                        ui.html('<div class="mb-6"></div>')  # Spacing
+                    
+                    # Checking files section
+                    if checking_files:
+                        ui.html('<h3 class="text-lg font-semibold mb-3 text-gray-600">⏳ Under Review</h3>')
+                        for file in checking_files:
+                            create_file_card(file, 'gray')
+                        
+                        # Start polling for checking files
+                        if checking_files:
+                            start_polling_for_updates(container)
         else:
             with container:
                 ui.html('<p class="text-red-500 text-center py-8">Failed to load files.</p>')
     except Exception as e:
         with container:
             ui.html(f'<p class="text-red-500 text-center py-8">Error loading files: {str(e)}</p>')
+
+
+def start_polling_for_updates(container):
+    """Start polling for inference status updates"""
+    def poll_updates():
+        try:
+            data, status_code = api_client.get_files()
+            if status_code == 200:
+                files = data
+                checking_files = [f for f in files if f.get('condition') == 'checking']
+                
+                # If no more checking files, stop polling
+                if not checking_files:
+                    return
+                
+                # Check inference status for each checking file
+                for file in checking_files:
+                    file_id = file.get('id')
+                    if file_id:
+                        # This call will update the database if inference is completed
+                        api_client.check_inference_status(file_id)
+                
+                # Reload the files display
+                load_all_files(container)
+        except Exception as e:
+            print(f"Error polling for updates: {e}")
+    
+    # Poll every 5 seconds
+    ui.timer(5.0, poll_updates, active=True)
+
+
+def create_file_card(file, condition_color):
+    """Create a file card with appropriate styling based on condition"""
+    with ui.card().classes('w-full mb-4'):
+        with ui.row().classes('w-full justify-between items-center'):
+            with ui.column().classes('flex-1'):
+                ui.html(f'<h5 class="font-medium">{file["original_filename"]}</h5>')
+                ui.html(f'<p class="text-sm text-gray-600">Patient: {file.get("user_name", "Unknown")} | Size: {file["file_size"]} bytes | Type: {file["file_type"]}</p>')
+                
+                # Status badge
+                status = file.get('processing_status', 'unknown')
+                status_color = {
+                    'pending': 'orange',
+                    'processing': 'blue', 
+                    'completed': 'green',
+                    'failed': 'red'
+                }.get(status, 'gray')
+                
+                ui.html(f'<span class="px-2 py-1 text-xs rounded text-white" style="background-color: {status_color};">{status.upper()}</span>')
+                
+                # Condition badge
+                condition = file.get('condition', 'checking')
+                condition_display = {
+                    'normal': '✅ Normal',
+                    'abnormal': '❌ Abnormal', 
+                    'checking': '⏳ Checking'
+                }.get(condition, '⏳ Checking')
+                
+                ui.html(f'<span class="px-2 py-1 text-xs rounded ml-2" style="background-color: {condition_color}; color: white;">{condition_display}</span>')
+            
+            with ui.row():
+                ui.button('View', on_click=lambda f=file: view_file_details(f)).props('icon=visibility outline')
+                ui.button('Delete', on_click=lambda f=file: delete_file(f['id'])).props('icon=delete outline color=red')
 
 
 def show_processing_section():
