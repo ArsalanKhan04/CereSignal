@@ -32,14 +32,59 @@ async def save_uploaded_file(file: UploadFile, filename: str) -> str:
 
 
 def process_signal_file(file_path: str) -> dict:
-    """Process uploaded signal file and extract metadata"""
+    """Process uploaded signal file and extract metadata using MNE"""
     
     file_extension = Path(file_path).suffix.lower()
     
     if file_extension == ".edf":
-        return process_edf_file(file_path)
+        return process_eeg_file_with_mne(file_path)
     else:
         raise ValueError(f"Unsupported file type: {file_extension}")
+
+
+def process_eeg_file_with_mne(file_path: str) -> dict:
+    """Process EEG file using MNE and return complete signal data"""
+    try:
+        import mne
+        import json
+        import numpy as np
+        
+        # Read the EEG file using MNE
+        raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
+        
+        # Get basic info
+        info = raw.info
+        n_channels = len(raw.ch_names)
+        sfreq = info['sfreq']
+        duration = raw.times[-1] if len(raw.times) > 0 else 0
+        
+        # Process each channel - only extract essential fields
+        signals = []
+        for i, ch_name in enumerate(raw.ch_names):
+            # Get channel data
+            channel_data = raw.get_data(picks=[i])[0]  # Get first (and only) channel
+            
+            # Extract only essential metadata for display
+            signal_info = {
+                "channel_name": ch_name,
+                "sampling_rate": float(sfreq),
+                "samples": len(channel_data),
+                "duration": float(duration)
+            }
+            
+            signals.append(signal_info)
+        
+        return {
+            "file_type": "edf",
+            "n_channels": n_channels,
+            "sampling_rate": float(sfreq),
+            "duration": float(duration),
+            "signals": signals
+        }
+        
+    except Exception as e:
+        print(f"Error processing EEG file with MNE: {e}")
+        raise ValueError(f"Failed to process EEG file: {str(e)}")
 
 
 def process_edf_file(file_path: str) -> dict:

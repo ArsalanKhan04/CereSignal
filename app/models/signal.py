@@ -32,7 +32,7 @@ class SignalFile(Base):
 
 
 class Signal(Base):
-    """Model for individual signal data"""
+    """Model for individual signal data - simplified to only essential fields"""
     
     __tablename__ = "signals"
     
@@ -42,14 +42,6 @@ class Signal(Base):
     sampling_rate: float = Column(Float, nullable=False)
     duration: float = Column(Float, nullable=False)
     data_points: int = Column(Integer, nullable=False)
-    signal_data: Optional[str] = Column(Text)  # JSON string of signal data
-    physical_max: Optional[float] = Column(Float, nullable=True)
-    physical_min: Optional[float] = Column(Float, nullable=True)
-    digital_max: Optional[int] = Column(Integer, nullable=True)
-    digital_min: Optional[int] = Column(Integer, nullable=True)
-    units: Optional[str] = Column(String(50), nullable=True)
-    prefilter: Optional[str] = Column(String(200), nullable=True)
-    transducer: Optional[str] = Column(String(200), nullable=True)
     
     # Relationships
     file = relationship("SignalFile", back_populates="signals")

@@ -48,17 +48,9 @@ class SignalCreate(SignalBase):
 
 
 class SignalResponse(SignalBase):
-    """Schema for signal response"""
+    """Schema for signal response - simplified to only essential fields"""
     id: int
     file_id: int
-    signal_data: Optional[str] = None
-    physical_max: Optional[float] = None
-    physical_min: Optional[float] = None
-    digital_max: Optional[int] = None
-    digital_min: Optional[int] = None
-    units: Optional[str] = None
-    prefilter: Optional[str] = None
-    transducer: Optional[str] = None
     
     class Config:
         from_attributes = True
