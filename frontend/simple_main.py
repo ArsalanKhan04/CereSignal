@@ -69,10 +69,10 @@ class APIClient:
         response = self.session.post(f"{self.base_url}/users/", json=patient_data)
         return response.json(), response.status_code
     
-    def upload_file(self, file_path: str, patient_id: int = None) -> Dict[str, Any]:
+    def upload_file(self, file_path: str, original_filename: str, patient_id: int = None) -> Dict[str, Any]:
         """Upload a file for a patient"""
         with open(file_path, 'rb') as f:
-            files = {'file': (os.path.basename(file_path), f, 'application/octet-stream')}
+            files = {'file': (original_filename, f, 'application/octet-stream')}
             print('patient_id', patient_id)
             data = {'patient_id': patient_id} if patient_id else {}
             response = self.session.post(f"{self.base_url}/signals/upload", files=files, data=data)
@@ -341,8 +341,8 @@ def handle_file_upload(upload_event, patient_id: int, dialog):
             temp_file_path = temp_file.name
         
         try:
-            # Upload to backend using the temporary file
-            data, status_code = api_client.upload_file(temp_file_path, patient_id)
+            # Upload to backend using the temporary file with original filename
+            data, status_code = api_client.upload_file(temp_file_path, file_name, patient_id)
             
             if status_code == 200:
                 show_success(f'File uploaded successfully: {data["filename"]}')
