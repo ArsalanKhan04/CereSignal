@@ -2,7 +2,7 @@
 Signal processing models
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from typing import Optional
@@ -26,6 +26,7 @@ class SignalFile(Base):
     processing_status: str = Column(String(50), default="pending")  # pending, processing, completed, failed
     condition: str = Column(String(20), default="checking")  # checking, normal, abnormal
     task_id: Optional[str] = Column(String(255), nullable=True)  # Celery task ID for inference
+    events: Optional[dict] = Column(JSON, nullable=True)  # Event data from neurotransformer
     
     # Relationships
     user = relationship("User", back_populates="signal_files")

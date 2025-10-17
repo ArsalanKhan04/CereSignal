@@ -99,6 +99,11 @@ class APIClient:
         response = self.session.get(f"{self.base_url}/signals/stats")
         return response.json(), response.status_code
     
+    def get_file_events(self, file_id: int) -> Dict[str, Any]:
+        """Get events data for a specific file"""
+        response = self.session.get(f"{self.base_url}/signals/files/{file_id}/events")
+        return response.json(), response.status_code
+    
     def get_signal_data(self, file_id: int, start_time: float = 0.0, duration: float = 10.0) -> Dict[str, Any]:
         """Get signal data for a specific time range"""
         params = {
@@ -193,6 +198,7 @@ def dashboard_page():
             dashboard_tab = ui.tab('Dashboard')
             patients_tab = ui.tab('Patients')
             files_tab = ui.tab('Files')
+            events_tab = ui.tab('Events')
         
         with ui.tab_panels(tabs, value=dashboard_tab).classes('w-full'):
             with ui.tab_panel(dashboard_tab):
@@ -201,6 +207,8 @@ def dashboard_page():
                 show_patients_section()
             with ui.tab_panel(files_tab):
                 show_files_section()
+            with ui.tab_panel(events_tab):
+                show_events_section()
 
 
 def show_dashboard():
@@ -887,6 +895,209 @@ def handle_logout():
     current_user = None
     api_client.clear_auth()
     ui.open('/')
+
+
+def show_events_section():
+    """Show events analysis section"""
+    ui.page_title('CereSignal - Events Analysis')
+    
+    if not auth_token:
+        ui.open('/')
+        return
+    
+    # Use a wider container for the events section
+    with ui.column().classes('w-full max-w-7xl mx-auto px-4'):
+        ui.html('<h2 class="text-2xl font-bold mb-6">EEG Events Analysis</h2>')
+        
+        # File selection
+        with ui.card().classes('p-6 mb-6'):
+            ui.html('<h3 class="text-lg font-semibold mb-4">Select EEG File for Event Analysis</h3>')
+            with ui.row().classes('w-full gap-4 items-end'):
+                file_select = ui.select(
+                    options={},
+                    label='Choose File',
+                    on_change=lambda e: load_file_events(e.value) if e.value else None
+                ).classes('flex-1 min-w-0')
+                ui.button('Refresh Files', on_click=lambda: load_available_files_for_events(file_select)).props('icon=refresh')
+                ui.button('Load Events', on_click=lambda: load_file_events(file_select.value)).props('icon=play_arrow')
+        
+        # Events display container with increased width
+        events_container = ui.column().classes('w-full')
+        
+        # Load available files after UI is ready
+        ui.timer(0.1, lambda: load_available_files_for_events(file_select), once=True)
+
+
+def load_available_files_for_events(file_select):
+    """Load available EEG files into the dropdown for events"""
+    try:
+        data, status_code = api_client.get_files()
+        if status_code == 200:
+            files = data
+            # Only show files that have been processed (not checking)
+            processed_files = [f for f in files if f.get('condition') != 'checking']
+            
+            # Create more informative display options
+            file_options = {}
+            for file in processed_files:
+                # Format upload date
+                upload_date = file.get('upload_time', '')
+                if upload_date:
+                    try:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(upload_date.replace('Z', '+00:00'))
+                        formatted_date = dt.strftime('%Y-%m-%d %H:%M')
+                    except:
+                        formatted_date = upload_date[:10] if len(upload_date) >= 10 else upload_date
+                else:
+                    formatted_date = 'Unknown date'
+                
+                # Get patient name (user_name is the patient name, not the doctor)
+                patient_name = file.get('user_name', 'Unknown Patient')
+                
+                # Create display text with patient name, filename, and date
+                display_text = f"{patient_name} - {file['filename']} ({formatted_date})"
+                file_options[file['id']] = display_text
+            
+            # Set options directly
+            file_select.options = file_options
+            file_select.value = None  # Clear current selection
+            file_select.update()  # Force UI update
+            ui.notify(f'Loaded {len(processed_files)} processed files', type='positive')
+        else:
+            ui.notify('Failed to load files', type='error')
+    except Exception as e:
+        ui.notify(f'Error loading files: {str(e)}', type='error')
+
+
+def load_file_events(file_id):
+    """Load and display events for a specific file"""
+    if not file_id:
+        ui.notify('Please select a file first', type='warning')
+        return
+    
+    # file_id should already be an integer from the dropdown value
+    if not isinstance(file_id, int):
+        ui.notify('Invalid file selection', type='error')
+        return
+    
+    try:
+        data, status_code = api_client.get_file_events(file_id)
+        if status_code == 200:
+            display_events_data(data)
+        else:
+            ui.notify(f'Failed to load events: {data.get("detail", "Unknown error")}', type='error')
+    except Exception as e:
+        ui.notify(f'Error loading events: {str(e)}', type='error')
+
+
+def display_events_data(data):
+    """Display events data in a structured format"""
+    # Find the events container and clear it
+    events_container = None
+    for element in ui.context.client.elements.values():
+        if hasattr(element, 'classes') and 'events-container' in str(element.classes):
+            events_container = element
+            break
+    
+    if not events_container:
+        # Create new container if not found
+        events_container = ui.column().classes('w-full events-container')
+    
+    events_container.clear()
+    
+    with events_container:
+        # File info header
+        with ui.card().classes('p-6 mb-6'):
+            ui.html(f'<h3 class="text-xl font-semibold mb-2">File: {data["filename"]}</h3>')
+            ui.html(f'<p class="text-lg text-gray-600">Condition: <span class="font-medium text-lg">{data["condition"].title()}</span></p>')
+        
+        events = data.get('events', {})
+        if not events:
+            with ui.card().classes('p-8 text-center'):
+                ui.html('<div class="text-gray-500 text-lg">No events data available for this file</div>')
+            return
+        
+        # Events summary
+        with ui.card().classes('p-6 mb-6'):
+            ui.html('<h4 class="text-lg font-semibold mb-4">Events Summary</h4>')
+            display_events_summary(events)
+        
+        # Detailed events by channel
+        with ui.card().classes('p-6'):
+            ui.html('<h4 class="text-lg font-semibold mb-4">Events by Channel</h4>')
+            display_events_by_channel(events)
+
+
+def display_events_summary(events):
+    """Display summary statistics of events"""
+    total_events = 0
+    event_types = {'normal wave': 0, 'spike wave': 0, 'slow wave': 0}
+    
+    for channel, channel_events in events.items():
+        for event_type, event_list in channel_events.items():
+            if event_type in event_types:
+                event_types[event_type] += len(event_list)
+                total_events += len(event_list)
+    
+    with ui.row().classes('w-full gap-8 justify-center'):
+        with ui.column().classes('text-center min-w-32'):
+            ui.html(f'<div class="text-4xl font-bold text-blue-600">{total_events}</div>')
+            ui.html('<div class="text-lg text-gray-600">Total Events</div>')
+        
+        with ui.column().classes('text-center min-w-32'):
+            ui.html(f'<div class="text-4xl font-bold text-green-600">{event_types["normal wave"]}</div>')
+            ui.html('<div class="text-lg text-gray-600">Normal Waves</div>')
+        
+        with ui.column().classes('text-center min-w-32'):
+            ui.html(f'<div class="text-4xl font-bold text-red-600">{event_types["spike wave"]}</div>')
+            ui.html('<div class="text-lg text-gray-600">Spike Waves</div>')
+        
+        with ui.column().classes('text-center min-w-32'):
+            ui.html(f'<div class="text-4xl font-bold text-yellow-600">{event_types["slow wave"]}</div>')
+            ui.html('<div class="text-lg text-gray-600">Slow Waves</div>')
+
+
+def display_events_by_channel(events):
+    """Display events organized by channel"""
+    for channel_name, channel_events in events.items():
+        with ui.expansion(f'Channel: {channel_name}', icon='timeline').classes('w-full mb-6'):
+            with ui.column().classes('w-full gap-4'):
+                # Normal waves
+                if channel_events.get('normal wave'):
+                    display_event_type(channel_name, 'normal wave', channel_events['normal wave'], 'green')
+                
+                # Spike waves
+                if channel_events.get('spike wave'):
+                    display_event_type(channel_name, 'spike wave', channel_events['spike wave'], 'red')
+                
+                # Slow waves
+                if channel_events.get('slow wave'):
+                    display_event_type(channel_name, 'slow wave', channel_events['slow wave'], 'yellow')
+
+
+def display_event_type(channel_name, event_type, events, color):
+    """Display events of a specific type for a channel"""
+    color_classes = {
+        'green': 'border-green-200 bg-green-50',
+        'red': 'border-red-200 bg-red-50',
+        'yellow': 'border-yellow-200 bg-yellow-50'
+    }
+    
+    with ui.card().classes(f'p-4 mb-3 border-l-4 {color_classes.get(color, "border-gray-200 bg-gray-50")}'):
+        ui.html(f'<h5 class="font-semibold text-lg text-{color}-700 mb-3">{event_type.title()} ({len(events)} events)</h5>')
+        
+        if events:
+            with ui.column().classes('w-full gap-2 mt-2'):
+                for i, event in enumerate(events[:15]):  # Show first 15 events
+                    start_time, end_time = event
+                    duration = end_time - start_time
+                    ui.html(f'<div class="text-base p-2 bg-white rounded border">Event {i+1}: {start_time:.1f}s - {end_time:.1f}s (Duration: {duration:.1f}s)</div>')
+                
+                if len(events) > 15:
+                    ui.html(f'<div class="text-base text-gray-500 p-2">... and {len(events) - 15} more events</div>')
+        else:
+            ui.html('<div class="text-base text-gray-500 p-2">No events of this type</div>')
 
 
 def main():

@@ -210,6 +210,32 @@ async def get_signal_files(
     return result
 
 
+@router.get("/files/{file_id}/events")
+async def get_file_events(
+    file_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get events data for a specific file"""
+    
+    file = db.query(SignalFile).filter(
+        SignalFile.id == file_id
+    ).first()
+    
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal file not found"
+        )
+    
+    return {
+        "file_id": file_id,
+        "filename": file.filename,
+        "condition": file.condition,
+        "events": file.events or {}
+    }
+
+
 @router.get("/files/{file_id}", response_model=SignalFileResponse)
 async def get_signal_file(
     file_id: int,
@@ -293,6 +319,8 @@ async def get_signal_data(
             "duration": duration
         }
     }
+
+
 
 
 @router.get("/stats")
@@ -412,6 +440,10 @@ async def check_inference_status(
                         file.condition = 'abnormal'
                     else:
                         file.condition = 'failed'
+                    
+                    # Store events data if available
+                    if 'events' in result and result['events']:
+                        file.events = result['events']
                 else:
                     file.condition = 'failed'
             else:  # failed

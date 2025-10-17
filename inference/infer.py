@@ -5,7 +5,8 @@ import torch
 import numpy as np
 import mne
 
-from external.CereProcess.datasets.pipeline import general_pipeline
+from external.CereProcess.datasets.pipeline import general_pipeline, neurotransformer_pipeline
+from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
 from external.models.neurogate import NeuroGate
 from external.models.neurotransformer import Neurotransformer
 
@@ -18,7 +19,8 @@ _MODEL_WEIGHTS = {'neurogate': 'external/models/neurogate_wgts.pt',
               'neurotransformer': 'external/models/neurotransformer_wgts.pth'}
 _MODEL_CACHE = {}
 _DEVICE = torch.device("cpu")
-_PIPELINE = general_pipeline('NMT')
+_PIPELINES = {'neurogate': general_pipeline('NMT'),
+              'neurotransformer': neurotransformer_pipeline('NMT')}
 
 def load_model(model_name):
     if model_name in _MODEL_CACHE:
@@ -33,10 +35,73 @@ def load_model(model_name):
     
     model.to(_DEVICE)
     model.load_state_dict(torch.load(_MODEL_WEIGHTS[model_name], map_location=_DEVICE))
-    model.eval()
+    # model.eval()
 
     _MODEL_CACHE[model_name] = model
     return model
+
+def _merge_events(events):
+    prv_event = None
+    merged_events = {'normal wave':[],
+                     'spike wave':[],
+                     'slow wave':[]}
+    for i, event in enumerate(events):
+        event = str(event)
+        if event == prv_event:
+            merged_events[event][-1][1] += 2
+        else:
+            merged_events[event].append([i*2, i*2+2])
+        prv_event = event
+    return merged_events
+
+def _process_neurogate(mne_data):
+    ## Starting with processing and inference for neurogate
+    processed_data = _PIPELINES['neurogate'].apply(mne_data)
+    data = processed_data.get_data()
+    data = data[None, :, :]  
+    data = torch.from_numpy(data).float().to(_DEVICE)
+
+    model = load_model('neurogate')
+
+    with torch.no_grad():
+        outputs = model(data)
+
+    condition="Normal"
+    if (outputs[0].argmax() == 0):
+        condition = 'Normal'
+    else:
+        condition = 'Abnormal'
+    return condition
+
+def _process_neurotransformer(mne_data):
+    all_events = np.array(["normal wave", "spike wave", "slow wave"])
+
+    processed_data = _PIPELINES['neurotransformer'].apply(mne_data)
+    data = processed_data.get_data()
+
+    model = load_model('neurotransformer')
+    # model.eval()
+
+    result_events = {}
+
+    for i, ch_name in enumerate(NEUROTRANSFORMER_CHANNELS):
+        ch_data = data[:, i:i+1, :]
+        ch_data = torch.from_numpy(ch_data).float().to(_DEVICE)
+        outputs=None
+        with torch.no_grad():
+            outputs = model(ch_data)
+        outputs = outputs.cpu().numpy()
+        outputs = outputs.argmax(axis=1)
+        events = all_events[outputs]
+        merged_events = _merge_events(events)
+        result_events[ch_name] = merged_events
+
+    return result_events
+
+
+
+
+
 
 @app.task(name='infer', bind=True)
 def infer(self, mne_file_path):
@@ -44,40 +109,14 @@ def infer(self, mne_file_path):
     if not os.path.exists(mne_file_path):
         raise FileNotFoundError(f"File {mne_file_path} does not exist.")
     mne_data = mne.io.read_raw_edf(mne_file_path, preload=True)
-    processed_data = _PIPELINE.apply(mne_data)
-    data = processed_data.get_data()
-    data = data[None, :, :]  # Use first 32 channels
-    data = torch.from_numpy(data).float().to(_DEVICE)
 
-    model = load_model('neurogate')
-    model.eval()
+    condition = _process_neurogate(mne_data)
+    events = _process_neurotransformer(mne_data)
 
-    with torch.no_grad():
-        outputs = model(data)
 
-    if (outputs[0].argmax() == 0):
-        result = 'Normal'
-    else:
-        result = 'Abnormal'
+    ## Now doing processing steps for neurotransformer
 
     end_time = time.time()
 
-    return {'result': result, 'inference_time': end_time - start_time}
-
-@app.task(name='event_infer', bind=True)
-def event_infer(self, mne_file_path):
-    start_time = time.time()
-    if not os.path.exists(mne_file_path):
-        raise FileNotFoundError(f"File {mne_file_path} does not exist.")
-    mne_data = mne.io.read_raw_edf(mne_file_path, preload=True)
-    processed_data = _PIPELINE.apply(mne_data)
-    data = processed_data.get_data()
-    data = data[None, :, :]
-    data = torch.from_numpy(data).float().to(_DEVICE)
-
-    model = load_model('neurotransformer')
-    model.eval()
-
-    with torch.no_grad():
-        outputs = model(data)
+    return {'result': condition, 'events': events, 'inference_time': end_time - start_time}
 
