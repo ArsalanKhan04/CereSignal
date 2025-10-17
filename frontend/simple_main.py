@@ -1061,19 +1061,30 @@ def display_events_summary(events):
 def display_events_by_channel(events):
     """Display events organized by channel"""
     for channel_name, channel_events in events.items():
-        with ui.expansion(f'Channel: {channel_name}', icon='timeline').classes('w-full mb-6'):
-            with ui.column().classes('w-full gap-4'):
-                # Normal waves
-                if channel_events.get('normal wave'):
-                    display_event_type(channel_name, 'normal wave', channel_events['normal wave'], 'green')
+        # Use expansion but with fixed width container
+        with ui.expansion(f'Channel: {channel_name}', icon='timeline').classes('w-full mb-6').style('min-width: 100%'):
+            # Force the content to have full width
+            with ui.row().classes('w-full gap-4').style('min-width: 100%; width: 100%'):
+                # Normal waves column
+                with ui.column().classes('flex-1').style('min-width: 300px'):
+                    if channel_events.get('normal wave'):
+                        display_event_type(channel_name, 'normal wave', channel_events['normal wave'], 'green')
+                    else:
+                        display_empty_event_type('normal wave', 'green')
                 
-                # Spike waves
-                if channel_events.get('spike wave'):
-                    display_event_type(channel_name, 'spike wave', channel_events['spike wave'], 'red')
+                # Spike waves column
+                with ui.column().classes('flex-1').style('min-width: 300px'):
+                    if channel_events.get('spike wave'):
+                        display_event_type(channel_name, 'spike wave', channel_events['spike wave'], 'red')
+                    else:
+                        display_empty_event_type('spike wave', 'red')
                 
-                # Slow waves
-                if channel_events.get('slow wave'):
-                    display_event_type(channel_name, 'slow wave', channel_events['slow wave'], 'yellow')
+                # Slow waves column
+                with ui.column().classes('flex-1').style('min-width: 300px'):
+                    if channel_events.get('slow wave'):
+                        display_event_type(channel_name, 'slow wave', channel_events['slow wave'], 'yellow')
+                    else:
+                        display_empty_event_type('slow wave', 'yellow')
 
 
 def display_event_type(channel_name, event_type, events, color):
@@ -1084,7 +1095,7 @@ def display_event_type(channel_name, event_type, events, color):
         'yellow': 'border-yellow-200 bg-yellow-50'
     }
     
-    with ui.card().classes(f'p-4 mb-3 border-l-4 {color_classes.get(color, "border-gray-200 bg-gray-50")}'):
+    with ui.card().classes(f'p-4 mb-3 border-l-4 {color_classes.get(color, "border-gray-200 bg-gray-50")} h-full'):
         ui.html(f'<h5 class="font-semibold text-lg text-{color}-700 mb-3">{event_type.title()} ({len(events)} events)</h5>')
         
         if events:
@@ -1098,6 +1109,21 @@ def display_event_type(channel_name, event_type, events, color):
                     ui.html(f'<div class="text-base text-gray-500 p-2">... and {len(events) - 15} more events</div>')
         else:
             ui.html('<div class="text-base text-gray-500 p-2">No events of this type</div>')
+
+
+def display_empty_event_type(event_type, color):
+    """Display empty state for event type when no events exist"""
+    color_classes = {
+        'green': 'border-green-200 bg-green-50',
+        'red': 'border-red-200 bg-red-50',
+        'yellow': 'border-yellow-200 bg-yellow-50'
+    }
+    
+    with ui.card().classes(f'p-4 mb-3 border-l-4 {color_classes.get(color, "border-gray-200 bg-gray-50")} h-full'):
+        ui.html(f'<h5 class="font-semibold text-lg text-{color}-700 mb-3">{event_type.title()} (0 events)</h5>')
+        ui.html('<div class="text-base text-gray-500 p-4 text-center">No events of this type</div>')
+
+
 
 
 def main():
