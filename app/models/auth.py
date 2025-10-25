@@ -2,7 +2,7 @@
 Authentication models
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from typing import Optional
@@ -10,7 +10,7 @@ from app.core.database import Base
 
 
 class AuthUser(Base):
-    """Model for authentication users (separate from patient users)"""
+    """Model for authentication users (doctors/medical professionals)"""
     
     __tablename__ = "auth_users"
     
@@ -18,6 +18,18 @@ class AuthUser(Base):
     username: str = Column(String(50), unique=True, nullable=False, index=True)
     email: str = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password: str = Column(String(255), nullable=False)
+    # Professional information
+    first_name: Optional[str] = Column(String(100), nullable=True)
+    last_name: Optional[str] = Column(String(100), nullable=True)
+    title: Optional[str] = Column(String(50), nullable=True)  # Dr., Prof., etc.
+    specialization: Optional[str] = Column(String(100), nullable=True)  # Neurology, Cardiology, etc.
+    license_number: Optional[str] = Column(String(100), nullable=True, unique=True)
+    phone: Optional[str] = Column(String(50), nullable=True)
+    about: Optional[str] = Column(Text, nullable=True)  # Professional bio
+    hospital_affiliation: Optional[str] = Column(String(255), nullable=True)
+    years_experience: Optional[int] = Column(Integer, nullable=True)
+    profile_picture: Optional[str] = Column(String(500), nullable=True)
+    # System fields
     is_active: bool = Column(Boolean, default=True)
     is_superuser: bool = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

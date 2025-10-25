@@ -14,6 +14,7 @@ import Dashboard from '../components/Dashboard';
 import Patients from '../components/Patients';
 import Files from '../components/Files';
 import Events from '../components/Events';
+import ReportsPage from './ReportsPage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -68,6 +69,7 @@ const DashboardPage: React.FC = () => {
             <Tab label="Patients" />
             <Tab label="Files" />
             <Tab label="Events" />
+            <Tab label="Reports" />
           </Tabs>
         </Box>
 
@@ -82,6 +84,9 @@ const DashboardPage: React.FC = () => {
         </TabPanel>
         <TabPanel value={tabValue} index={3}>
           <Events />
+        </TabPanel>
+        <TabPanel value={tabValue} index={4}>
+          <ReportsPage />
         </TabPanel>
       </Container>
     </Box>

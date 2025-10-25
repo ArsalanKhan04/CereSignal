@@ -15,6 +15,14 @@ class UserBase(BaseModel):
     date_of_birth: Optional[datetime] = None
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
     medical_id: Optional[str] = Field(None, max_length=100)
+    # Additional patient information
+    address: Optional[str] = None
+    emergency_contact_name: Optional[str] = Field(None, max_length=255)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=50)
+    blood_type: Optional[str] = Field(None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$")
+    allergies: Optional[str] = None
+    medical_conditions: Optional[str] = None
+    current_medications: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -31,6 +39,13 @@ class UserUpdate(BaseModel):
     date_of_birth: Optional[datetime] = None
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
     medical_id: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = None
+    emergency_contact_name: Optional[str] = Field(None, max_length=255)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=50)
+    blood_type: Optional[str] = Field(None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$")
+    allergies: Optional[str] = None
+    medical_conditions: Optional[str] = None
+    current_medications: Optional[str] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -38,6 +53,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     """Schema for user response"""
     id: int
+    age: Optional[int] = None  # Calculated from date_of_birth
     profile_picture: Optional[str] = None
     is_active: bool
     created_at: datetime
@@ -53,6 +69,8 @@ class UserListResponse(BaseModel):
     name: str
     email: Optional[str] = None
     medical_id: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
     is_active: bool
     created_at: datetime
     

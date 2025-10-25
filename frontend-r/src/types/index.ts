@@ -3,6 +3,16 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  first_name: string;
+  last_name: string;
+  title?: string;
+  specialization?: string;
+  license_number?: string;
+  phone?: string;
+  about?: string;
+  hospital_affiliation?: string;
+  years_experience?: number;
+  profile_picture?: string;
   is_active: boolean;
   created_at: string;
   last_login?: string;
@@ -18,6 +28,15 @@ export interface RegisterRequest {
   email: string;
   password: string;
   confirm_password: string;
+  first_name: string;
+  last_name: string;
+  title?: string;
+  specialization?: string;
+  license_number?: string;
+  phone?: string;
+  about?: string;
+  hospital_affiliation?: string;
+  years_experience?: number;
 }
 
 export interface AuthResponse {
@@ -34,6 +53,15 @@ export interface Patient {
   phone?: string;
   medical_id?: string;
   gender: 'M' | 'F' | 'Other';
+  date_of_birth?: string;
+  age?: number;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+  allergies?: string;
+  medical_conditions?: string;
+  current_medications?: string;
   notes?: string;
   is_active: boolean;
   created_at: string;
@@ -46,6 +74,14 @@ export interface PatientCreate {
   phone?: string;
   medical_id?: string;
   gender: 'M' | 'F' | 'Other';
+  date_of_birth?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+  allergies?: string;
+  medical_conditions?: string;
+  current_medications?: string;
   notes?: string;
 }
 
@@ -118,6 +154,54 @@ export interface EventsData {
   filename: string;
   condition: string;
   events: Record<string, Record<string, Array<[number, number]>>>;
+}
+
+// Report types
+export interface EEGReport {
+  id: number;
+  file_id: number;
+  auth_user_id: number;
+  patient_name: string;
+  patient_age?: number;
+  patient_gender?: 'M' | 'F' | 'Other';
+  report_date: string;
+  ref_physician?: string;
+  indications?: string;
+  technique?: string;
+  factual_report?: string;
+  impression: 'normal' | 'abnormal';
+  doctor_info?: string;
+  created_at: string;
+  updated_at?: string;
+  is_finalized: boolean;
+  file_name?: string;
+  doctor_name?: string;
+}
+
+export interface EEGReportCreate {
+  file_id: number;
+  patient_name: string;
+  patient_age?: number;
+  patient_gender?: 'M' | 'F' | 'Other';
+  ref_physician?: string;
+  indications?: string;
+  technique?: string;
+  factual_report?: string;
+  impression: 'normal' | 'abnormal';
+  doctor_info?: string;
+}
+
+export interface EEGReportUpdate {
+  patient_name?: string;
+  patient_age?: number;
+  patient_gender?: 'M' | 'F' | 'Other';
+  ref_physician?: string;
+  indications?: string;
+  technique?: string;
+  factual_report?: string;
+  impression?: 'normal' | 'abnormal';
+  doctor_info?: string;
+  is_finalized?: boolean;
 }
 
 // API Response types

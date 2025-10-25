@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Foreign
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from typing import Optional
+from datetime import date
 from app.core.database import Base
 
 
@@ -22,6 +23,14 @@ class User(Base):
     gender: Optional[str] = Column(String(10), nullable=True)  # M, F, Other
     profile_picture: Optional[str] = Column(String(500), nullable=True)  # Path to profile picture
     medical_id: Optional[str] = Column(String(100), nullable=True, unique=True)
+    # Additional patient information
+    address: Optional[str] = Column(Text, nullable=True)
+    emergency_contact_name: Optional[str] = Column(String(255), nullable=True)
+    emergency_contact_phone: Optional[str] = Column(String(50), nullable=True)
+    blood_type: Optional[str] = Column(String(10), nullable=True)  # A+, B-, O+, etc.
+    allergies: Optional[str] = Column(Text, nullable=True)
+    medical_conditions: Optional[str] = Column(Text, nullable=True)
+    current_medications: Optional[str] = Column(Text, nullable=True)
     notes: Optional[str] = Column(Text, nullable=True)  # Medical notes
     is_active: bool = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -31,3 +40,16 @@ class User(Base):
     # Relationships
     auth_user = relationship("AuthUser", back_populates="patient_users")
     signal_files = relationship("SignalFile", back_populates="user")
+    
+    @property
+    def age(self) -> Optional[int]:
+        """Calculate age from date_of_birth"""
+        if not self.date_of_birth:
+            return None
+        today = date.today()
+        return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
+    
+    @property
+    def full_name(self) -> str:
+        """Get full name for display"""
+        return self.name

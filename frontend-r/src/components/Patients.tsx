@@ -49,6 +49,14 @@ const Patients: React.FC = () => {
     phone: '',
     medical_id: '',
     gender: 'M',
+    date_of_birth: '',
+    address: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    blood_type: 'A+',
+    allergies: '',
+    medical_conditions: '',
+    current_medications: '',
     notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -238,12 +246,27 @@ const Patients: React.FC = () => {
                   <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                     <Box>
                       <Typography variant="h6">{patient.name}</Typography>
+                      {patient.age && (
+                        <Typography variant="body2" color="textSecondary">
+                          Age: {patient.age} years
+                        </Typography>
+                      )}
+                      {patient.gender && (
+                        <Typography variant="body2" color="textSecondary">
+                          Gender: {patient.gender}
+                        </Typography>
+                      )}
                       {patient.email && (
                         <Typography color="textSecondary">{patient.email}</Typography>
                       )}
                       {patient.medical_id && (
                         <Typography variant="body2" color="textSecondary">
                           ID: {patient.medical_id}
+                        </Typography>
+                      )}
+                      {patient.blood_type && (
+                        <Typography variant="body2" color="textSecondary">
+                          Blood Type: {patient.blood_type}
                         </Typography>
                       )}
                     </Box>
@@ -331,6 +354,82 @@ const Patients: React.FC = () => {
                 <MenuItem value="Other">Other</MenuItem>
               </Select>
             </FormControl>
+            <TextField
+              fullWidth
+              label="Date of Birth"
+              type="date"
+              value={formData.date_of_birth}
+              onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+              margin="normal"
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Address"
+              multiline
+              rows={2}
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Emergency Contact Name"
+              value={formData.emergency_contact_name}
+              onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Emergency Contact Phone"
+              value={formData.emergency_contact_phone}
+              onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+              margin="normal"
+            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Blood Type</InputLabel>
+              <Select
+                value={formData.blood_type || 'A+'}
+                onChange={(e) => setFormData({ ...formData, blood_type: e.target.value as any })}
+                label="Blood Type"
+              >
+                <MenuItem value="A+">A+</MenuItem>
+                <MenuItem value="A-">A-</MenuItem>
+                <MenuItem value="B+">B+</MenuItem>
+                <MenuItem value="B-">B-</MenuItem>
+                <MenuItem value="AB+">AB+</MenuItem>
+                <MenuItem value="AB-">AB-</MenuItem>
+                <MenuItem value="O+">O+</MenuItem>
+                <MenuItem value="O-">O-</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Allergies"
+              multiline
+              rows={2}
+              value={formData.allergies}
+              onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Medical Conditions"
+              multiline
+              rows={2}
+              value={formData.medical_conditions}
+              onChange={(e) => setFormData({ ...formData, medical_conditions: e.target.value })}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Current Medications"
+              multiline
+              rows={2}
+              value={formData.current_medications}
+              onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
+              margin="normal"
+            />
             <TextField
               fullWidth
               label="Notes"

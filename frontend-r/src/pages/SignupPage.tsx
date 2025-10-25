@@ -10,6 +10,11 @@ import {
   Link,
   Alert,
   CircularProgress,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { RegisterRequest } from '../types';
@@ -20,6 +25,15 @@ const SignupPage: React.FC = () => {
     email: '',
     password: '',
     confirm_password: '',
+    first_name: '',
+    last_name: '',
+    title: '',
+    specialization: '',
+    license_number: '',
+    phone: '',
+    about: '',
+    hospital_affiliation: '',
+    years_experience: 0,
   });
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,8 +52,9 @@ const SignupPage: React.FC = () => {
     setError('');
 
     // Validation
-    if (!formData.username || !formData.email || !formData.password || !formData.confirm_password) {
-      setError('Please fill in all fields');
+    if (!formData.username || !formData.email || !formData.password || !formData.confirm_password || 
+        !formData.first_name || !formData.last_name) {
+      setError('Please fill in all required fields');
       return;
     }
 
@@ -98,6 +113,38 @@ const SignupPage: React.FC = () => {
             )}
 
             <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+              <Grid container spacing={2}>
+                <Grid sx={{ xs: 12, sm: 6}}>
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="first_name"
+                    label="First Name"
+                    name="first_name"
+                    autoComplete="given-name"
+                    autoFocus
+                    value={formData.first_name}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                  />
+                </Grid>
+                <Grid sx={{ xs: 12, sm: 6}}>
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="last_name"
+                    label="Last Name"
+                    name="last_name"
+                    autoComplete="family-name"
+                    value={formData.last_name}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                  />
+                </Grid>
+              </Grid>
+              
               <TextField
                 margin="normal"
                 required
@@ -106,7 +153,6 @@ const SignupPage: React.FC = () => {
                 label="Username"
                 name="username"
                 autoComplete="username"
-                autoFocus
                 value={formData.username}
                 onChange={handleChange}
                 disabled={isLoading}
@@ -124,6 +170,94 @@ const SignupPage: React.FC = () => {
                 onChange={handleChange}
                 disabled={isLoading}
               />
+              
+              <Grid container spacing={2}>
+                <Grid sx={{ xs: 12, sm: 6}}>
+                  <TextField
+                    margin="normal"
+                    fullWidth
+                    id="title"
+                    label="Title (Dr., Prof., etc.)"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                  />
+                </Grid>
+                <Grid sx={{ xs: 12, sm: 6}}>
+                  <TextField
+                    margin="normal"
+                    fullWidth
+                    id="specialization"
+                    label="Specialization"
+                    name="specialization"
+                    value={formData.specialization}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                  />
+                </Grid>
+              </Grid>
+              
+              <TextField
+                margin="normal"
+                fullWidth
+                id="license_number"
+                label="License Number"
+                name="license_number"
+                value={formData.license_number}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
+              
+              <TextField
+                margin="normal"
+                fullWidth
+                id="phone"
+                label="Phone Number"
+                name="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
+              
+              <TextField
+                margin="normal"
+                fullWidth
+                id="hospital_affiliation"
+                label="Hospital/Affiliation"
+                name="hospital_affiliation"
+                value={formData.hospital_affiliation}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
+              
+              <TextField
+                margin="normal"
+                fullWidth
+                id="years_experience"
+                label="Years of Experience"
+                name="years_experience"
+                type="number"
+                value={formData.years_experience}
+                onChange={handleChange}
+                disabled={isLoading}
+                inputProps={{ min: 0, max: 100 }}
+              />
+              
+              <TextField
+                margin="normal"
+                fullWidth
+                id="about"
+                label="About (Professional Bio)"
+                name="about"
+                multiline
+                rows={3}
+                value={formData.about}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
+              
               <TextField
                 margin="normal"
                 required

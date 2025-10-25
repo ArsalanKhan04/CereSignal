@@ -62,7 +62,16 @@ async def register_user(
         db_user = AuthUser(
             username=user_data.username,
             email=user_data.email,
-            hashed_password=hashed_password
+            hashed_password=hashed_password,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            title=user_data.title,
+            specialization=user_data.specialization,
+            license_number=user_data.license_number,
+            phone=user_data.phone,
+            about=user_data.about,
+            hospital_affiliation=user_data.hospital_affiliation,
+            years_experience=user_data.years_experience
         )
         
         db.add(db_user)

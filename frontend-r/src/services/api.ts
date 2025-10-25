@@ -12,6 +12,9 @@ import {
   FileUploadResponse,
   DashboardStats,
   EventsData,
+  EEGReport,
+  EEGReportCreate,
+  EEGReportUpdate,
   ApiResponse,
   ApiError
 } from '../types';
@@ -77,6 +80,11 @@ class ApiClient {
   // Patient management methods
   async getPatients(): Promise<ApiResponse<Patient[]>> {
     const response = await this.client.get('/users/');
+    return { data: response.data, status: response.status };
+  }
+
+  async getPatient(id: number): Promise<ApiResponse<Patient>> {
+    const response = await this.client.get(`/users/${id}`);
     return { data: response.data, status: response.status };
   }
 
@@ -146,6 +154,37 @@ class ApiClient {
 
   async getStats(): Promise<ApiResponse<DashboardStats>> {
     const response = await this.client.get('/signals/stats');
+    return { data: response.data, status: response.status };
+  }
+
+  // Report methods
+  async createReport(reportData: EEGReportCreate): Promise<ApiResponse<EEGReport>> {
+    const response = await this.client.post('/reports/', reportData);
+    return { data: response.data, status: response.status };
+  }
+
+  async getReports(): Promise<ApiResponse<EEGReport[]>> {
+    const response = await this.client.get('/reports/');
+    return { data: response.data, status: response.status };
+  }
+
+  async getReport(reportId: number): Promise<ApiResponse<EEGReport>> {
+    const response = await this.client.get(`/reports/${reportId}`);
+    return { data: response.data, status: response.status };
+  }
+
+  async updateReport(reportId: number, reportData: EEGReportUpdate): Promise<ApiResponse<EEGReport>> {
+    const response = await this.client.put(`/reports/${reportId}`, reportData);
+    return { data: response.data, status: response.status };
+  }
+
+  async deleteReport(reportId: number): Promise<ApiResponse<{ message: string }>> {
+    const response = await this.client.delete(`/reports/${reportId}`);
+    return { data: response.data, status: response.status };
+  }
+
+  async getReportByFile(fileId: number): Promise<ApiResponse<EEGReport | null>> {
+    const response = await this.client.get(`/reports/file/${fileId}`);
     return { data: response.data, status: response.status };
   }
 

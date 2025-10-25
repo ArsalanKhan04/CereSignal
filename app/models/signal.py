@@ -32,6 +32,7 @@ class SignalFile(Base):
     user = relationship("User", back_populates="signal_files")
     signals = relationship("Signal", back_populates="file", cascade="all, delete-orphan")
     processing_results = relationship("ProcessingResult", back_populates="file", cascade="all, delete-orphan")
+    reports = relationship("EEGReport", back_populates="signal_file", cascade="all, delete-orphan")
 
 
 class Signal(Base):

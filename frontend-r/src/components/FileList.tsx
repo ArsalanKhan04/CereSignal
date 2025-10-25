@@ -18,9 +18,11 @@ import {
 import {
   Visibility as ViewIcon,
   Delete as DeleteIcon,
+  Description as ReportIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { SignalFile, Signal } from '../types';
+import { SignalFile, Signal, EEGReport, Patient } from '../types';
+import ReportForm from './ReportForm';
 
 interface FileListProps {
   patientId: number;
@@ -28,11 +30,14 @@ interface FileListProps {
 
 const FileList: React.FC<FileListProps> = ({ patientId }) => {
   const [files, setFiles] = useState<SignalFile[]>([]);
+  const [patient, setPatient] = useState<Patient | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<SignalFile | null>(null);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(false);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportFile, setReportFile] = useState<SignalFile | null>(null);
   const [polling, setPolling] = useState(false);
 
   useEffect(() => {
@@ -77,11 +82,20 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
 
   const loadFiles = async () => {
     try {
-      const response = await apiClient.getFiles(patientId);
-      if (response.status === 200) {
-        setFiles(response.data);
+      setLoading(true);
+      const [filesResponse, patientResponse] = await Promise.all([
+        apiClient.getFiles(patientId),
+        apiClient.getPatient(patientId)
+      ]);
+      
+      if (filesResponse.status === 200) {
+        setFiles(filesResponse.data);
       } else {
         setError('Failed to load files');
+      }
+      
+      if (patientResponse.status === 200) {
+        setPatient(patientResponse.data);
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Error loading files';
@@ -96,6 +110,16 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
     const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/signals/files/serve?file_path=${encodeURIComponent(file.file_path)}`;
     const viewerUrl = `/edf-viewer/viewer.html?file=${encodeURIComponent(fileUrl)}`;
     window.open(viewerUrl, '_blank');
+  };
+
+  const handleCreateReport = (file: SignalFile) => {
+    setReportFile(file);
+    setShowReportForm(true);
+  };
+
+  const handleReportSaved = (report: EEGReport) => {
+    setShowReportForm(false);
+    setReportFile(null);
   };
 
   const handleDeleteFile = async (fileId: number) => {
@@ -204,12 +228,21 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
                 <IconButton
                   onClick={() => handleViewFile(file)}
                   color="primary"
+                  title="View EEG"
                 >
                   <ViewIcon />
                 </IconButton>
                 <IconButton
+                  onClick={() => handleCreateReport(file)}
+                  color="secondary"
+                  title="Create Report"
+                >
+                  <ReportIcon />
+                </IconButton>
+                <IconButton
                   onClick={() => handleDeleteFile(file.id)}
                   color="error"
+                  title="Delete File"
                 >
                   <DeleteIcon />
                 </IconButton>
@@ -303,6 +336,21 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
           <Button onClick={() => setSelectedFile(null)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Report Form Dialog */}
+      {showReportForm && reportFile && (
+        <ReportForm
+          fileId={reportFile.id}
+          signalFile={reportFile}
+          patient={patient}
+          onSave={handleReportSaved}
+          onCancel={() => {
+            setShowReportForm(false);
+            setReportFile(null);
+          }}
+          isDialog={true}
+        />
+      )}
     </Box>
   );
 };
