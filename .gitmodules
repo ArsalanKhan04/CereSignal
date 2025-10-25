@@ -1,3 +1,6 @@
 [submodule "external/CereProcess"]
 	path = external/CereProcess
 	url = https://github.com/DeepMind-Companions/CereProcess.git
+[submodule "external/full_edf_viewer"]
+	path = external/full_edf_viewer
+	url = https://github.com/dll-ncai/full_edf_viewer.git

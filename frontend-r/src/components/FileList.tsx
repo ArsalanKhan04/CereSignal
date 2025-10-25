@@ -92,19 +92,10 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
   };
 
   const handleViewFile = async (file: SignalFile) => {
-    setSelectedFile(file);
-    setSignalsLoading(true);
-    
-    try {
-      const response = await apiClient.getFileSignals(file.id);
-      if (response.status === 200) {
-        setSignals(response.data);
-      }
-    } catch (err: any) {
-      console.error('Error loading signals:', err);
-    } finally {
-      setSignalsLoading(false);
-    }
+    // Open EDF viewer in new tab with file serving URL
+    const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/signals/files/serve?file_path=${encodeURIComponent(file.file_path)}`;
+    const viewerUrl = `/edf-viewer/viewer.html?file=${encodeURIComponent(fileUrl)}`;
+    window.open(viewerUrl, '_blank');
   };
 
   const handleDeleteFile = async (fileId: number) => {

@@ -24,6 +24,7 @@ class SignalFileResponse(SignalFileBase):
     """Schema for signal file response"""
     id: int
     original_filename: str
+    file_path: str
     upload_time: datetime
     processed: bool
     processing_status: str

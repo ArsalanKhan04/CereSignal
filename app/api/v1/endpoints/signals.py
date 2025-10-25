@@ -3,6 +3,7 @@ Signal management endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -171,6 +172,26 @@ async def upload_signal_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading file: {str(e)}"
         )
+
+
+@router.get("/files/serve")
+async def serve_file(
+    file_path: str
+):
+    """Serve a file directly by path - No authentication required"""
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk"
+        )
+    
+    filename = os.path.basename(file_path)
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/octet-stream'
+    )
 
 
 @router.get("/files", response_model=List[SignalFileResponse])
@@ -501,3 +522,30 @@ async def delete_signal_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting file: {str(e)}"
         )
+
+
+@router.get("/files/{file_id}/download")
+async def download_file(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """Download/serve a signal file for viewing - No authentication required"""
+    
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal file not found"
+        )
+    
+    if not os.path.exists(file.file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on disk"
+        )
+    
+    return FileResponse(
+        path=file.file_path,
+        filename=file.original_filename,
+        media_type='application/octet-stream'
+    )
