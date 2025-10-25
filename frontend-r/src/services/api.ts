@@ -188,6 +188,24 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  // PDF methods
+  async generateReportPDF(reportId: number): Promise<ApiResponse<{ message: string; pdf_path: string; report_id: number }>> {
+    const response = await this.client.post(`/reports/${reportId}/generate-pdf`);
+    return { data: response.data, status: response.status };
+  }
+
+  async downloadReportPDF(reportId: number): Promise<Blob> {
+    const response = await this.client.get(`/reports/${reportId}/download-pdf`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  async getPDFStatus(reportId: number): Promise<ApiResponse<{ report_id: number; pdf_exists: boolean; pdf_path?: string }>> {
+    const response = await this.client.get(`/reports/${reportId}/pdf-status`);
+    return { data: response.data, status: response.status };
+  }
+
   // Utility methods
   setAuthToken(token: string): void {
     localStorage.setItem('auth_token', token);

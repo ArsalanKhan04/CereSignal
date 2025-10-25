@@ -3,9 +3,11 @@ Report management endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+import os
 
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
@@ -19,6 +21,7 @@ from app.schemas.report import (
     EEGReportResponse, 
     EEGReportListResponse
 )
+from app.services.pdf_service import pdf_generator
 
 router = APIRouter()
 
@@ -56,10 +59,19 @@ async def create_report(
     
     try:
         # Create new report
+        report_dict = report_data.dict()
         db_report = EEGReport(
             file_id=report_data.file_id,
             auth_user_id=current_user.id,
-            **report_data.dict()
+            patient_name=report_dict['patient_name'],
+            patient_age=report_dict.get('patient_age'),
+            patient_gender=report_dict.get('patient_gender'),
+            ref_physician=report_dict.get('ref_physician'),
+            indications=report_dict.get('indications'),
+            technique=report_dict.get('technique'),
+            factual_report=report_dict.get('factual_report'),
+            impression=report_dict['impression'],
+            doctor_info=report_dict.get('doctor_info')
         )
         
         db.add(db_report)
@@ -249,3 +261,119 @@ async def get_report_by_file(
     response_data['doctor_name'] = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.username
     
     return EEGReportResponse(**response_data)
+
+
+@router.post("/{report_id}/generate-pdf")
+async def generate_report_pdf(
+    report_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Generate PDF for an existing report"""
+    
+    # Get the report
+    report = db.query(EEGReport).join(SignalFile).join(User).filter(
+        EEGReport.id == report_id,
+        User.auth_user_id == current_user.id
+    ).first()
+    
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+    
+    try:
+        # Get signal file and doctor info
+        signal_file = report.signal_file
+        doctor = db.query(AuthUser).filter(AuthUser.id == report.auth_user_id).first()
+        
+        if not signal_file or not doctor:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Missing report data"
+            )
+        
+        # Generate PDF
+        pdf_path = pdf_generator.generate_report_pdf(report, signal_file, doctor)
+        
+        # Update report with PDF path
+        report.pdf_file_path = pdf_path
+        db.commit()
+        
+        return {
+            "message": "PDF generated successfully",
+            "pdf_path": pdf_path,
+            "report_id": report_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating PDF: {str(e)}"
+        )
+
+
+@router.get("/{report_id}/download-pdf")
+async def download_report_pdf(
+    report_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Download the PDF for a report"""
+    
+    # Get the report
+    report = db.query(EEGReport).join(SignalFile).join(User).filter(
+        EEGReport.id == report_id,
+        User.auth_user_id == current_user.id
+    ).first()
+    
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+    
+    if not report.pdf_file_path or not os.path.exists(report.pdf_file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PDF file not found. Please generate the PDF first."
+        )
+    
+    # Return the PDF file
+    filename = os.path.basename(report.pdf_file_path)
+    return FileResponse(
+        path=report.pdf_file_path,
+        filename=filename,
+        media_type='application/pdf'
+    )
+
+
+@router.get("/{report_id}/pdf-status")
+async def get_pdf_status(
+    report_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Check if PDF exists for a report"""
+    
+    # Get the report
+    report = db.query(EEGReport).join(SignalFile).join(User).filter(
+        EEGReport.id == report_id,
+        User.auth_user_id == current_user.id
+    ).first()
+    
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+    
+    pdf_exists = report.pdf_file_path and os.path.exists(report.pdf_file_path)
+    
+    return {
+        "report_id": report_id,
+        "pdf_exists": pdf_exists,
+        "pdf_path": report.pdf_file_path if pdf_exists else None
+    }

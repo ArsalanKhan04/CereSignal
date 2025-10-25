@@ -174,6 +174,7 @@ export interface EEGReport {
   created_at: string;
   updated_at?: string;
   is_finalized: boolean;
+  pdf_file_path?: string;
   file_name?: string;
   doctor_name?: string;
 }
@@ -189,6 +190,7 @@ export interface EEGReportCreate {
   factual_report?: string;
   impression: 'normal' | 'abnormal';
   doctor_info?: string;
+  pdf_file_path?: string;
 }
 
 export interface EEGReportUpdate {
@@ -202,6 +204,7 @@ export interface EEGReportUpdate {
   impression?: 'normal' | 'abnormal';
   doctor_info?: string;
   is_finalized?: boolean;
+  pdf_file_path?: string;
 }
 
 // API Response types

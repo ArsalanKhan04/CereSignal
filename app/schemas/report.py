@@ -48,6 +48,7 @@ class EEGReportResponse(EEGReportBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     is_finalized: bool
+    pdf_file_path: Optional[str] = None
     # Additional fields for display
     file_name: Optional[str] = None
     doctor_name: Optional[str] = None
@@ -56,14 +57,15 @@ class EEGReportResponse(EEGReportBase):
         from_attributes = True
 
 
-class EEGReportListResponse(BaseModel):
+class EEGReportListResponse(EEGReportBase):
     """Schema for EEG report list response"""
     id: int
-    patient_name: str
-    file_name: str
-    impression: str
+    file_id: int
     report_date: datetime
     is_finalized: bool
+    pdf_file_path: Optional[str] = None
+    # Additional fields for display
+    file_name: Optional[str] = None
     doctor_name: Optional[str] = None
     
     class Config:

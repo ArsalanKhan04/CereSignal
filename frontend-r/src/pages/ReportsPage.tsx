@@ -22,6 +22,8 @@ import {
   Delete as DeleteIcon,
   Visibility as ViewIcon,
   Description as ReportIcon,
+  PictureAsPdf as PDFIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { EEGReport, SignalFile, User, Patient } from '../types';
@@ -33,9 +35,11 @@ const ReportsPage: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [editingReport, setEditingReport] = useState<EEGReport | null>(null);
+  const [pdfGenerating, setPdfGenerating] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -51,6 +55,7 @@ const ReportsPage: React.FC = () => {
       ]);
 
       if (reportsResponse.status === 200) {
+        console.log('Loaded reports:', reportsResponse.data);
         setReports(reportsResponse.data);
       }
       if (filesResponse.status === 200) {
@@ -74,9 +79,11 @@ const ReportsPage: React.FC = () => {
   };
 
   const handleEditReport = (report: EEGReport) => {
+    console.log('handleEditReport called with report:', report);
     setSelectedFileId(report.file_id);
     setEditingReport(report);
     setShowReportForm(true);
+    console.log('State set - selectedFileId:', report.file_id, 'editingReport:', report, 'showReportForm: true');
   };
 
   const handleDeleteReport = async (reportId: number) => {
@@ -100,6 +107,62 @@ const ReportsPage: React.FC = () => {
     setSelectedFileId(null);
     setEditingReport(null);
     loadData(); // Reload reports
+  };
+
+  const handleGeneratePDF = async (reportId: number) => {
+    try {
+      setPdfGenerating(prev => new Set(prev).add(reportId));
+      console.log('Generating PDF for report:', reportId);
+      const response = await apiClient.generateReportPDF(reportId);
+      console.log('PDF generation response:', response);
+      if (response.status === 200) {
+        setSuccess('PDF generated successfully!');
+        console.log('Reloading data after PDF generation...');
+        await loadData(); // Reload to update PDF status
+        console.log('Data reloaded, reports:', reports);
+      }
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      const errorMessage = err.response?.data?.detail || err.message || 'Error generating PDF';
+      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } finally {
+      setPdfGenerating(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reportId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleDownloadPDF = async (reportId: number) => {
+    try {
+      const blob = await apiClient.downloadReportPDF(reportId);
+      
+      // Create blob URL
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create temporary link element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `EEG_Report_${reportId}.pdf`;
+      link.style.display = 'none';
+      
+      // Add to DOM, click, and remove
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      setSuccess('PDF downloaded successfully!');
+    } catch (err: any) {
+      console.error('Download error:', err);
+      const errorMessage = err.response?.data?.detail || err.message || 'Error downloading PDF';
+      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    }
   };
 
   const getImpressionColor = (impression: string) => {
@@ -130,6 +193,12 @@ const ReportsPage: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {success}
         </Alert>
       )}
 
@@ -172,7 +241,9 @@ const ReportsPage: React.FC = () => {
 
       {/* Reports List */}
       <Grid container spacing={3}>
-        {reports.map((report) => (
+        {reports.map((report) => {
+          console.log('Rendering report:', report.id, 'PDF path:', report.pdf_file_path);
+          return (
           <Grid sx={{ xs: 12, md: 6 }} key={report.id}>
             <Card>
               <CardContent>
@@ -187,6 +258,14 @@ const ReportsPage: React.FC = () => {
                     </Typography>
                   </Box>
                   <Box display="flex" gap={1}>
+                    {report.pdf_file_path && (
+                      <Chip
+                        label="PDF"
+                        color="success"
+                        size="small"
+                        icon={<PDFIcon />}
+                      />
+                    )}
                     <Chip
                       label={report.impression}
                       color={getImpressionColor(report.impression)}
@@ -194,6 +273,14 @@ const ReportsPage: React.FC = () => {
                     />
                     {report.is_finalized && (
                       <Chip label="Finalized" color="success" size="small" />
+                    )}
+                    {/* Debug info */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <Chip
+                        label={`PDF: ${report.pdf_file_path ? 'Yes' : 'No'}`}
+                        color="info"
+                        size="small"
+                      />
                     )}
                   </Box>
                 </Box>
@@ -210,13 +297,48 @@ const ReportsPage: React.FC = () => {
                     size="small"
                     onClick={() => handleEditReport(report)}
                     color="primary"
+                    title="Edit Report"
                   >
                     <EditIcon />
                   </IconButton>
+                  {!report.pdf_file_path ? (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleGeneratePDF(report.id)}
+                      color="secondary"
+                      title="Generate PDF"
+                      disabled={pdfGenerating.has(report.id)}
+                    >
+                      {pdfGenerating.has(report.id) ? <CircularProgress size={16} /> : <PDFIcon />}
+                    </IconButton>
+                  ) : (
+                    <>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDownloadPDF(report.id)}
+                        color="success"
+                        title="Download PDF"
+                      >
+                        <DownloadIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+                          window.open(`${apiUrl}/api/v1/reports/${report.id}/download-pdf`, '_blank');
+                        }}
+                        color="info"
+                        title="Open PDF in new tab"
+                      >
+                        <PDFIcon />
+                      </IconButton>
+                    </>
+                  )}
                   <IconButton
                     size="small"
                     onClick={() => handleDeleteReport(report.id)}
                     color="error"
+                    title="Delete Report"
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -224,7 +346,8 @@ const ReportsPage: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+          );
+        })}
       </Grid>
 
       {reports.length === 0 && (
@@ -244,11 +367,12 @@ const ReportsPage: React.FC = () => {
       )}
 
       {/* Report Form Dialog */}
-      {showReportForm && selectedFileId && (
+      {showReportForm && (selectedFileId || editingReport) && (
         <ReportForm
-          fileId={selectedFileId}
-          signalFile={signalFiles.find(f => f.id === selectedFileId)}
-          patient={patients.find(p => p.id === signalFiles.find(f => f.id === selectedFileId)?.user_id) || undefined}
+          fileId={selectedFileId || editingReport?.file_id}
+          signalFile={signalFiles.find(f => f.id === (selectedFileId || editingReport?.file_id))}
+          patient={patients.find(p => p.id === signalFiles.find(f => f.id === (selectedFileId || editingReport?.file_id))?.user_id) || undefined}
+          existingReport={editingReport}
           onSave={handleReportSaved}
           onCancel={() => {
             setShowReportForm(false);
@@ -257,6 +381,15 @@ const ReportsPage: React.FC = () => {
           }}
           isDialog={true}
         />
+      )}
+      {/* Debug info */}
+      {showReportForm && (
+        <div style={{ position: 'fixed', top: 0, right: 0, background: 'yellow', padding: '10px', zIndex: 9999 }}>
+          <div>selectedFileId: {selectedFileId}</div>
+          <div>editingReport: {editingReport ? 'exists' : 'null'}</div>
+          <div>editingReport?.file_id: {editingReport?.file_id}</div>
+          <div>fileId: {selectedFileId || editingReport?.file_id}</div>
+        </div>
       )}
     </Box>
   );

@@ -36,6 +36,7 @@ class EEGReport(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_finalized: bool = Column(Boolean, default=False)
+    pdf_file_path: Optional[str] = Column(String(500), nullable=True)  # Path to generated PDF
     
     # Relationships
     signal_file = relationship("SignalFile", back_populates="reports")
