@@ -5,11 +5,13 @@ User management endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+import os
 
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
 from app.models.auth import AuthUser
+from app.models.signal import SignalFile
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse
 
 router = APIRouter()
@@ -45,6 +47,17 @@ async def create_user(
         # Create new patient associated with the authenticated user
         user_dict = user_data.dict()
         user_dict['auth_user_id'] = current_user.id
+        
+        # Convert empty strings to None for optional fields to avoid unique constraint issues
+        if user_dict.get('medical_id') == '':
+            user_dict['medical_id'] = None
+        if user_dict.get('email') == '':
+            user_dict['email'] = None
+        if user_dict.get('phone') == '':
+            user_dict['phone'] = None
+        if user_dict.get('notes') == '':
+            user_dict['notes'] = None
+            
         db_user = User(**user_dict)
         db.add(db_user)
         db.commit()
@@ -70,7 +83,7 @@ async def get_users(
 ):
     """Get list of patients for the authenticated user with optional search"""
     
-    query = db.query(User).filter(User.auth_user_id == current_user.id)
+    query = db.query(User).filter(User.auth_user_id == current_user.id, User.is_active == True)
     
     if search:
         query = query.filter(
@@ -136,6 +149,12 @@ async def update_user(
     try:
         # Update user fields
         update_data = user_data.dict(exclude_unset=True)
+        
+        # Convert empty strings to None for optional fields to avoid unique constraint issues
+        for field in ['medical_id', 'email', 'phone', 'notes']:
+            if field in update_data and update_data[field] == '':
+                update_data[field] = None
+                
         for field, value in update_data.items():
             setattr(user, field, value)
         
@@ -157,7 +176,7 @@ async def delete_user(
     user_id: int,
     db: Session = Depends(get_db)
 ):
-    """Delete a user (soft delete by setting is_active=False)"""
+    """Delete a user and all associated files (soft delete user, hard delete files)"""
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -167,17 +186,30 @@ async def delete_user(
         )
     
     try:
+        # Delete all associated signal files first (both physical files and database records)
+        signal_files = db.query(SignalFile).filter(SignalFile.user_id == user_id).all()
+        for file in signal_files:
+            # Delete physical file from disk
+            if os.path.exists(file.file_path):
+                try:
+                    os.remove(file.file_path)
+                except OSError as e:
+                    print(f"Warning: Could not delete file {file.file_path}: {e}")
+            
+            # Delete from database (cascade will handle related records)
+            db.delete(file)
+        
         # Soft delete - set is_active to False
         user.is_active = False
         db.commit()
         
-        return {"message": "User deactivated successfully"}
+        return {"message": "User and associated files deleted successfully"}
         
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deactivating user: {str(e)}"
+            detail=f"Error deleting user and files: {str(e)}"
         )
 
 

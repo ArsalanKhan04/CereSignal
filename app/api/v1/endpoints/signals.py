@@ -135,7 +135,8 @@ async def upload_signal_file(
             
             # Mark file as processed
             db_file.processed = True
-            db_file.processing_status = "completed"
+            db_file.processing_status = "processing"
+            db_file.condition = "processing"
             db.commit()
             
             # Start inference task

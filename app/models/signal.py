@@ -24,7 +24,7 @@ class SignalFile(Base):
     upload_time = Column(DateTime(timezone=True), server_default=func.now())
     processed: bool = Column(Boolean, default=False)
     processing_status: str = Column(String(50), default="pending")  # pending, processing, completed, failed
-    condition: str = Column(String(20), default="checking")  # checking, normal, abnormal
+    condition: str = Column(String(20), default="processing")  # processing, normal, abnormal
     task_id: Optional[str] = Column(String(255), nullable=True)  # Celery task ID for inference
     events: Optional[dict] = Column(JSON, nullable=True)  # Event data from neurotransformer
     
