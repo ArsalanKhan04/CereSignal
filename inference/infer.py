@@ -35,7 +35,8 @@ def load_model(model_name):
     
     model.to(_DEVICE)
     model.load_state_dict(torch.load(_MODEL_WEIGHTS[model_name], map_location=_DEVICE))
-    # model.eval()
+    if model_name == 'neurogate':
+        model.eval()
 
     _MODEL_CACHE[model_name] = model
     return model
