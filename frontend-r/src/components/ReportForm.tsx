@@ -6,11 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   CircularProgress,
   Dialog,
@@ -18,6 +13,10 @@ import {
   DialogContent,
   DialogActions,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -204,141 +203,155 @@ const ReportForm: React.FC<ReportFormProps> = ({
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
       
-      <Grid container spacing={3}>
-        {/* Patient Information */}
-        <Grid sx={{ xs: 12 }}>
-          <Typography variant="h6" gutterBottom>
-            Patient Information
-          </Typography>
-        </Grid>
-        
-        <Grid sx={{ xs: 12, sm: 6 }}>
-          <TextField
-            fullWidth
-            label="Patient Name"
-            value={formData.patient_name}
-            onChange={handleChange('patient_name')}
-            required
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12, sm: 3 }}>
-          <TextField
-            fullWidth
-            label="Age"
-            type="number"
-            value={formData.patient_age || ''}
-            onChange={handleChange('patient_age')}
-            inputProps={{ min: 0, max: 150 }}
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12, sm: 3 }}>
-          <FormControl fullWidth>
-            <InputLabel>Gender</InputLabel>
-            <Select
-              value={formData.patient_gender || 'M'}
-              onChange={handleChange('patient_gender')}
-              label="Gender"
-            >
-              <MenuItem value="M">Male</MenuItem>
-              <MenuItem value="F">Female</MenuItem>
-              <MenuItem value="Other">Other</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
+      <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+        {/* Patient Information Section */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+              Patient Information
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <TextField
+                fullWidth
+                label="Patient Name"
+                value={formData.patient_name}
+                onChange={handleChange('patient_name')}
+                required
+                variant="outlined"
+              />
+              
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="Age"
+                  type="number"
+                  value={formData.patient_age || ''}
+                  onChange={handleChange('patient_age')}
+                  inputProps={{ min: 0, max: 150 }}
+                  variant="outlined"
+                  sx={{ width: 120 }}
+                />
+                
+                <FormControl sx={{ minWidth: 120 }}>
+                  <InputLabel>Gender</InputLabel>
+                  <Select
+                    value={formData.patient_gender || 'M'}
+                    onChange={handleChange('patient_gender')}
+                    label="Gender"
+                  >
+                    <MenuItem value="M">Male</MenuItem>
+                    <MenuItem value="F">Female</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
 
-        {/* Report Information */}
-        <Grid sx={{ xs: 12 }}>
-          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-            Report Information
-          </Typography>
-        </Grid>
-        
-        <Grid sx={{ xs: 12, sm:6 }}>
-          <TextField
-            fullWidth
-            label="Date"
-            type="date"
-            value={new Date().toISOString().split('T')[0]}
-            disabled
-            InputLabelProps={{ shrink: true }}
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12, sm:6 }}>
-          <TextField
-            fullWidth
-            label="Ref Physician"
-            value={formData.ref_physician}
-            onChange={handleChange('ref_physician')}
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12 }}>
-          <TextField
-            fullWidth
-            label="Indications"
-            multiline
-            rows={3}
-            value={formData.indications}
-            onChange={handleChange('indications')}
-            placeholder="Clinical indications for the EEG study..."
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12 }}>
-          <TextField
-            fullWidth
-            label="Technique"
-            multiline
-            rows={3}
-            value={formData.technique}
-            onChange={handleChange('technique')}
-            placeholder="EEG recording technique and parameters..."
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12 }}>
-          <TextField
-            fullWidth
-            label="Factual Report"
-            multiline
-            rows={6}
-            value={formData.factual_report}
-            onChange={handleChange('factual_report')}
-            placeholder="Detailed factual findings from the EEG analysis..."
-            required
-          />
-        </Grid>
-        
-        <Grid sx={{ xs: 12, sm: 6}}>
-          <FormControl fullWidth>
-            <InputLabel>Impression</InputLabel>
-            <Select
-              value={formData.impression}
-              onChange={handleChange('impression')}
-              label="Impression"
-              required
-            >
-              <MenuItem value="normal">Normal</MenuItem>
-              <MenuItem value="abnormal">Abnormal</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-        
-        <Grid sx={{ xs: 12 }}>
-          <TextField
-            fullWidth
-            label="Doctor Info"
-            multiline
-            rows={3}
-            value={formData.doctor_info}
-            onChange={handleChange('doctor_info')}
-            placeholder="Doctor name, title, and affiliation..."
-          />
-        </Grid>
-      </Grid>
+        {/* Report Information Section */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+              Report Information
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="Date"
+                  type="date"
+                  value={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    // Allow date editing - you can add validation here if needed
+                    if (e.target.value) {
+                      // Date is editable now
+                    }
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                  variant="outlined"
+                  sx={{ minWidth: 200 }}
+                />
+                
+                <TextField
+                  fullWidth
+                  label="Ref Physician"
+                  value={formData.ref_physician}
+                  onChange={handleChange('ref_physician')}
+                  variant="outlined"
+                  placeholder="Referring physician name"
+                />
+              </Box>
+              
+              <TextField
+                fullWidth
+                label="Indications"
+                multiline
+                rows={4}
+                value={formData.indications}
+                onChange={handleChange('indications')}
+                placeholder="Clinical indications for the EEG study..."
+                variant="outlined"
+              />
+              
+              <TextField
+                fullWidth
+                label="Technique"
+                multiline
+                rows={4}
+                value={formData.technique}
+                onChange={handleChange('technique')}
+                placeholder="EEG recording technique and parameters..."
+                variant="outlined"
+              />
+              
+              <TextField
+                fullWidth
+                label="Factual Report"
+                multiline
+                rows={8}
+                value={formData.factual_report}
+                onChange={handleChange('factual_report')}
+                placeholder="Detailed factual findings from the EEG analysis..."
+                required
+                variant="outlined"
+              />
+              
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel>Impression</InputLabel>
+                  <Select
+                    value={formData.impression}
+                    onChange={handleChange('impression')}
+                    label="Impression"
+                    required
+                  >
+                    <MenuItem value="normal">Normal</MenuItem>
+                    <MenuItem value="abnormal">Abnormal</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Doctor Information Section */}
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+              Doctor Information
+            </Typography>
+            <TextField
+              fullWidth
+              label="Doctor Info"
+              multiline
+              rows={4}
+              value={formData.doctor_info}
+              onChange={handleChange('doctor_info')}
+              placeholder="Doctor name, title, specialization, and affiliation..."
+              variant="outlined"
+            />
+          </CardContent>
+        </Card>
+      </Box>
     </Box>
   );
 
