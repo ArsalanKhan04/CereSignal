@@ -1,0 +1,22 @@
+# Stage 1: Build Image
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED 1
+ENV APP_HOME /usr/src/app
+
+# Create and set the working directory
+RUN mkdir -p $APP_HOME
+WORKDIR $APP_HOME
+
+# Install dependencies
+COPY ./requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the source code
+COPY . .
+
+# Expose the port Uvicorn runs on
+EXPOSE 8000
+
+# The startup command is defined in docker-compose.yml

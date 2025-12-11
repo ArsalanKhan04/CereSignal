@@ -1,0 +1,12 @@
+data/
+.ipynb_checkpoints
+*.npz
+__pycache__
+results
+*.pt
+*.ipynb
+misc
+Adversarial
+models
+*.png
+*.txt

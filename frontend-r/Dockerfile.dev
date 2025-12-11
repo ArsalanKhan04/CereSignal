@@ -1,0 +1,15 @@
+# Simple Dev Image
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package.json and install dependencies
+# This is done first so it can be cached if source files change
+COPY package.json .
+COPY package-lock.json .
+RUN npm install
+
+# The source code will be mounted using the volume in docker-compose.yml
+# EXPOSE 3000 (or whatever port your dev server runs on)
+
+# The startup command is defined in docker-compose.yml (npm start)

@@ -5,7 +5,7 @@ echo "🔄 CereSignal Reset Script"
 echo "========================="
 
 # Check if we're in the right directory
-if [ ! -f "app/main.py" ]; then
+if [ ! -f "backend/app/main.py" ]; then
     echo "❌ Error: Please run this script from the CereSignal project root directory"
     exit 1
 fi

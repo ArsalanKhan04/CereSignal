@@ -14,11 +14,11 @@ import shutil
 from pathlib import Path
 
 # Add the app directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'backend/app'))
 
-from app.core.database import engine, Base, get_db
-from app.models import user, signal, auth
-from app.core.auth import get_password_hash
+from backend.app.core.database import engine, Base, get_db
+from backend.app.models import user, signal, auth
+from backend.app.core.auth import get_password_hash
 from sqlalchemy import text
 
 def reset_database():

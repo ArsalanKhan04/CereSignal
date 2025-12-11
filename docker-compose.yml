@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+
+  # 1. Message Broker (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: redis_broker
+    ports:
+      - "6379:6379"
+    # Data is temporary for the broker, but you could use a volume here if needed
+
+  # 2. FastAPI Backend Service
+  backend:
+    build:
+      context: ./backend # Path to your FastAPI directory
+      dockerfile: Dockerfile.backend
+    container_name: fastapi_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 # Your ASGI server command
+    ports:
+      - "8000:8000"
+    environment:
+      # Pass the connection URL to the broker for Celery tasks
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis # Ensure Redis starts before the backend attempts to send tasks
+
+  # 3. Celery Worker Service
+  celery_worker:
+    build:
+      context: ./backend # Usually, the worker uses the same codebase as the backend
+      dockerfile: Dockerfile.backend
+    container_name: celery_worker
+    command: celery -A inference.infer worker -l info
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/usr/src/app
+    depends_on:
+      - redis
+      - backend
+
+
+  # 4. React Frontend Service (Development Mode) - REVISED
+  frontend:
+    build:
+      context: ./frontend-r
+      dockerfile: Dockerfile.dev # Use the simple dev Dockerfile
+    container_name: react_frontend
+    # Map host port 3000 to container port 3000 (where Node dev server runs)
+    ports:
+      - "3000:3000"
+    # IMPORTANT: Map the local code into the container for live reloading
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevents host's node_modules from overriding the container's
+    command: npm start # Starts the React development server
+    depends_on:
+      - backend

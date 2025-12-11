@@ -12,11 +12,11 @@ from pathlib import Path
 # Add the app directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 
-from app.core.database import engine, Base
-from app.models import user, signal, auth
-from app.core.auth import get_password_hash
-from app.models.auth import AuthUser
-from app.core.database import SessionLocal
+from backend.app.core.database import engine, Base
+from backend.app.models import user, signal, auth
+from backend.app.core.auth import get_password_hash
+from backend.app.models.auth import AuthUser
+from backend.app.core.database import SessionLocal
 
 def force_reset():
     """Force reset everything without confirmation"""
