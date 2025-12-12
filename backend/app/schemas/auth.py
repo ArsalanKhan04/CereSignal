@@ -5,6 +5,7 @@ Authentication schemas
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 from datetime import datetime
+from app.models.auth import UserType
 
 
 class UserLogin(BaseModel):
@@ -19,9 +20,10 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     confirm_password: str = Field(..., min_length=6)
-    # Professional information
-    first_name: str = Field(..., min_length=1, max_length=100)
-    last_name: str = Field(..., min_length=1, max_length=100)
+    user_type: UserType = Field(default=UserType.DOCTOR)
+    # Professional information (for doctors and technicians)
+    first_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    last_name: Optional[str] = Field(None, min_length=1, max_length=100)
     title: Optional[str] = Field(None, max_length=50)
     specialization: Optional[str] = Field(None, max_length=100)
     license_number: Optional[str] = Field(None, max_length=100)
@@ -29,6 +31,27 @@ class UserRegister(BaseModel):
     about: Optional[str] = None
     hospital_affiliation: Optional[str] = Field(None, max_length=255)
     years_experience: Optional[int] = Field(None, ge=0, le=100)
+
+
+class PatientRegister(BaseModel):
+    """Schema for patient registration (creates both AuthUser and User)"""
+    username: str = Field(..., min_length=3, max_length=50)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    confirm_password: str = Field(..., min_length=6)
+    # Patient information
+    name: str = Field(..., min_length=1, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
+    date_of_birth: Optional[datetime] = None
+    gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
+    medical_id: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = None
+    emergency_contact_name: Optional[str] = Field(None, max_length=255)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=50)
+    blood_type: Optional[str] = Field(None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$")
+    allergies: Optional[str] = None
+    medical_conditions: Optional[str] = None
+    current_medications: Optional[str] = None
 
 
 class Token(BaseModel):
@@ -49,8 +72,9 @@ class AuthUserResponse(BaseModel):
     id: int
     username: str
     email: str
-    first_name: str
-    last_name: str
+    user_type: UserType
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     title: Optional[str] = None
     specialization: Optional[str] = None
     license_number: Optional[str] = None

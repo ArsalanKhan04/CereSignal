@@ -1,10 +1,13 @@
 // Authentication types
+export type UserType = 'doctor' | 'technician' | 'patient';
+
 export interface User {
   id: number;
   username: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  user_type: UserType;
+  first_name?: string;
+  last_name?: string;
   title?: string;
   specialization?: string;
   license_number?: string;
@@ -28,8 +31,9 @@ export interface RegisterRequest {
   email: string;
   password: string;
   confirm_password: string;
-  first_name: string;
-  last_name: string;
+  user_type?: UserType;
+  first_name?: string;
+  last_name?: string;
   title?: string;
   specialization?: string;
   license_number?: string;
@@ -37,6 +41,25 @@ export interface RegisterRequest {
   about?: string;
   hospital_affiliation?: string;
   years_experience?: number;
+}
+
+export interface PatientRegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+  name: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: 'M' | 'F' | 'Other';
+  medical_id?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+  allergies?: string;
+  medical_conditions?: string;
+  current_medications?: string;
 }
 
 export interface AuthResponse {
@@ -83,6 +106,7 @@ export interface PatientCreate {
   medical_conditions?: string;
   current_medications?: string;
   notes?: string;
+  doctor_id?: number; // For technicians to assign patient to a doctor
 }
 
 export interface PatientUpdate extends Partial<PatientCreate> {}

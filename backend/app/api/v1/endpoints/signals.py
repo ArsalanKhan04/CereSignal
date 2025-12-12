@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.signal import SignalFile, Signal
 from app.models.user import User
-from app.models.auth import AuthUser
+from app.models.auth import AuthUser, UserType
 from app.schemas.signal import (
     SignalFileResponse, 
     SignalResponse, 
@@ -61,15 +61,33 @@ async def upload_signal_file(
     try:
         # Determine which patient this file belongs to
         if patient_id:
-            # Check if the specified patient exists and belongs to the authenticated user
-            user = db.query(User).filter(
-                User.id == patient_id,
-                User.auth_user_id == current_user.id
-            ).first()
-            if not user:
+            # For technicians: allow uploading to any patient (they manage patient creation)
+            # For doctors: only allow uploading to their assigned patients
+            # For patients: they cannot upload files
+            if current_user.user_type == UserType.TECHNICIAN.value:
+                # Technicians can upload files for any patient
+                user = db.query(User).filter(User.id == patient_id).first()
+                if not user:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Patient not found"
+                    )
+            elif current_user.user_type == UserType.DOCTOR.value:
+                # Doctors can only upload to their assigned patients
+                user = db.query(User).filter(
+                    User.id == patient_id,
+                    User.auth_user_id == current_user.id
+                ).first()
+                if not user:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Patient not found or you don't have access to this patient"
+                    )
+            else:
+                # Patients cannot upload files
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Patient not found or you don't have access to this patient"
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Patients cannot upload files"
                 )
         else:
             # If no patient specified, create a default patient for this auth user
@@ -204,20 +222,47 @@ async def get_signal_files(
 ):
     """Get list of uploaded signal files for the authenticated user's patients"""
     
-    # Get all patients for the authenticated user
-    query = db.query(SignalFile).join(User).filter(User.auth_user_id == current_user.id)
+    # Handle different user types
+    if current_user.user_type == UserType.PATIENT.value:
+        # Patients can only see files for their own patient record
+        patient_user = db.query(User).filter(
+            User.patient_auth_user_id == current_user.id
+        ).first()
+        if not patient_user:
+            return []  # No patient record found
+        query = db.query(SignalFile).filter(SignalFile.user_id == patient_user.id)
+    elif current_user.user_type == UserType.TECHNICIAN.value:
+        # Technicians can see files for all patients they manage (all patients)
+        query = db.query(SignalFile)
+    else:
+        # Doctors can only see files for their assigned patients
+        query = db.query(SignalFile).join(User).filter(User.auth_user_id == current_user.id)
     
     if patient_id:
-        # Verify the patient belongs to the authenticated user
-        patient = db.query(User).filter(
-            User.id == patient_id,
-            User.auth_user_id == current_user.id
-        ).first()
-        if not patient:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Patient not found or you don't have access to this patient"
-            )
+        # Verify access based on user type
+        if current_user.user_type == UserType.DOCTOR.value:
+            # Verify the patient belongs to the doctor
+            patient = db.query(User).filter(
+                User.id == patient_id,
+                User.auth_user_id == current_user.id
+            ).first()
+            if not patient:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Patient not found or you don't have access to this patient"
+                )
+        elif current_user.user_type == UserType.PATIENT.value:
+            # Patients can only access their own files
+            patient_user = db.query(User).filter(
+                User.patient_auth_user_id == current_user.id
+            ).first()
+            if not patient_user or patient_user.id != patient_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only access your own files"
+                )
+        # For technicians, no additional check needed - they can see all patients
+        
         query = query.filter(SignalFile.user_id == patient_id)
     
     files = query.offset(skip).limit(limit).all()

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginRequest, RegisterRequest } from '../types';
+import { User, LoginRequest, RegisterRequest, PatientRegisterRequest } from '../types';
 import { apiClient } from '../services/api';
 
 interface AuthContextType {
@@ -8,6 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<void>;
+  registerPatient: (userData: PatientRegisterRequest) => Promise<void>;
   logout: () => void;
 }
 
@@ -90,6 +91,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const registerPatient = async (userData: PatientRegisterRequest) => {
+    try {
+      const response = await apiClient.registerPatient(userData);
+      if (response.status === 201) {
+        // Registration successful, now login
+        await login({
+          username: userData.username,
+          password: userData.password
+        });
+      } else {
+        throw new Error('Registration failed');
+      }
+    } catch (error) {
+      console.error('Patient registration error:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     apiClient.clearAuth();
     setUser(null);
@@ -101,6 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     register,
+    registerPatient,
     logout,
   };
 

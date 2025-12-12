@@ -10,7 +10,7 @@ import os
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
-from app.models.auth import AuthUser
+from app.models.auth import AuthUser, UserType
 from app.models.signal import SignalFile
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse
 
@@ -23,7 +23,14 @@ async def create_user(
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new patient for the authenticated user"""
+    """Create a new patient for the authenticated user (doctors and technicians only)"""
+    
+    # Only doctors and technicians can create patients
+    if current_user.user_type == UserType.PATIENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patients cannot create other users"
+        )
     
     # Check if email already exists
     if user_data.email:
@@ -46,7 +53,33 @@ async def create_user(
     try:
         # Create new patient associated with the authenticated user
         user_dict = user_data.dict()
-        user_dict['auth_user_id'] = current_user.id
+        
+        # Handle doctor assignment for technicians
+        if current_user.user_type == UserType.TECHNICIAN.value:
+            if user_data.doctor_id:
+                # Verify the doctor exists and is active
+                doctor = db.query(AuthUser).filter(
+                    AuthUser.id == user_data.doctor_id,
+                    AuthUser.user_type == UserType.DOCTOR.value,
+                    AuthUser.is_active == True
+                ).first()
+                if not doctor:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid doctor ID or doctor not found"
+                    )
+                user_dict['auth_user_id'] = user_data.doctor_id
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Doctor assignment is required when creating patients as a technician"
+                )
+        else:
+            # For doctors, assign to themselves
+            user_dict['auth_user_id'] = current_user.id
+        
+        # Remove doctor_id from dict as it's not a User model field
+        user_dict.pop('doctor_id', None)
         
         # Convert empty strings to None for optional fields to avoid unique constraint issues
         if user_dict.get('medical_id') == '':
@@ -83,6 +116,14 @@ async def get_users(
 ):
     """Get list of patients for the authenticated user with optional search"""
     
+    # Patients can only see their own record
+    if current_user.user_type == UserType.PATIENT:
+        patient_user = db.query(User).filter(User.patient_auth_user_id == current_user.id).first()
+        if patient_user:
+            return [patient_user]
+        return []
+    
+    # Doctors and technicians see their managed patients
     query = db.query(User).filter(User.auth_user_id == current_user.id, User.is_active == True)
     
     if search:
@@ -99,6 +140,7 @@ async def get_users(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Get specific user by ID"""
@@ -110,6 +152,21 @@ async def get_user(
             detail="User not found"
         )
     
+    # Patients can only access their own record
+    if current_user.user_type == UserType.PATIENT:
+        if user.patient_auth_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own record"
+            )
+    # Doctors and technicians can only access their managed patients
+    else:
+        if user.auth_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access patients you manage"
+            )
+    
     return user
 
 
@@ -117,6 +174,7 @@ async def get_user(
 async def update_user(
     user_id: int,
     user_data: UserUpdate,
+    current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Update user information"""
@@ -127,6 +185,21 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    
+    # Patients can only update their own record
+    if current_user.user_type == UserType.PATIENT:
+        if user.patient_auth_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only update your own record"
+            )
+    # Doctors and technicians can only update their managed patients
+    else:
+        if user.auth_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only update patients you manage"
+            )
     
     # Check email uniqueness if being updated
     if user_data.email and user_data.email != user.email:
@@ -174,15 +247,30 @@ async def update_user(
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Delete a user and all associated files (soft delete user, hard delete files)"""
+    
+    # Only doctors and technicians can delete patients
+    if current_user.user_type == UserType.PATIENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patients cannot delete users"
+        )
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
+        )
+    
+    # Can only delete managed patients
+    if user.auth_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete patients you manage"
         )
     
     try:
@@ -216,6 +304,7 @@ async def delete_user(
 @router.get("/{user_id}/files", response_model=List[dict])
 async def get_user_files(
     user_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Get all signal files for a specific user"""
@@ -226,6 +315,21 @@ async def get_user_files(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    
+    # Patients can only access their own files
+    if current_user.user_type == UserType.PATIENT:
+        if user.patient_auth_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own files"
+            )
+    # Doctors and technicians can only access files of their managed patients
+    else:
+        if user.auth_user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files of patients you manage"
+            )
     
     files = db.query(User.signal_files).filter(User.id == user_id).all()
     return files

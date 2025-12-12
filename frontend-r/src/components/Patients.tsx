@@ -33,10 +33,13 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { Patient, PatientCreate, PatientUpdate, SignalFile } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import FileList from './FileList';
 
 const Patients: React.FC = () => {
+  const { user } = useAuth();
+  const isReadOnly = user?.user_type === 'doctor'; // Doctors have read-only access
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -207,14 +210,18 @@ const Patients: React.FC = () => {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Patient Management</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-        >
-          Add Patient
-        </Button>
+        <Typography variant="h4">
+          {isReadOnly ? 'My Patients' : 'Patient Management'}
+        </Typography>
+        {!isReadOnly && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
+          >
+            Add Patient
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -270,20 +277,22 @@ const Patients: React.FC = () => {
                         </Typography>
                       )}
                     </Box>
-                    <Box>
-                      <IconButton
-                        onClick={() => handleOpenDialog(patient)}
-                        color="primary"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleDelete(patient.id)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Box>
+                    {!isReadOnly && (
+                      <Box>
+                        <IconButton
+                          onClick={() => handleOpenDialog(patient)}
+                          color="primary"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={() => handleDelete(patient.id)}
+                          color="error"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    )}
                   </Box>
 
                   <Accordion>

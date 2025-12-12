@@ -28,7 +28,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Schema for creating a user"""
-    pass
+    doctor_id: Optional[int] = Field(None, description="Doctor ID to assign patient to (for technicians)")
 
 
 class UserUpdate(BaseModel):

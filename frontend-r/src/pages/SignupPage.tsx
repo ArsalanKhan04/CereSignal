@@ -25,6 +25,7 @@ const SignupPage: React.FC = () => {
     email: '',
     password: '',
     confirm_password: '',
+    user_type: 'doctor',
     first_name: '',
     last_name: '',
     title: '',
@@ -41,9 +42,10 @@ const SignupPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: value,
     });
   };
 
@@ -114,7 +116,7 @@ const SignupPage: React.FC = () => {
 
             <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
               <Grid container spacing={2}>
-                <Grid sx={{ xs: 12, sm: 6}}>
+                <Grid sx={{ xs: 12, sm: 6 }}>
                   <TextField
                     margin="normal"
                     required
@@ -129,7 +131,7 @@ const SignupPage: React.FC = () => {
                     disabled={isLoading}
                   />
                 </Grid>
-                <Grid sx={{ xs: 12, sm: 6}}>
+                <Grid sx={{ xs: 12, sm: 6 }}>
                   <TextField
                     margin="normal"
                     required
@@ -172,7 +174,7 @@ const SignupPage: React.FC = () => {
               />
               
               <Grid container spacing={2}>
-                <Grid sx={{ xs: 12, sm: 6}}>
+                <Grid sx={{ xs: 12, sm: 6 }}>
                   <TextField
                     margin="normal"
                     fullWidth
@@ -184,7 +186,7 @@ const SignupPage: React.FC = () => {
                     disabled={isLoading}
                   />
                 </Grid>
-                <Grid sx={{ xs: 12, sm: 6}}>
+                <Grid sx={{ xs: 12, sm: 6 }}>
                   <TextField
                     margin="normal"
                     fullWidth

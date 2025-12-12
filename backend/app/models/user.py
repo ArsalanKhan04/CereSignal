@@ -35,10 +35,12 @@ class User(Base):
     is_active: bool = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    auth_user_id: Optional[int] = Column(Integer, ForeignKey("auth_users.id"), nullable=True)
+    auth_user_id: Optional[int] = Column(Integer, ForeignKey("auth_users.id"), nullable=True)  # Doctor/technician managing this patient
+    patient_auth_user_id: Optional[int] = Column(Integer, ForeignKey("auth_users.id"), nullable=True, unique=True)  # Patient's own auth account
     
     # Relationships
-    auth_user = relationship("AuthUser", back_populates="patient_users")
+    auth_user = relationship("AuthUser", back_populates="patient_users", foreign_keys=[auth_user_id])
+    auth_user_patient = relationship("AuthUser", back_populates="patient_user", foreign_keys=[patient_auth_user_id])
     signal_files = relationship("SignalFile", back_populates="user")
     
     @property

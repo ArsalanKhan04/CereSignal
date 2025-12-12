@@ -3,6 +3,7 @@ import {
   User,
   LoginRequest,
   RegisterRequest,
+  PatientRegisterRequest,
   AuthResponse,
   Patient,
   PatientCreate,
@@ -67,6 +68,11 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async registerPatient(data: PatientRegisterRequest): Promise<ApiResponse<User>> {
+    const response = await this.client.post('/auth/register/patient', data);
+    return { data: response.data, status: response.status };
+  }
+
   async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     const response = await this.client.post('/auth/login', data);
     return { data: response.data, status: response.status };
@@ -74,6 +80,11 @@ class ApiClient {
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
     const response = await this.client.get('/auth/me');
+    return { data: response.data, status: response.status };
+  }
+
+  async getDoctors(): Promise<ApiResponse<User[]>> {
+    const response = await this.client.get('/auth/doctors');
     return { data: response.data, status: response.status };
   }
 

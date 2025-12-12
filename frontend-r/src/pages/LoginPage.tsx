@@ -10,6 +10,7 @@ import {
   Link,
   Alert,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginRequest } from '../types';
@@ -48,39 +49,86 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Paper elevation={3} sx={{ padding: 4, width: '100%' }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'background.default',
+        padding: { xs: 2, sm: 3 },
+      }}
+    >
+      <Container maxWidth="xs" sx={{ width: '100%' }}>
+        <Paper
+          elevation={0}
+          sx={{
+            padding: { xs: 3, sm: 4 },
+            width: '100%',
+            border: '1px solid',
+            borderColor: 'grey.200',
+          }}
+        >
           <Box
             sx={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
+              mb: 3,
             }}
           >
-            <Typography component="h1" variant="h3" sx={{ fontWeight: 'bold', mb: 2 }}>
+            <Typography
+              component="h1"
+              variant="h1"
+              sx={{
+                fontWeight: 700,
+                mb: 1,
+                color: 'text.primary',
+                fontSize: { xs: '1.75rem', sm: '2rem' },
+              }}
+            >
               CereSignal
             </Typography>
-            <Typography component="h2" variant="h5" sx={{ mb: 4, color: 'text.secondary' }}>
-              Doctor Login
+            <Typography
+              component="h2"
+              variant="h2"
+              sx={{
+                mb: 4,
+                color: 'text.secondary',
+                fontSize: { xs: '1.125rem', sm: '1.25rem' },
+                fontWeight: 400,
+              }}
+            >
+              Sign in to your account
             </Typography>
 
             {error && (
-              <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+              <Alert
+                severity="error"
+                sx={{
+                  width: '100%',
+                  mb: 3,
+                  borderRadius: 2,
+                  '& .MuiAlert-message': {
+                    fontSize: '0.875rem',
+                  },
+                }}
+              >
                 {error}
               </Alert>
             )}
 
-            <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+            <Box
+              component="form"
+              onSubmit={handleSubmit}
+              sx={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2.5,
+              }}
+            >
               <TextField
-                margin="normal"
                 required
                 fullWidth
                 id="username"
@@ -91,9 +139,13 @@ const LoginPage: React.FC = () => {
                 value={formData.username}
                 onChange={handleChange}
                 disabled={isLoading}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'background.paper',
+                  },
+                }}
               />
               <TextField
-                margin="normal"
                 required
                 fullWidth
                 name="password"
@@ -104,26 +156,126 @@ const LoginPage: React.FC = () => {
                 value={formData.password}
                 onChange={handleChange}
                 disabled={isLoading}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'background.paper',
+                  },
+                }}
               />
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
-                sx={{ mt: 3, mb: 2, py: 1.5 }}
                 disabled={isLoading}
+                sx={{
+                  mt: 1,
+                  py: 1.5,
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                }}
               >
-                {isLoading ? <CircularProgress size={24} /> : 'Login'}
+                {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign in'}
               </Button>
-              <Box sx={{ textAlign: 'center' }}>
-                <Link component={RouterLink} to="/signup" variant="body2">
-                  Don't have an account? Sign Up
-                </Link>
+            </Box>
+
+            <Divider sx={{ width: '100%', my: 3 }} />
+
+            <Box
+              sx={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 1.5,
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'text.secondary',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Don't have an account?
+              </Typography>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 1,
+                  width: '100%',
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Link
+                    component={RouterLink}
+                    to="/register/doctor"
+                    variant="body2"
+                    sx={{
+                      color: 'primary.main',
+                      textDecoration: 'none',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
+                  >
+                    Doctor
+                  </Link>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    •
+                  </Typography>
+                  <Link
+                    component={RouterLink}
+                    to="/register/technician"
+                    variant="body2"
+                    sx={{
+                      color: 'primary.main',
+                      textDecoration: 'none',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
+                  >
+                    Technician
+                  </Link>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    •
+                  </Typography>
+                  <Link
+                    component={RouterLink}
+                    to="/register/patient"
+                    variant="body2"
+                    sx={{
+                      color: 'primary.main',
+                      textDecoration: 'none',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
+                  >
+                    Patient
+                  </Link>
+                </Box>
               </Box>
             </Box>
           </Box>
         </Paper>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

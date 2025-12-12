@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.report import EEGReport
 from app.models.signal import SignalFile
-from app.models.auth import AuthUser
+from app.models.auth import AuthUser, UserType
 from app.models.user import User
 from app.schemas.report import (
     EEGReportCreate, 
@@ -103,16 +103,39 @@ async def get_reports(
     """Get all reports for the authenticated user"""
     
     try:
-        reports = db.query(EEGReport).join(SignalFile).join(User).filter(
-            User.auth_user_id == current_user.id
-        ).offset(skip).limit(limit).all()
+        # Patients can only see their own reports
+        if current_user.user_type == UserType.PATIENT.value:
+            # Find the patient's User record
+            patient_user = db.query(User).filter(
+                User.patient_auth_user_id == current_user.id
+            ).first()
+            
+            if not patient_user:
+                return []  # No patient record found, return empty list
+            
+            # Get reports for files belonging to this patient
+            reports = db.query(EEGReport).join(SignalFile).filter(
+                SignalFile.user_id == patient_user.id
+            ).offset(skip).limit(limit).all()
+        else:
+            # Doctors and technicians see reports for their managed patients
+            reports = db.query(EEGReport).join(SignalFile).join(User).filter(
+                User.auth_user_id == current_user.id
+            ).offset(skip).limit(limit).all()
         
         # Add additional fields for response
         response_data = []
         for report in reports:
             report_dict = report.__dict__.copy()
             report_dict['file_name'] = report.signal_file.original_filename
-            report_dict['doctor_name'] = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.username
+            
+            # Get doctor name from report's auth_user
+            if report.auth_user:
+                doctor_name = f"{report.auth_user.first_name or ''} {report.auth_user.last_name or ''}".strip() or report.auth_user.username
+            else:
+                doctor_name = current_user.username
+            report_dict['doctor_name'] = doctor_name
+            
             response_data.append(EEGReportListResponse(**report_dict))
         
         return response_data

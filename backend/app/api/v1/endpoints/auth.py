@@ -4,7 +4,8 @@ Authentication endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
+from typing import List
 
 from app.core.database import get_db
 from app.core.auth import (
@@ -18,10 +19,13 @@ from app.models.auth import AuthUser
 from app.schemas.auth import (
     UserLogin, 
     UserRegister, 
+    PatientRegister,
     Token, 
     AuthUserResponse,
     PasswordChange
 )
+from app.models.user import User
+from app.models.auth import UserType
 
 router = APIRouter()
 
@@ -31,13 +35,20 @@ async def register_user(
     user_data: UserRegister,
     db: Session = Depends(get_db)
 ):
-    """Register a new authentication user"""
+    """Register a new authentication user (doctor or technician)"""
     
     # Validate password confirmation
     if user_data.password != user_data.confirm_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Passwords do not match"
+        )
+    
+    # Validate user type (only doctor and technician can use this endpoint)
+    if user_data.user_type == UserType.PATIENT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use /register/patient endpoint for patient registration"
         )
     
     # Check if username already exists
@@ -56,22 +67,40 @@ async def register_user(
             detail="Email already registered"
         )
     
+    # Validate required fields for doctors/technicians
+    if not user_data.first_name or not user_data.last_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="First name and last name are required for doctors and technicians"
+        )
+    
     try:
         # Create new user
         hashed_password = get_password_hash(user_data.password)
+        
+        # Convert empty strings to None for optional fields
+        # Ensure user_type is the string value (lowercase) - handle both enum and string
+        if isinstance(user_data.user_type, UserType):
+            user_type_value = user_data.user_type.value
+        elif isinstance(user_data.user_type, str):
+            user_type_value = user_data.user_type.lower()
+        else:
+            user_type_value = UserType.DOCTOR.value  # Default fallback
+        
         db_user = AuthUser(
             username=user_data.username,
             email=user_data.email,
             hashed_password=hashed_password,
+            user_type=user_type_value,
             first_name=user_data.first_name,
             last_name=user_data.last_name,
-            title=user_data.title,
-            specialization=user_data.specialization,
-            license_number=user_data.license_number,
-            phone=user_data.phone,
-            about=user_data.about,
-            hospital_affiliation=user_data.hospital_affiliation,
-            years_experience=user_data.years_experience
+            title=user_data.title if user_data.title else None,
+            specialization=user_data.specialization if user_data.specialization else None,
+            license_number=user_data.license_number if user_data.license_number else None,
+            phone=user_data.phone if user_data.phone else None,
+            about=user_data.about if user_data.about else None,
+            hospital_affiliation=user_data.hospital_affiliation if user_data.hospital_affiliation else None,
+            years_experience=user_data.years_experience if user_data.years_experience else None
         )
         
         db.add(db_user)
@@ -85,6 +114,114 @@ async def register_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating user: {str(e)}"
+        )
+
+
+@router.post("/register/patient", response_model=AuthUserResponse, status_code=status.HTTP_201_CREATED)
+async def register_patient(
+    patient_data: PatientRegister,
+    db: Session = Depends(get_db)
+):
+    """Register a new patient (creates both AuthUser and User records)"""
+    
+    # Validate password confirmation
+    if patient_data.password != patient_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
+    
+    # Check if username already exists
+    existing_user = db.query(AuthUser).filter(AuthUser.username == patient_data.username).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered"
+        )
+    
+    # Check if email already exists in AuthUser
+    existing_email_auth = db.query(AuthUser).filter(AuthUser.email == patient_data.email).first()
+    if existing_email_auth:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Check if email already exists in User
+    if patient_data.email:
+        existing_email_user = db.query(User).filter(User.email == patient_data.email).first()
+        if existing_email_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+    
+    # Check if medical_id already exists
+    if patient_data.medical_id:
+        existing_medical_id = db.query(User).filter(User.medical_id == patient_data.medical_id).first()
+        if existing_medical_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Medical ID already exists"
+            )
+    
+    try:
+        # Create AuthUser for patient
+        hashed_password = get_password_hash(patient_data.password)
+        db_auth_user = AuthUser(
+            username=patient_data.username,
+            email=patient_data.email,
+            hashed_password=hashed_password,
+            user_type=UserType.PATIENT.value,  # Use enum value (lowercase string 'patient')
+            first_name=None,  # Patients use 'name' field instead
+            last_name=None
+        )
+        
+        db.add(db_auth_user)
+        db.flush()  # Flush to get the ID
+        
+        # Create User record for patient
+        user_dict = {
+            'name': patient_data.name,
+            'email': patient_data.email,
+            'phone': patient_data.phone,
+            'date_of_birth': patient_data.date_of_birth,
+            'gender': patient_data.gender,
+            'medical_id': patient_data.medical_id,
+            'address': patient_data.address,
+            'emergency_contact_name': patient_data.emergency_contact_name,
+            'emergency_contact_phone': patient_data.emergency_contact_phone,
+            'blood_type': patient_data.blood_type,
+            'allergies': patient_data.allergies,
+            'medical_conditions': patient_data.medical_conditions,
+            'current_medications': patient_data.current_medications,
+            'patient_auth_user_id': db_auth_user.id  # Link patient to their auth account
+        }
+        
+        # Convert empty strings to None for all optional fields
+        for field in ['medical_id', 'email', 'phone', 'address', 'emergency_contact_name', 
+                     'emergency_contact_phone', 'blood_type', 'allergies', 'medical_conditions', 
+                     'current_medications', 'gender']:
+            if field in user_dict and user_dict[field] == '':
+                user_dict[field] = None
+        
+        # Handle date_of_birth: Pydantic should already convert string to datetime,
+        # but ensure None is set for empty values
+        if 'date_of_birth' in user_dict and (user_dict['date_of_birth'] == '' or user_dict['date_of_birth'] is None):
+            user_dict['date_of_birth'] = None
+        
+        db_patient_user = User(**user_dict)
+        db.add(db_patient_user)
+        db.commit()
+        db.refresh(db_auth_user)
+        
+        return db_auth_user
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating patient: {str(e)}"
         )
 
 
@@ -180,3 +317,47 @@ async def logout_user(
 ):
     """Logout user (client should discard token)"""
     return {"message": "Successfully logged out"}
+
+
+@router.get("/doctors", response_model=List[AuthUserResponse])
+async def get_doctors(
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of all doctors (for technicians to assign patients)"""
+    
+    # Only technicians and doctors can access this endpoint
+    if current_user.user_type not in [UserType.TECHNICIAN.value, UserType.DOCTOR.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only technicians and doctors can access this endpoint"
+        )
+    
+    doctors = db.query(AuthUser).filter(
+        AuthUser.user_type == UserType.DOCTOR.value,
+        AuthUser.is_active == True
+    ).all()
+    
+    return doctors
+
+
+@router.get("/doctors", response_model=List[AuthUserResponse])
+async def get_doctors(
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of all doctors (for technicians to assign patients)"""
+    
+    # Only technicians and doctors can access this endpoint
+    if current_user.user_type not in [UserType.TECHNICIAN, UserType.DOCTOR]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only technicians and doctors can access this endpoint"
+        )
+    
+    doctors = db.query(AuthUser).filter(
+        AuthUser.user_type == UserType.DOCTOR,
+        AuthUser.is_active == True
+    ).all()
+    
+    return doctors
