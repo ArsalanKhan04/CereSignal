@@ -32,7 +32,7 @@ import {
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { Patient, PatientCreate, PatientUpdate, SignalFile } from '../types';
+import { User, Patient, PatientCreate, PatientUpdate, SignalFile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import FileList from './FileList';
@@ -46,7 +46,7 @@ const Patients: React.FC = () => {
   const [success, setSuccess] = useState<string>('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [formData, setFormData] = useState<PatientCreate>({
+  const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number}>({
     name: '',
     email: '',
     phone: '',
@@ -61,12 +61,21 @@ const Patients: React.FC = () => {
     medical_conditions: '',
     current_medications: '',
     notes: '',
+    doctor_id: undefined,
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Doctor list (for technicians assigning patients)
+  const [doctors, setDoctors] = useState<User[]>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+
   useEffect(() => {
     loadPatients();
-  }, []);
+    // Load doctors when technician is viewing so they can assign one on create
+    if (user?.user_type === 'technician') {
+      loadDoctors();
+    }
+  }, [user]);
 
   const loadPatients = async () => {
     try {
@@ -84,6 +93,19 @@ const Patients: React.FC = () => {
     }
   };
 
+  const loadDoctors = async () => {
+    setLoadingDoctors(true);
+    try {
+      const resp = await apiClient.getDoctors();
+      if (resp.status === 200) setDoctors(resp.data);
+    } catch (e) {
+      // ignore errors here
+      console.error('Failed to load doctors', e);
+    } finally {
+      setLoadingDoctors(false);
+    }
+  };
+
   const handleOpenDialog = (patient?: Patient) => {
     if (patient) {
       setEditingPatient(patient);
@@ -92,8 +114,17 @@ const Patients: React.FC = () => {
         email: patient.email || '',
         phone: patient.phone || '',
         medical_id: patient.medical_id || '',
-        gender: patient.gender,
+        gender: patient.gender || 'M',
+        date_of_birth: patient.date_of_birth || '',
+        address: patient.address || '',
+        emergency_contact_name: patient.emergency_contact_name || '',
+        emergency_contact_phone: patient.emergency_contact_phone || '',
+        blood_type: patient.blood_type || 'A+',
+        allergies: patient.allergies || '',
+        medical_conditions: patient.medical_conditions || '',
+        current_medications: patient.current_medications || '',
         notes: patient.notes || '',
+        doctor_id: undefined, // leave undefined on edit so it's only sent if changed
       });
     } else {
       setEditingPatient(null);
@@ -103,7 +134,16 @@ const Patients: React.FC = () => {
         phone: '',
         medical_id: '',
         gender: 'M',
+        date_of_birth: '',
+        address: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        blood_type: 'A+',
+        allergies: '',
+        medical_conditions: '',
+        current_medications: '',
         notes: '',
+        doctor_id: undefined,
       });
     }
     setOpenDialog(true);
@@ -142,9 +182,20 @@ const Patients: React.FC = () => {
           gender: formData.gender,
           notes: formData.notes || undefined,
         };
+        // Include doctor_id only if technician explicitly selected a new doctor
+        if (formData.doctor_id !== undefined) {
+          (updateData as any).doctor_id = formData.doctor_id;
+        }
         await apiClient.updatePatient(editingPatient.id, updateData);
         setSuccess('Patient updated successfully!');
       } else {
+        // If a technician is creating a patient, include doctor_id when provided
+        if (user?.user_type === 'technician' && !formData.doctor_id) {
+          setError('Please assign a doctor to this patient');
+          setSubmitting(false);
+          return;
+        }
+
         const createData: PatientCreate = {
           name: formData.name,
           email: formData.email || undefined,
@@ -152,6 +203,7 @@ const Patients: React.FC = () => {
           medical_id: formData.medical_id || undefined,
           gender: formData.gender,
           notes: formData.notes || undefined,
+          doctor_id: formData.doctor_id || undefined,
         };
         await apiClient.createPatient(createData);
         setSuccess('Patient created successfully!');
@@ -363,7 +415,7 @@ const Patients: React.FC = () => {
                 <MenuItem value="Other">Other</MenuItem>
               </Select>
             </FormControl>
-            <TextField
+                    <TextField
               fullWidth
               label="Date of Birth"
               type="date"
@@ -372,6 +424,33 @@ const Patients: React.FC = () => {
               margin="normal"
               InputLabelProps={{ shrink: true }}
             />
+
+            {/* If technician, allow assigning a doctor when creating patient */}
+            {user?.user_type === 'technician' && (
+              <FormControl fullWidth margin="normal">
+                <InputLabel>Assign Doctor</InputLabel>
+                <Select
+                  value={formData.doctor_id ?? ''}
+                  onChange={(e) => setFormData({ ...formData, doctor_id: e.target.value as number })}
+                  label="Assign Doctor"
+                  disabled={loadingDoctors}
+                >
+                  {/* If editing, show current doctor as disabled placeholder */}
+                  {editingPatient ? (
+                    <MenuItem value="" disabled>
+                      Current: {editingPatient.doctor_name || 'Unassigned'}
+                    </MenuItem>
+                  ) : (
+                    <MenuItem value="">-- Select Doctor --</MenuItem>
+                  )}
+                  {doctors.map((doc) => (
+                    <MenuItem key={doc.id} value={doc.id}>
+                      {doc.title ? `${doc.title} ` : ''}{doc.first_name} {doc.last_name}{doc.specialization ? ` - ${doc.specialization}` : ''}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
             <TextField
               fullWidth
               label="Address"

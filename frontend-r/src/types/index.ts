@@ -88,6 +88,7 @@ export interface Patient {
   notes?: string;
   is_active: boolean;
   created_at: string;
+  doctor_name?: string;
   auth_user_id: number;
 }
 

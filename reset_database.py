@@ -13,12 +13,16 @@ import sys
 import shutil
 from pathlib import Path
 
-# Add the app directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend/app'))
+# Ensure backend directory is on Python path so 'app' package imports resolve
+project_root = os.path.dirname(__file__)
+# Add backend folder so imports like 'app.core...' work
+sys.path.insert(0, os.path.join(project_root, 'backend'))
+# Also add project root for local imports
+sys.path.insert(0, project_root)
 
-from backend.app.core.database import engine, Base, get_db
-from backend.app.models import user, signal, auth
-from backend.app.core.auth import get_password_hash
+from app.core.database import engine, Base, get_db
+from app.models import user, signal, auth
+from app.core.auth import get_password_hash
 from sqlalchemy import text
 
 def reset_database():
@@ -43,10 +47,12 @@ def clear_upload_files():
     """Delete all files from the uploads directory"""
     print("🗑️  Clearing uploaded files...")
     
-    uploads_dir = Path("uploads")
+    uploads_dir = Path(os.path.join(os.path.dirname(__file__), 'uploads'))
     
     if not uploads_dir.exists():
         print("ℹ️  No uploads directory found")
+        # ensure directory exists after function
+        uploads_dir.mkdir(parents=True, exist_ok=True)
         return True
     
     try:
@@ -75,8 +81,8 @@ def create_test_doctor():
     print("👨‍⚕️  Creating test doctor account...")
     
     try:
-        from app.models.auth import AuthUser
-        from app.core.database import SessionLocal
+        from backend.app.models.auth import AuthUser
+        from backend.app.core.database import SessionLocal
         
         db = SessionLocal()
         

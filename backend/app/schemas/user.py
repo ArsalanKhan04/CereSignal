@@ -48,6 +48,7 @@ class UserUpdate(BaseModel):
     current_medications: Optional[str] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+    doctor_id: Optional[int] = None
 
 
 class UserResponse(UserBase):
@@ -58,6 +59,7 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+    doctor_name: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -73,6 +75,7 @@ class UserListResponse(BaseModel):
     gender: Optional[str] = None
     is_active: bool
     created_at: datetime
+    doctor_name: Optional[str] = None
     
     class Config:
         from_attributes = True

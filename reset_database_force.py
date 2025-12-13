@@ -9,14 +9,18 @@ import sys
 import shutil
 from pathlib import Path
 
-# Add the app directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+# Ensure backend directory is on Python path so 'app' package imports resolve
+project_root = os.path.dirname(__file__)
+# Add backend folder so imports like 'app.core...' work
+sys.path.insert(0, os.path.join(project_root, 'backend'))
+# Also add project root for local imports
+sys.path.insert(0, project_root)
 
-from backend.app.core.database import engine, Base
-from backend.app.models import user, signal, auth
-from backend.app.core.auth import get_password_hash
-from backend.app.models.auth import AuthUser
-from backend.app.core.database import SessionLocal
+from app.core.database import engine, Base
+from app.models import user, signal, auth
+from app.core.auth import get_password_hash
+from app.models.auth import AuthUser
+from app.core.database import SessionLocal
 
 def force_reset():
     """Force reset everything without confirmation"""
@@ -32,7 +36,7 @@ def force_reset():
         
         # 2. Clear uploads
         print("🗑️  Clearing upload files...")
-        uploads_dir = Path("uploads")
+        uploads_dir = Path(os.path.join(os.path.dirname(__file__), 'uploads'))
         if uploads_dir.exists():
             shutil.rmtree(uploads_dir)
         uploads_dir.mkdir(parents=True, exist_ok=True)

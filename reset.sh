@@ -13,7 +13,17 @@ fi
 # Activate pyenv environment and run reset
 echo "🚀 Running database and file reset..."
 
-if [ $? -eq 0 ]; then
+# If --force or -f provided, run the force reset (no confirmation)
+if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
+    echo "⚠️  Running force reset (no confirmation)"
+    python3 reset_database_force.py
+    EXIT_CODE=$?
+else
+    python3 reset_database.py
+    EXIT_CODE=$?
+fi
+
+if [ $EXIT_CODE -eq 0 ]; then
     echo ""
     echo "🎉 Reset completed successfully!"
     echo ""

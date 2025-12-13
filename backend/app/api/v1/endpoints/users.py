@@ -26,7 +26,7 @@ async def create_user(
     """Create a new patient for the authenticated user (doctors and technicians only)"""
     
     # Only doctors and technicians can create patients
-    if current_user.user_type == UserType.PATIENT:
+    if current_user.user_type == UserType.PATIENT.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Patients cannot create other users"
@@ -95,6 +95,13 @@ async def create_user(
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
+        # Attach doctor_name to response
+        doc = db.query(AuthUser).filter(AuthUser.id == db_user.auth_user_id).first()
+        if doc:
+            doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
+            setattr(db_user, 'doctor_name', doc_name)
+        else:
+            setattr(db_user, 'doctor_name', None)
         
         return db_user
         
@@ -117,23 +124,35 @@ async def get_users(
     """Get list of patients for the authenticated user with optional search"""
     
     # Patients can only see their own record
-    if current_user.user_type == UserType.PATIENT:
+    if current_user.user_type == UserType.PATIENT.value:
         patient_user = db.query(User).filter(User.patient_auth_user_id == current_user.id).first()
         if patient_user:
             return [patient_user]
         return []
-    
-    # Doctors and technicians see their managed patients
-    query = db.query(User).filter(User.auth_user_id == current_user.id, User.is_active == True)
-    
+
+    # Technicians can see all active patients
+    if current_user.user_type == UserType.TECHNICIAN.value:
+        query = db.query(User).filter(User.is_active == True)
+    else:
+        # Doctors see only patients assigned to them
+        query = db.query(User).filter(User.auth_user_id == current_user.id, User.is_active == True)
+
     if search:
         query = query.filter(
             User.name.ilike(f"%{search}%") |
             User.email.ilike(f"%{search}%") |
             User.medical_id.ilike(f"%{search}%")
         )
-    
+
     users = query.offset(skip).limit(limit).all()
+    # Attach doctor name for each patient if available
+    for u in users:
+        doc = db.query(AuthUser).filter(AuthUser.id == u.auth_user_id).first()
+        if doc:
+            doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
+            setattr(u, 'doctor_name', doc_name)
+        else:
+            setattr(u, 'doctor_name', None)
     return users
 
 
@@ -153,20 +172,27 @@ async def get_user(
         )
     
     # Patients can only access their own record
-    if current_user.user_type == UserType.PATIENT:
+    if current_user.user_type == UserType.PATIENT.value:
         if user.patient_auth_user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access your own record"
             )
-    # Doctors and technicians can only access their managed patients
+    # Doctors can only access their managed patients; technicians can access any patient
     else:
-        if user.auth_user_id != current_user.id:
+        if current_user.user_type == UserType.DOCTOR.value and user.auth_user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access patients you manage"
             )
-    
+
+    # Attach doctor_name
+    doc = db.query(AuthUser).filter(AuthUser.id == user.auth_user_id).first()
+    if doc:
+        doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
+        setattr(user, 'doctor_name', doc_name)
+    else:
+        setattr(user, 'doctor_name', None)
     return user
 
 
@@ -187,15 +213,15 @@ async def update_user(
         )
     
     # Patients can only update their own record
-    if current_user.user_type == UserType.PATIENT:
+    if current_user.user_type == UserType.PATIENT.value:
         if user.patient_auth_user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update your own record"
             )
-    # Doctors and technicians can only update their managed patients
+    # Doctors can only update their managed patients; technicians can update any patient
     else:
-        if user.auth_user_id != current_user.id:
+        if current_user.user_type == UserType.DOCTOR.value and user.auth_user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update patients you manage"
@@ -223,6 +249,28 @@ async def update_user(
         # Update user fields
         update_data = user_data.dict(exclude_unset=True)
         
+        # Handle doctor reassignment separately
+        doctor_id = update_data.pop('doctor_id', None)
+        if doctor_id is not None:
+            # Only technicians can reassign patients to a different doctor
+            if current_user.user_type != UserType.TECHNICIAN.value:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only technicians can reassign patients to a different doctor"
+                )
+            # Verify doctor exists and is active
+            doctor = db.query(AuthUser).filter(
+                AuthUser.id == doctor_id,
+                AuthUser.user_type == UserType.DOCTOR.value,
+                AuthUser.is_active == True
+            ).first()
+            if not doctor:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid doctor ID or doctor not found"
+                )
+            user.auth_user_id = doctor_id
+        
         # Convert empty strings to None for optional fields to avoid unique constraint issues
         for field in ['medical_id', 'email', 'phone', 'notes']:
             if field in update_data and update_data[field] == '':
@@ -233,6 +281,13 @@ async def update_user(
         
         db.commit()
         db.refresh(user)
+        # Attach doctor_name to response
+        doc = db.query(AuthUser).filter(AuthUser.id == user.auth_user_id).first()
+        if doc:
+            doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
+            setattr(user, 'doctor_name', doc_name)
+        else:
+            setattr(user, 'doctor_name', None)
         
         return user
         
@@ -253,7 +308,7 @@ async def delete_user(
     """Delete a user and all associated files (soft delete user, hard delete files)"""
     
     # Only doctors and technicians can delete patients
-    if current_user.user_type == UserType.PATIENT:
+    if current_user.user_type == UserType.PATIENT.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Patients cannot delete users"
@@ -266,8 +321,8 @@ async def delete_user(
             detail="User not found"
         )
     
-    # Can only delete managed patients
-    if user.auth_user_id != current_user.id:
+    # Doctors can only delete managed patients; technicians can delete any patient
+    if current_user.user_type == UserType.DOCTOR.value and user.auth_user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only delete patients you manage"
@@ -317,19 +372,19 @@ async def get_user_files(
         )
     
     # Patients can only access their own files
-    if current_user.user_type == UserType.PATIENT:
+    if current_user.user_type == UserType.PATIENT.value:
         if user.patient_auth_user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access your own files"
             )
-    # Doctors and technicians can only access files of their managed patients
+    # Doctors can only access files of their managed patients; technicians can access any patient's files
     else:
-        if user.auth_user_id != current_user.id:
+        if current_user.user_type == UserType.DOCTOR.value and user.auth_user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access files of patients you manage"
             )
-    
+
     files = db.query(User.signal_files).filter(User.id == user_id).all()
     return files
