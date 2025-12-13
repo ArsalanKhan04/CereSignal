@@ -139,9 +139,14 @@ const ReportForm: React.FC<ReportFormProps> = ({
           doctor_info: response.data.doctor_info || '',
         });
         setIsEditing(true);
+      } else {
+        // No existing report for this file - prefill using provided props
+        prefillFormData();
       }
     } catch (err: any) {
       console.error('Error loading existing report:', err);
+      // On error, still try to prefill so user can create a new report
+      prefillFormData();
     } finally {
       setLoading(false);
     }
