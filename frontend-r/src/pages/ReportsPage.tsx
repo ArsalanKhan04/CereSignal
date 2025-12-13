@@ -29,6 +29,9 @@ import { apiClient } from '../services/api';
 import { EEGReport, SignalFile, User, Patient } from '../types';
 import ReportForm from '../components/ReportForm';
 
+// Ensure this file is treated as a module by TypeScript's isolatedModules
+export {};
+
 const ReportsPage: React.FC = () => {
   const [reports, setReports] = useState<EEGReport[]>([]);
   const [signalFiles, setSignalFiles] = useState<SignalFile[]>([]);
@@ -301,17 +304,19 @@ const ReportsPage: React.FC = () => {
                   >
                     <EditIcon />
                   </IconButton>
-                  {!report.pdf_file_path ? (
-                    <IconButton
-                      size="small"
-                      onClick={() => handleGeneratePDF(report.id)}
-                      color="secondary"
-                      title="Generate PDF"
-                      disabled={pdfGenerating.has(report.id)}
-                    >
-                      {pdfGenerating.has(report.id) ? <CircularProgress size={16} /> : <PDFIcon />}
-                    </IconButton>
-                  ) : (
+                  {/* Always show Generate/Regenerate PDF button so users can regenerate if needed */}
+                  <IconButton
+                    size="small"
+                    onClick={() => handleGeneratePDF(report.id)}
+                    color={report.pdf_file_path ? 'primary' : 'secondary'}
+                    title={report.pdf_file_path ? 'Regenerate PDF' : 'Generate PDF'}
+                    disabled={pdfGenerating.has(report.id)}
+                  >
+                    {pdfGenerating.has(report.id) ? <CircularProgress size={16} /> : <PDFIcon />}
+                  </IconButton>
+
+                  {/* If a PDF already exists, keep the download buttons visible as well */}
+                  {report.pdf_file_path && (
                     <>
                       <IconButton
                         size="small"
@@ -320,17 +325,6 @@ const ReportsPage: React.FC = () => {
                         title="Download PDF"
                       >
                         <DownloadIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-                          window.open(`${apiUrl}/api/v1/reports/${report.id}/download-pdf`, '_blank');
-                        }}
-                        color="info"
-                        title="Open PDF in new tab"
-                      >
-                        <PDFIcon />
                       </IconButton>
                     </>
                   )}
