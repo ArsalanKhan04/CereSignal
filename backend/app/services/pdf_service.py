@@ -1,7 +1,3 @@
-"""
-PDF generation service for EEG reports
-"""
-
 import os
 from pathlib import Path
 from datetime import datetime
@@ -9,7 +5,7 @@ from typing import Optional
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, mm
-from reportlab.lib.colors import HexColor, black, darkblue, darkred
+from reportlab.lib.colors import HexColor, black
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
@@ -36,70 +32,72 @@ class PDFReportGenerator:
     def _setup_custom_styles(self):
         """Setup custom paragraph styles for the report"""
         
-        # Title style
+        # Hospital/Department Header [cite: 3]
         self.styles.add(ParagraphStyle(
-            name='ReportTitle',
+            name='HospitalHeader',
             parent=self.styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30,
-            alignment=TA_CENTER,
-            textColor=HexColor('#2c3e50'),
-            fontName='Helvetica-Bold'
-        ))
-        
-        # Section header style
-        self.styles.add(ParagraphStyle(
-            name='SectionHeader',
-            parent=self.styles['Heading2'],
             fontSize=16,
-            spaceAfter=12,
-            spaceBefore=20,
-            textColor=HexColor('#34495e'),
+            spaceAfter=6,
+            alignment=TA_CENTER,
+            textColor=black,
             fontName='Helvetica-Bold',
-            borderWidth=1,
-            borderColor=HexColor('#bdc3c7'),
-            borderPadding=8,
-            backColor=HexColor('#ecf0f1')
+            textTransform='uppercase'
+        ))
+
+        # Sub-header (e.g. Routine EEG Report) [cite: 7]
+        self.styles.add(ParagraphStyle(
+            name='ReportType',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            textColor=black,
+            fontName='Helvetica-Bold',
+            textTransform='uppercase'
         ))
         
-        # Subsection header style
+        # Section Titles (INDICATIONS, TECHNIQUE, etc.) [cite: 14, 15]
         self.styles.add(ParagraphStyle(
-            name='SubsectionHeader',
-            parent=self.styles['Heading3'],
-            fontSize=14,
-            spaceAfter=8,
-            spaceBefore=12,
-            textColor=HexColor('#2c3e50'),
-            fontName='Helvetica-Bold'
-        ))
-        
-        # Normal text style
-        self.styles.add(ParagraphStyle(
-            name='ReportText',
+            name='SectionTitle',
             parent=self.styles['Normal'],
             fontSize=11,
-            spaceAfter=6,
-            alignment=TA_JUSTIFY,
+            spaceAfter=4,
+            spaceBefore=12,
+            textColor=black,
+            fontName='Helvetica-Bold',
+            textTransform='uppercase'
+        ))
+        
+        # Normal Body Text
+        self.styles.add(ParagraphStyle(
+            name='ClinicalText',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            leading=14,
+            spaceAfter=8,
+            alignment=TA_LEFT,
             fontName='Helvetica'
         ))
         
-        # Label style for form fields
+        # Doctor Signature Text [cite: 27-32]
         self.styles.add(ParagraphStyle(
-            name='FieldLabel',
+            name='SignatureText',
             parent=self.styles['Normal'],
             fontSize=10,
-            fontName='Helvetica-Bold',
-            textColor=HexColor('#7f8c8d')
+            leading=12,
+            alignment=TA_RIGHT,
+            fontName='Helvetica'
         ))
-        
-        # Value style for form fields
+
+        # Disclaimer/Note Text [cite: 26]
         self.styles.add(ParagraphStyle(
-            name='FieldValue',
+            name='Disclaimer',
             parent=self.styles['Normal'],
-            fontSize=11,
-            fontName='Helvetica',
-            leftIndent=20,
-            spaceAfter=8
+            fontSize=9,
+            leading=11,
+            spaceBefore=10,
+            alignment=TA_LEFT,
+            fontName='Helvetica-Oblique'
         ))
     
     def generate_report_pdf(self, report: EEGReport, signal_file: SignalFile, doctor: AuthUser) -> str:
@@ -114,230 +112,167 @@ class PDFReportGenerator:
         doc = SimpleDocTemplate(
             str(filepath),
             pagesize=A4,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=18
+            rightMargin=50,
+            leftMargin=50,
+            topMargin=50,
+            bottomMargin=50
         )
         
         # Build content
         story = []
         
-        # Add header
-        story.extend(self._create_header(report, signal_file, doctor))
+        # 1. Header Section
+        story.extend(self._create_header())
         
-        # Add patient information
-        story.extend(self._create_patient_section(report))
+        # 2. Patient & Metadata Grid
+        story.extend(self._create_metadata_grid(report, signal_file))
         
-        # Add report information
-        story.extend(self._create_report_section(report))
+        # Separator line
+        story.append(HRFlowable(width="100%", thickness=1, color=black, spaceBefore=5, spaceAfter=15))
         
-        # Add clinical findings
-        story.extend(self._create_clinical_section(report))
+        # 3. Clinical Sections (Indications, Technique, Findings)
+        story.extend(self._create_clinical_body(report))
         
-        # Add doctor information
-        story.extend(self._create_doctor_section(report, doctor))
-        
-        # Add footer
-        story.extend(self._create_footer(report))
+        # 4. Footer & Signature
+        story.extend(self._create_signature_block(doctor))
         
         # Build PDF
-        doc.build(story, onFirstPage=self._add_page_number, onLaterPages=self._add_page_number)
+        doc.build(story, onFirstPage=self._add_footer, onLaterPages=self._add_footer)
         
         return str(filepath)
     
-    def _create_header(self, report: EEGReport, signal_file: SignalFile, doctor: AuthUser) -> list:
-        """Create the report header"""
+    def _create_header(self) -> list:
+        """Create the hospital/department header"""
         story = []
-        
-        # Title
-        story.append(Paragraph("EEG ANALYSIS REPORT", self.styles['ReportTitle']))
-        
-        # Report metadata table
-        report_date = report.report_date.strftime("%B %d, %Y") if report.report_date else "N/A"
-        created_date = report.created_at.strftime("%B %d, %Y at %I:%M %p") if report.created_at else "N/A"
-        
-        header_data = [
-            ['Report ID:', f'#{report.id}', 'Date:', report_date],
-            ['File:', signal_file.original_filename, 'Generated:', created_date],
-            ['Doctor:', f"{doctor.first_name or ''} {doctor.last_name or ''}".strip() or doctor.username, 'Status:', 'Finalized' if report.is_finalized else 'Draft']
-        ]
-        
-        header_table = Table(header_data, colWidths=[1.2*inch, 2.5*inch, 1.2*inch, 2.5*inch])
-        header_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ]))
-        
-        story.append(header_table)
-        story.append(Spacer(1, 20))
-        
+        # Matches "DEPARTMENT OF NEUROPHYSIOLOGY" [cite: 3]
+        story.append(Paragraph("DEPARTMENT OF NEUROPHYSIOLOGY", self.styles['HospitalHeader']))
+        # Matches "Routine EEG Report" [cite: 7]
+        story.append(Paragraph("ROUTINE EEG REPORT", self.styles['ReportType']))
         return story
     
-    def _create_patient_section(self, report: EEGReport) -> list:
-        """Create the patient information section"""
-        story = []
+    def _create_metadata_grid(self, report: EEGReport, signal_file: SignalFile) -> list:
+        """Create the patient and test details grid similar to the reference"""
         
-        story.append(Paragraph("PATIENT INFORMATION", self.styles['SectionHeader']))
+        # Format dates
+        rep_date = report.report_date.strftime("%d-%m-%Y") if report.report_date else datetime.now().strftime("%d-%m-%Y")
         
-        # Patient details table
-        patient_data = [
-            ['Patient Name:', report.patient_name or 'N/A'],
-            ['Age:', str(report.patient_age) if report.patient_age else 'N/A'],
-            ['Gender:', report.patient_gender or 'N/A'],
+        # Structure data to match the 4-column layout in reference [cite: 1, 5, 6, 10, 12]
+        data = [
+            [
+                Paragraph("<b>Name:</b>", self.styles['Normal']),
+                Paragraph(report.patient_name or "N/A", self.styles['Normal']),
+                Paragraph("<b>Date/ID:</b>", self.styles['Normal']),
+                Paragraph(f"{rep_date} / #{report.id}", self.styles['Normal'])
+            ],
+            [
+                Paragraph("<b>Age/Sex:</b>", self.styles['Normal']),
+                Paragraph(f"{report.patient_age or '--'} Yrs / {report.patient_gender or '--'}", self.styles['Normal']),
+                Paragraph("<b>Ref By:</b>", self.styles['Normal']),
+                Paragraph(report.ref_physician or "Direct", self.styles['Normal'])
+            ],
+            [
+                Paragraph("<b>File:</b>", self.styles['Normal']),
+                Paragraph(signal_file.original_filename, self.styles['Normal']),
+                Paragraph("<b>Status:</b>", self.styles['Normal']),
+                Paragraph("Finalized" if report.is_finalized else "Draft", self.styles['Normal'])
+            ]
         ]
         
-        patient_table = Table(patient_data, colWidths=[1.5*inch, 4*inch])
-        patient_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
+        # Create table
+        table = Table(data, colWidths=[1*inch, 2.5*inch, 1*inch, 2.5*inch])
+        table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
         ]))
         
-        story.append(patient_table)
-        story.append(Spacer(1, 15))
-        
-        return story
-    
-    def _create_report_section(self, report: EEGReport) -> list:
-        """Create the report information section"""
+        return [table, Spacer(1, 5)]
+
+    def _create_clinical_body(self, report: EEGReport) -> list:
+        """Create the main clinical content sections"""
         story = []
         
-        story.append(Paragraph("REPORT DETAILS", self.styles['SectionHeader']))
-        
-        # Report details
-        report_date = report.report_date.strftime("%B %d, %Y") if report.report_date else 'N/A'
-        
-        report_data = [
-            ['Report Date:', report_date],
-            ['Referring Physician:', report.ref_physician or 'N/A'],
-        ]
-        
-        report_table = Table(report_data, colWidths=[1.8*inch, 4*inch])
-        report_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        
-        story.append(report_table)
-        story.append(Spacer(1, 15))
-        
-        return story
-    
-    def _create_clinical_section(self, report: EEGReport) -> list:
-        """Create the clinical findings section"""
-        story = []
-        
-        story.append(Paragraph("CLINICAL FINDINGS", self.styles['SectionHeader']))
-        
-        # Indications
+        # INDICATIONS [cite: 14]
         if report.indications:
-            story.append(Paragraph("Indications:", self.styles['SubsectionHeader']))
-            story.append(Paragraph(report.indications, self.styles['ReportText']))
-            story.append(Spacer(1, 10))
+            story.append(Paragraph("INDICATIONS:", self.styles['SectionTitle']))
+            story.append(Paragraph(report.indications, self.styles['ClinicalText']))
+            
+        # TECHNIQUE [cite: 15]
+        technique_text = report.technique or "Multichannel digital EEG recording using the international 10-20 electrode placement system."
+        story.append(Paragraph("TECHNIQUE:", self.styles['SectionTitle']))
+        story.append(Paragraph(technique_text, self.styles['ClinicalText']))
         
-        # Technique
-        if report.technique:
-            story.append(Paragraph("Technique:", self.styles['SubsectionHeader']))
-            story.append(Paragraph(report.technique, self.styles['ReportText']))
-            story.append(Spacer(1, 10))
-        
-        # Factual Report
+        # FACTUAL REPORT [cite: 17]
         if report.factual_report:
-            story.append(Paragraph("Factual Report:", self.styles['SubsectionHeader']))
-            story.append(Paragraph(report.factual_report, self.styles['ReportText']))
-            story.append(Spacer(1, 10))
+            story.append(Paragraph("FACTUAL REPORT:", self.styles['SectionTitle']))
+            story.append(Paragraph(report.factual_report, self.styles['ClinicalText']))
         
-        # Impression
-        story.append(Paragraph("Impression:", self.styles['SubsectionHeader']))
-        impression_color = HexColor('#27ae60') if report.impression == 'normal' else HexColor('#e74c3c')
-        impression_style = ParagraphStyle(
-            'Impression',
-            parent=self.styles['ReportText'],
-            textColor=impression_color,
-            fontName='Helvetica-Bold',
-            fontSize=12
-        )
-        story.append(Paragraph(f"<b>{report.impression.upper()}</b>", impression_style))
-        story.append(Spacer(1, 15))
-        
-        return story
-    
-    def _create_doctor_section(self, report: EEGReport, doctor: AuthUser) -> list:
-        """Create the doctor information section"""
-        story = []
-        
-        story.append(Paragraph("DOCTOR INFORMATION", self.styles['SectionHeader']))
-        
-        # Doctor details
-        doctor_name = f"{doctor.first_name or ''} {doctor.last_name or ''}".strip() or doctor.username
-        doctor_title = doctor.title or ''
-        doctor_specialization = doctor.specialization or ''
-        doctor_affiliation = doctor.hospital_affiliation or ''
-        
-        doctor_data = [
-            ['Name:', doctor_name],
-            ['Title:', doctor_title],
-            ['Specialization:', doctor_specialization],
-            ['Affiliation:', doctor_affiliation],
-        ]
-        
-        doctor_table = Table(doctor_data, colWidths=[1.5*inch, 4*inch])
-        doctor_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        
-        story.append(doctor_table)
-        
-        # Additional doctor info from report
-        if report.doctor_info:
-            story.append(Spacer(1, 10))
-            story.append(Paragraph("Additional Information:", self.styles['SubsectionHeader']))
-            story.append(Paragraph(report.doctor_info, self.styles['ReportText']))
-        
-        story.append(Spacer(1, 20))
-        
-        return story
-    
-    def _create_footer(self, report: EEGReport) -> list:
-        """Create the report footer"""
-        story = []
-        
-        # Add a line
-        story.append(HRFlowable(width="100%", thickness=1, lineCap='round', color=HexColor('#bdc3c7')))
         story.append(Spacer(1, 10))
         
-        # Footer text
-        footer_text = f"This report was generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')} by CereSignal EEG Analysis System."
-        story.append(Paragraph(footer_text, self.styles['FieldLabel']))
+        # IMPRESSION [cite: 24]
+        story.append(Paragraph("IMPRESSION:", self.styles['SectionTitle']))
+        
+        # Style impression based on normal/abnormal
+        # Backwards-compatible: some reports may not have 'impression_details'
+        imp_text = None
+        if hasattr(report, 'impression_details') and getattr(report, 'impression_details'):
+            imp_text = report.impression_details
+        else:
+            if report.impression == 'normal':
+                imp_text = 'Normal study — no epileptiform abnormalities detected.'
+            elif report.impression == 'abnormal':
+                if report.factual_report:
+                    # Use a brief excerpt from the factual report as impression detail
+                    excerpt = report.factual_report.strip().replace('\n', ' ')
+                    imp_text = ('Abnormalities detected — ' + excerpt[:500]) if excerpt else 'Abnormalities detected — see factual report for details.'
+                else:
+                    imp_text = 'Abnormalities detected — see factual report for details.'
+            else:
+                imp_text = 'No impression available.'
+
+        story.append(Paragraph(f"<b>{imp_text}</b>", self.styles['ClinicalText']))
+        
+        # Standard disclaimer/Note found in reference [cite: 26]
+        note_text = "Note: A single normal EEG can neither confirm nor refute the diagnosis of Epilepsy."
+        story.append(Paragraph(note_text, self.styles['Disclaimer']))
         
         return story
+
+    def _create_signature_block(self, doctor: AuthUser) -> list:
+        """Create the bottom right signature block"""
+        story = []
+        story.append(Spacer(1, 40))
+        
+        # Doctor details
+        name = f"{doctor.first_name or ''} {doctor.last_name or ''}".strip() or doctor.username
+        # Use titles from reference style or doctor object
+        title_lines = [
+            f"<b>{name}</b>",
+            doctor.specialization or "Neurologist",
+            doctor.hospital_affiliation or "Department of Neurophysiology"
+        ]
+        
+        # Create a table to force alignment to the right
+        # We use a table so the text block stays together
+        sig_data = [[Paragraph("<br/>".join(title_lines), self.styles['SignatureText'])]]
+        
+        sig_table = Table(sig_data, colWidths=[7*inch]) # Full width
+        sig_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ]))
+        
+        story.append(sig_table)
+        return story
     
-    def _add_page_number(self, canvas, doc):
-        """Add page numbers to the PDF"""
+    def _add_footer(self, canvas, doc):
+        """Add minimal page numbers"""
         canvas.saveState()
-        canvas.setFont('Helvetica', 9)
+        canvas.setFont('Helvetica', 8)
         page_num = canvas.getPageNumber()
         text = f"Page {page_num}"
-        canvas.drawRightString(200*mm, 20*mm, text)
+        canvas.drawRightString(200*mm, 10*mm, text)
         canvas.restoreState()
-
 
 # Global instance
 pdf_generator = PDFReportGenerator()

@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ReportFormProps {
   fileId?: number;
@@ -47,6 +48,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
   onCancel,
   isDialog = false
 }) => {
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState<EEGReportCreate>({
     file_id: fileId || 0,
     patient_name: '',
@@ -113,7 +116,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       // Only prefill if we're not editing an existing report
       prefillFormData();
     }
-  }, [fileId, signalFile, patient, doctor, propExistingReport]);
+  }, [fileId, signalFile, patient, doctor, propExistingReport, user]);
 
   const loadExistingReport = async () => {
     if (!fileId) return;
@@ -180,6 +183,22 @@ const ReportForm: React.FC<ReportFormProps> = ({
         doctor_info: `${doctorTitle}${doctorName}${doctorSpecialization}${doctorAffiliation}` || '',
       }));
     }
+
+    // Prefill referring technician / ref_physician with current user's name if the user is a doctor
+    if (user && user.user_type === 'doctor') {
+      const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+      setFormData(prev => ({
+        ...prev,
+        ref_physician: userName,
+      }));
+    }
+
+    // Prefill default indications and technique for new reports
+    setFormData(prev => ({
+      ...prev,
+      indications: prev.indications || 'EEG to investigate a seizure disorder.',
+      technique: prev.technique || 'This is a multichannel digital EEG recording using the estimated international 10-20 electrode placement system. EEG started with machine calibration the patient was awake and cooperative during the procedure.',
+    }));
 
     // Set impression based on file condition
     if (signalFile?.condition) {
