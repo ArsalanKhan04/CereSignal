@@ -139,3 +139,5 @@ uploads/
 *.sqlite3
 test.db
 node_modules/
+
+backend/app/static/plots/*
