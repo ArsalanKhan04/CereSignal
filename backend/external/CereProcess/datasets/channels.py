@@ -116,6 +116,6 @@ NEUROTRANSFORMER_CHANNELS= ['FP1',
  'T5',
  'T6',
  'FZ',
- 'CZ',
- 'PZ'
+ 'PZ',
+ 'CZ'
  ]

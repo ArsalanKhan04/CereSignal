@@ -3,6 +3,7 @@
 '''
 
 
+import resampy
 import mne
 import numpy as np
 from .channels import CHANNELS, PAIRS, NMT_CHANNELS, NMT_PAIRS, NEUROTRANSFORMER_CHANNELS
@@ -74,6 +75,44 @@ class ResampleData(Preprocess):
         return data.resample(self.sample_rate)
     def get_id(self):
         return f'{self.__class__.__name__}_{self.sample_rate}'
+
+class ResampleDataKaiser(Preprocess):
+    ''' Responsible for resampling the data to 100 Hz using resampy
+        to match the notebook's implementation exactly.
+        Inputs: raw EEG data in MNE format
+        Outputs: raw EEG data resampled to target_rate
+    '''
+    def __init__(self, sample_rate):
+        self.sample_rate = sample_rate
+
+    def func(self, data):
+        sfreq = data.info['sfreq']
+        if sfreq == self.sample_rate:
+            return data
+
+        # 1. Extract data as numpy array (Channels x Time)
+        data_np = data.get_data()
+
+        # 2. Resample using resampy with 'kaiser_fast' (Matching Notebook)
+        resampled_data_np = resampy.resample(
+            data_np,
+            sfreq,
+            self.sample_rate,
+            axis=1,
+            filter='kaiser_fast'
+        )
+
+        # 3. Wrap back into MNE RawArray
+        # We must update the info structure with the new sampling rate
+        info = data.info.copy()
+        with info._unlock():
+            info['sfreq'] = self.sample_rate
+
+        # Create new RawArray with resampled data
+        return mne.io.RawArray(resampled_data_np, info, verbose=False)
+
+    def get_id(self):
+        return f'{self.__class__.__name__}_{self.sample_rate}_kaiser_fast'
 
 class CropData(Preprocess):
     ''' Responsible for cropping the data to the specified time range
@@ -714,9 +753,9 @@ def neurotransformer_pipeline(dataset='NMT'):
     '''
     pipeline = Pipeline()
     pipeline.add(ReduceChannels(channels=NEUROTRANSFORMER_CHANNELS))
-    pipeline.add(BandPassFilter(l_freq=1, h_freq=45))
-    pipeline.add(ResampleData(200))
-    pipeline.add(WindowData())
+    pipeline.add(Scale(1e6))
+    pipeline.add(ResampleDataKaiser(200))
+    pipeline.add(WindowData(window_duration=2.0))
     return pipeline
 
 
