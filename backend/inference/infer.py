@@ -9,6 +9,7 @@ from external.CereProcess.datasets.pipeline import general_pipeline, neurotransf
 from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
 from external.models.neurogate import NeuroGate
 from external.models.neurotransformer import Neurotransformer
+from app.services.brain_viz_service import generate_topomap_from_events
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
@@ -113,10 +114,19 @@ def infer(self, mne_file_path):
     condition = _process_neurogate(mne_data)
     events = _process_neurotransformer(mne_data)
 
+    # Attempt to generate a topomap image for this inference
+    try:
+        base = os.path.splitext(os.path.basename(mne_file_path))[0]
+        title = f"Model Prediction\n({base})"
+        out_path = generate_topomap_from_events(base, {ch: {k: v for k, v in events[ch].items()} for ch in events}, title, vmax=None)
+        # include path in result for later DB update if needed
+    except Exception as e:
+        print(f"Warning: failed to generate topomap image: {e}")
+        out_path = None
 
     ## Now doing processing steps for neurotransformer
 
     end_time = time.time()
 
-    return {'result': condition, 'events': events, 'inference_time': end_time - start_time}
+    return {'result': condition, 'events': events, 'inference_time': end_time - start_time, 'topomap_path': out_path}
 

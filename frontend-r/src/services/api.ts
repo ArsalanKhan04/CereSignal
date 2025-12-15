@@ -153,6 +153,13 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async getPlotData(fileId: number, startTime: number = 0, duration: number = 10, channels?: string): Promise<ApiResponse<any>> {
+    const params: any = { start_time: startTime, duration };
+    if (channels) params.channels = channels;
+    const response = await this.client.get(`/signals/files/${fileId}/plot-data`, { params });
+    return { data: response.data, status: response.status };
+  }
+
   async checkInferenceStatus(fileId: number): Promise<ApiResponse<any>> {
     const response = await this.client.get(`/signals/files/${fileId}/inference-status`);
     return { data: response.data, status: response.status };

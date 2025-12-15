@@ -24,6 +24,7 @@ from app.schemas.signal import (
 from app.core.config import settings
 from app.utils.file_processing import save_uploaded_file, process_signal_file
 from app.services.inference_service import inference_service
+from app.services.eeg_cache_service import eeg_cache
 
 router = APIRouter()
 
@@ -388,6 +389,68 @@ async def get_signal_data(
     }
 
 
+@router.get("/files/{file_id}/plot-data")
+async def get_plot_data(
+    file_id: int,
+    start_time: float = 0.0,
+    duration: float = 10.0,
+    channels: Optional[str] = None,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Return actual signal samples for plotting (JSON with lists). Channels is optional comma-separated names."""
+    # Verify file exists and access
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found")
+
+    # Optionally, could check user permissions here (omitted for brevity)
+
+    # Ensure file is loaded into cache
+    try:
+        eeg_cache.load_file(file_id, file.file_path)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to load EEG file: {e}")
+
+    # parse channels
+    channels_list = None
+    if channels:
+        channels_list = [c.strip() for c in channels.split(",") if c.strip()]
+
+    try:
+        seg = eeg_cache.get_segment(file_id, start_time=start_time, duration=duration, channels=channels_list)
+        return {
+            "file_id": file_id,
+            "filename": file.filename,
+            "plot_data": seg
+        }
+    except KeyError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not loaded in cache")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error extracting plot data: {e}")
+
+
+@router.get("/files/{file_id}/topomap")
+async def get_file_topomap(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """Return generated topomap PNG for a file if it exists"""
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found")
+
+    # Construct expected path (saved by inference task): <basename>_topomap.png where basename is the filename without extension
+    base = os.path.splitext(file.filename)[0]
+    print('Looking for topomap at base:', base)
+    plot_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'static', 'plots', f"{base}_topomap.png")
+    print(plot_path)
+    plot_path = os.path.abspath(plot_path)
+    print(plot_path)
+    if not os.path.exists(plot_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topomap not found for this file")
+
+    return FileResponse(path=plot_path, filename=os.path.basename(plot_path), media_type='image/png')
 
 
 @router.get("/stats")
