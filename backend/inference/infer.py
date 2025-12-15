@@ -25,18 +25,17 @@ _PIPELINES = {'neurogate': general_pipeline('NMT'),
 def load_model(model_name):
     if model_name in _MODEL_CACHE:
         return _MODEL_CACHE[model_name]
-    
+
     if model_name == 'neurogate':
         model = NeuroGate()
     elif model_name == 'neurotransformer':
         model = Neurotransformer()
     else:
         raise ValueError(f"Model {model_name} not recognized.")
-    
+
     model.to(_DEVICE)
     model.load_state_dict(torch.load(_MODEL_WEIGHTS[model_name], map_location=_DEVICE))
-    if model_name == 'neurogate':
-        model.eval()
+    model.eval()
 
     _MODEL_CACHE[model_name] = model
     return model
@@ -59,7 +58,7 @@ def _process_neurogate(mne_data):
     ## Starting with processing and inference for neurogate
     processed_data = _PIPELINES['neurogate'].apply(mne_data)
     data = processed_data.get_data()
-    data = data[None, :, :]  
+    data = data[None, :, :]
     data = torch.from_numpy(data).float().to(_DEVICE)
 
     model = load_model('neurogate')
