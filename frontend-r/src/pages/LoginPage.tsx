@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
-  Container,
-  Paper,
   Box,
   TextField,
   Button,
@@ -11,11 +9,26 @@ import {
   Alert,
   CircularProgress,
   Divider,
+  InputAdornment,
+  Stack,
+  Fade,
+  useTheme,
+  Paper,
+  Grid // MUI v6 Grid (Grid2)
 } from '@mui/material';
+import {
+  Person as PersonIcon,
+  Lock as LockIcon,
+  LocalHospital as LogoIcon,
+  ArrowForward as ArrowIcon,
+  Science as ScienceIcon,
+  Psychology as BrainIcon
+} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginRequest } from '../types';
 
 const LoginPage: React.FC = () => {
+  const theme = useTheme();
   const [formData, setFormData] = useState<LoginRequest>({
     username: '',
     password: '',
@@ -41,241 +54,270 @@ const LoginPage: React.FC = () => {
       await login(formData);
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Login failed. Please try again.';
+      const errorMessage = err.response?.data?.detail || err.message || 'Login failed.';
       setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const primaryMain = theme.palette.primary.main;
+  const primaryDark = theme.palette.primary.dark;
+
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'background.default',
-        padding: { xs: 2, sm: 3 },
-      }}
-    >
-      <Container maxWidth="xs" sx={{ width: '100%' }}>
-        <Paper
-          elevation={0}
-          sx={{
-            padding: { xs: 3, sm: 4 },
-            width: '100%',
-            border: '1px solid',
-            borderColor: 'grey.200',
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
+    <Grid container sx={{ minHeight: '100vh' }}>
+      
+      {/* --- Left Side: Login Form --- */}
+      <Grid 
+        size={{ xs: 12, md: 5, lg: 4 }} 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          bgcolor: '#ffffff',
+          position: 'relative',
+          boxShadow: { md: '10px 0 30px rgba(0,0,0,0.05)' },
+          zIndex: 2
+        }}
+      >
+        <Fade in={true} timeout={1000}>
+          <Box 
+            sx={{ 
+              width: '100%', 
+              maxWidth: 450, 
+              p: { xs: 4, sm: 6 },
+              display: 'flex', 
               flexDirection: 'column',
-              alignItems: 'center',
-              mb: 3,
+              alignItems: 'center'
             }}
           >
-            <Typography
-              component="h1"
-              variant="h1"
-              sx={{
-                fontWeight: 700,
-                mb: 1,
-                color: 'text.primary',
-                fontSize: { xs: '1.75rem', sm: '2rem' },
-              }}
-            >
-              CereSignal
-            </Typography>
-            <Typography
-              component="h2"
-              variant="h2"
-              sx={{
-                mb: 4,
-                color: 'text.secondary',
-                fontSize: { xs: '1.125rem', sm: '1.25rem' },
-                fontWeight: 400,
-              }}
-            >
-              Sign in to your account
-            </Typography>
+            {/* Mobile Logo (only visible on small screens) */}
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 4, alignItems: 'center' }}>
+              <LogoIcon sx={{ color: primaryMain, fontSize: 40, mr: 1 }} />
+              <Typography variant="h5" fontWeight="800" color="text.primary">CereSignal</Typography>
+            </Box>
+
+            <Box sx={{ width: '100%', mb: 4 }}>
+              <Typography variant="h4" component="h1" fontWeight="800" sx={{ mb: 1, color: '#1a1a1a' }}>
+                Welcome Back
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Please enter your credentials to access the portal.
+              </Typography>
+            </Box>
 
             {error && (
-              <Alert
-                severity="error"
-                sx={{
-                  width: '100%',
-                  mb: 3,
-                  borderRadius: 2,
-                  '& .MuiAlert-message': {
-                    fontSize: '0.875rem',
-                  },
-                }}
-              >
+              <Alert severity="error" sx={{ width: '100%', mb: 3, borderRadius: 2 }}>
                 {error}
               </Alert>
             )}
 
-            <Box
-              component="form"
-              onSubmit={handleSubmit}
-              sx={{
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2.5,
-              }}
-            >
-              <TextField
-                required
-                fullWidth
-                id="username"
-                label="Username"
-                name="username"
-                autoComplete="username"
-                autoFocus
-                value={formData.username}
-                onChange={handleChange}
-                disabled={isLoading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: 'background.paper',
-                  },
-                }}
-              />
-              <TextField
-                required
-                fullWidth
-                name="password"
-                label="Password"
-                type="password"
-                id="password"
-                autoComplete="current-password"
-                value={formData.password}
-                onChange={handleChange}
-                disabled={isLoading}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: 'background.paper',
-                  },
-                }}
-              />
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                disabled={isLoading}
-                sx={{
-                  mt: 1,
-                  py: 1.5,
-                  fontSize: '0.9375rem',
-                  fontWeight: 600,
-                }}
-              >
-                {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign in'}
-              </Button>
-            </Box>
-
-            <Divider sx={{ width: '100%', my: 3 }} />
-
-            <Box
-              sx={{
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 1.5,
-              }}
-            >
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'text.secondary',
-                  fontSize: '0.875rem',
-                }}
-              >
-                Don't have an account?
-              </Typography>
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 1,
-                  width: '100%',
-                }}
-              >
-                <Box
+            <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+              <Stack spacing={3}>
+                <TextField
+                  required
+                  fullWidth
+                  id="username"
+                  label="Username or Medical ID"
+                  name="username"
+                  autoComplete="username"
+                  autoFocus
+                  value={formData.username}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                   sx={{
-                    display: 'flex',
-                    gap: 2,
-                    flexWrap: 'wrap',
-                    justifyContent: 'center',
+                    '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
+                  }}
+                />
+                
+                <TextField
+                  required
+                  fullWidth
+                  name="password"
+                  label="Password"
+                  type="password"
+                  id="password"
+                  autoComplete="current-password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
+                  }}
+                />
+
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  disabled={isLoading}
+                  endIcon={!isLoading && <ArrowIcon />}
+                  sx={{
+                    py: 1.8,
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    boxShadow: '0 8px 16px rgba(25, 118, 210, 0.25)',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 12px 20px rgba(25, 118, 210, 0.35)',
+                    }
                   }}
                 >
-                  <Link
-                    component={RouterLink}
-                    to="/register/doctor"
-                    variant="body2"
-                    sx={{
-                      color: 'primary.main',
-                      textDecoration: 'none',
-                      fontSize: '0.875rem',
-                      fontWeight: 500,
-                      '&:hover': {
-                        textDecoration: 'underline',
-                      },
-                    }}
-                  >
-                    Doctor
-                  </Link>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    •
-                  </Typography>
-                  <Link
-                    component={RouterLink}
-                    to="/register/technician"
-                    variant="body2"
-                    sx={{
-                      color: 'primary.main',
-                      textDecoration: 'none',
-                      fontSize: '0.875rem',
-                      fontWeight: 500,
-                      '&:hover': {
-                        textDecoration: 'underline',
-                      },
-                    }}
-                  >
-                    Technician
-                  </Link>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    •
-                  </Typography>
-                  <Link
-                    component={RouterLink}
-                    to="/register/patient"
-                    variant="body2"
-                    sx={{
-                      color: 'primary.main',
-                      textDecoration: 'none',
-                      fontSize: '0.875rem',
-                      fontWeight: 500,
-                      '&:hover': {
-                        textDecoration: 'underline',
-                      },
-                    }}
-                  >
-                    Patient
-                  </Link>
-                </Box>
-              </Box>
+                  {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+                </Button>
+              </Stack>
             </Box>
+
+            <Divider sx={{ width: '100%', my: 4 }}>
+              <Typography variant="caption" color="text.secondary" fontWeight="600">
+                OR REGISTER AS
+              </Typography>
+            </Divider>
+
+            <Stack 
+              direction="row" 
+              spacing={1} 
+              justifyContent="center" 
+              sx={{ width: '100%' }}
+            >
+              {[
+                { label: 'Doctor', path: '/register/doctor' },
+                { label: 'Technician', path: '/register/technician' },
+                { label: 'Patient', path: '/register/patient' },
+              ].map((role) => (
+                <Button
+                  key={role.label}
+                  component={RouterLink}
+                  to={role.path}
+                  variant="outlined"
+                  size="small"
+                  sx={{ 
+                    borderRadius: 20, 
+                    textTransform: 'none', 
+                    fontWeight: 600,
+                    borderColor: 'divider',
+                    color: 'text.secondary',
+                    flex: 1,
+                    '&:hover': {
+                      borderColor: primaryMain,
+                      color: primaryMain,
+                      bgcolor: 'transparent'
+                    }
+                  }}
+                >
+                  {role.label}
+                </Button>
+              ))}
+            </Stack>
           </Box>
-        </Paper>
-      </Container>
-    </Box>
+        </Fade>
+      </Grid>
+
+      {/* --- Right Side: Visual Branding (Hidden on Mobile) --- */}
+      <Grid 
+        size={{ xs: 0, md: 7, lg: 8 }}
+        sx={{
+          display: { xs: 'none', md: 'flex' },
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          position: 'relative',
+          bgcolor: '#0a1929', // Fallback color
+          background: `radial-gradient(circle at 10% 20%, ${primaryDark} 0%, #0a1929 90%)`,
+          color: 'white',
+          overflow: 'hidden'
+        }}
+      >
+        {/* Decorative Background Elements */}
+        <Box 
+          sx={{ 
+            position: 'absolute', 
+            top: -100, 
+            right: -100, 
+            width: 400, 
+            height: 400, 
+            bgcolor: primaryMain, 
+            opacity: 0.1, 
+            borderRadius: '50%',
+            filter: 'blur(80px)' 
+          }} 
+        />
+        <Box 
+          sx={{ 
+            position: 'absolute', 
+            bottom: -50, 
+            left: -50, 
+            width: 300, 
+            height: 300, 
+            bgcolor: 'secondary.main', 
+            opacity: 0.1, 
+            borderRadius: '50%',
+            filter: 'blur(60px)' 
+          }} 
+        />
+
+        {/* Branding Content */}
+        <Fade in={true} timeout={1500}>
+          <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 600, px: 8 }}>
+            <Box 
+              sx={{ 
+                width: 80, 
+                height: 80, 
+                bgcolor: 'rgba(255,255,255,0.1)', 
+                backdropFilter: 'blur(10px)',
+                borderRadius: 3, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                mb: 4,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+              }}
+            >
+              <BrainIcon sx={{ fontSize: 48, color: 'white' }} />
+            </Box>
+
+            <Typography variant="h2" fontWeight="800" sx={{ mb: 2, letterSpacing: '-1px' }}>
+              CereSignal
+            </Typography>
+            
+            <Typography variant="h5" sx={{ mb: 4, fontWeight: 400, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6 }}>
+              Advanced EEG analysis and patient management platform for modern healthcare providers.
+            </Typography>
+
+            <Stack direction="row" spacing={3} sx={{ color: 'rgba(255,255,255,0.6)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ScienceIcon fontSize="small" />
+                <Typography variant="subtitle2">AI-Powered Analysis</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LogoIcon fontSize="small" />
+                <Typography variant="subtitle2">Clinical Grade Security</Typography>
+              </Box>
+            </Stack>
+          </Box>
+        </Fade>
+      </Grid>
+
+    </Grid>
   );
 };
 

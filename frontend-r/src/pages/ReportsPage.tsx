@@ -5,7 +5,7 @@ import {
   Button,
   Card,
   CardContent,
-  Grid,
+  Grid, // In MUI v6 use Grid2 syntax
   Chip,
   IconButton,
   Dialog,
@@ -15,30 +15,45 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Fade,
+  Paper,
+  Tooltip,
+  Divider,
+  Stack,
+  useTheme
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as ViewIcon,
   Description as ReportIcon,
   PictureAsPdf as PDFIcon,
   Download as DownloadIcon,
+  AccessTime as TimeIcon,
+  Person as PersonIcon,
+  InsertDriveFile as FileIcon,
+  CheckCircle as FinalizedIcon,
+  Drafts as DraftIcon
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { EEGReport, SignalFile, User, Patient } from '../types';
+import { EEGReport, SignalFile, Patient } from '../types';
 import ReportForm from '../components/ReportForm';
 
-// Ensure this file is treated as a module by TypeScript's isolatedModules
+// Ensure this file is treated as a module
 export {};
 
 const ReportsPage: React.FC = () => {
+  const theme = useTheme();
+  
+  // State
   const [reports, setReports] = useState<EEGReport[]>([]);
   const [signalFiles, setSignalFiles] = useState<SignalFile[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  
+  // UI State
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [editingReport, setEditingReport] = useState<EEGReport | null>(null);
@@ -57,16 +72,9 @@ const ReportsPage: React.FC = () => {
         apiClient.getPatients()
       ]);
 
-      if (reportsResponse.status === 200) {
-        console.log('Loaded reports:', reportsResponse.data);
-        setReports(reportsResponse.data);
-      }
-      if (filesResponse.status === 200) {
-        setSignalFiles(filesResponse.data);
-      }
-      if (patientsResponse.status === 200) {
-        setPatients(patientsResponse.data);
-      }
+      if (reportsResponse.status === 200) setReports(reportsResponse.data);
+      if (filesResponse.status === 200) setSignalFiles(filesResponse.data);
+      if (patientsResponse.status === 200) setPatients(patientsResponse.data);
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Error loading data';
       setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
@@ -82,15 +90,13 @@ const ReportsPage: React.FC = () => {
   };
 
   const handleEditReport = (report: EEGReport) => {
-    console.log('handleEditReport called with report:', report);
     setSelectedFileId(report.file_id);
     setEditingReport(report);
     setShowReportForm(true);
-    console.log('State set - selectedFileId:', report.file_id, 'editingReport:', report, 'showReportForm: true');
   };
 
   const handleDeleteReport = async (reportId: number) => {
-    if (!window.confirm('Are you sure you want to delete this report?')) {
+    if (!window.confirm('Are you sure you want to delete this report? This action cannot be undone.')) {
       return;
     }
 
@@ -98,6 +104,8 @@ const ReportsPage: React.FC = () => {
       const response = await apiClient.deleteReport(reportId);
       if (response.status === 200) {
         setReports(reports.filter(report => report.id !== reportId));
+        setSuccess('Report deleted successfully');
+        setTimeout(() => setSuccess(''), 3000);
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Error deleting report';
@@ -105,29 +113,26 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  const handleReportSaved = (report: EEGReport) => {
+  const handleReportSaved = () => {
     setShowReportForm(false);
     setSelectedFileId(null);
     setEditingReport(null);
-    loadData(); // Reload reports
+    loadData();
+    setSuccess(editingReport ? 'Report updated successfully' : 'Report created successfully');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const handleGeneratePDF = async (reportId: number) => {
     try {
       setPdfGenerating(prev => new Set(prev).add(reportId));
-      console.log('Generating PDF for report:', reportId);
       const response = await apiClient.generateReportPDF(reportId);
-      console.log('PDF generation response:', response);
       if (response.status === 200) {
         setSuccess('PDF generated successfully!');
-        console.log('Reloading data after PDF generation...');
-        await loadData(); // Reload to update PDF status
-        console.log('Data reloaded, reports:', reports);
+        await loadData();
+        setTimeout(() => setSuccess(''), 3000);
       }
     } catch (err: any) {
-      console.error('PDF generation error:', err);
-      const errorMessage = err.response?.data?.detail || err.message || 'Error generating PDF';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      setError('Error generating PDF');
     } finally {
       setPdfGenerating(prev => {
         const newSet = new Set(prev);
@@ -140,227 +145,307 @@ const ReportsPage: React.FC = () => {
   const handleDownloadPDF = async (reportId: number) => {
     try {
       const blob = await apiClient.downloadReportPDF(reportId);
-      
-      // Create blob URL
       const url = window.URL.createObjectURL(blob);
-      
-      // Create temporary link element
       const link = document.createElement('a');
       link.href = url;
       link.download = `EEG_Report_${reportId}.pdf`;
-      link.style.display = 'none';
-      
-      // Add to DOM, click, and remove
       document.body.appendChild(link);
       link.click();
-      
-      // Clean up
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-      
-      setSuccess('PDF downloaded successfully!');
     } catch (err: any) {
-      console.error('Download error:', err);
-      const errorMessage = err.response?.data?.detail || err.message || 'Error downloading PDF';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      setError('Error downloading PDF');
     }
   };
 
   const getImpressionColor = (impression: string) => {
-    return impression === 'normal' ? 'success' : 'error';
+    if (impression?.toLowerCase().includes('normal')) return 'success';
+    if (impression?.toLowerCase().includes('abnormal')) return 'error';
+    return 'warning';
   };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" p={3}>
-        <CircularProgress />
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress size={40} thickness={4} />
       </Box>
     );
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">EEG Reports</Typography>
+    <Box sx={{ p: 0 }}>
+      
+      {/* --- Page Header --- */}
+      <Box 
+        display="flex" 
+        justifyContent="space-between" 
+        alignItems="center" 
+        mb={4}
+        sx={{ 
+          borderBottom: '1px solid', 
+          borderColor: 'divider', 
+          pb: 2 
+        }}
+      >
+        <Box>
+          <Typography variant="h4" fontWeight="700" sx={{ color: '#1a1a1a' }}>
+            Clinical Reports
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Manage, generate, and analyze EEG findings.
+          </Typography>
+        </Box>
         <Button
           variant="contained"
+          size="large"
           startIcon={<AddIcon />}
           onClick={() => setShowReportForm(true)}
+          sx={{ 
+            borderRadius: 2, 
+            textTransform: 'none', 
+            fontWeight: 600,
+            boxShadow: '0 4px 12px rgba(25, 118, 210, 0.2)' 
+          }}
         >
-          Create Report
+          New Report
         </Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {/* --- Alerts --- */}
+      <Box sx={{ mb: 3 }}>
+        <Fade in={!!error}>
+          <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2, display: error ? 'flex' : 'none' }}>
+            {error}
+          </Alert>
+        </Fade>
+        <Fade in={!!success}>
+          <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 2, display: success ? 'flex' : 'none' }}>
+            {success}
+          </Alert>
+        </Fade>
+      </Box>
 
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
-
-      {/* File Selection for New Report */}
-      {showReportForm && !editingReport && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Select EEG File for Report
+      {/* --- File Selection Card (Creation Mode) --- */}
+      <Fade in={showReportForm && !editingReport}>
+        <Box sx={{ mb: 4, display: showReportForm && !editingReport ? 'block' : 'none' }}>
+          <Paper 
+            elevation={0} 
+            sx={{ 
+              p: 4, 
+              border: '1px solid', 
+              borderColor: 'primary.main', 
+              bgcolor: 'primary.50',
+              borderRadius: 3 
+            }}
+          >
+            <Typography variant="h6" fontWeight="600" color="primary.main" gutterBottom>
+              Start New Analysis
             </Typography>
-            <FormControl fullWidth>
-              <InputLabel>Select File</InputLabel>
-              <Select
-                value={selectedFileId || ''}
-                onChange={(e) => setSelectedFileId(Number(e.target.value))}
-                label="Select File"
-              >
-                {signalFiles.map((file) => (
-                  <MenuItem key={file.id} value={file.id}>
-                    {file.original_filename} - {file.user_name || 'Unknown Patient'}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Box display="flex" gap={2} mt={2}>
-              <Button
-                variant="contained"
-                onClick={() => selectedFileId && handleCreateReport(selectedFileId)}
-                disabled={!selectedFileId}
-              >
-                Create Report
-              </Button>
-              <Button onClick={() => setShowReportForm(false)}>
-                Cancel
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Select a raw EEG recording to begin the reporting process.
+            </Typography>
+            
+            <Grid container spacing={2} alignItems="center">
+              {/* FIX: Replaced 'item xs' with 'size' */}
+              <Grid size={{ xs: 12, md: 8 }}>
+                <FormControl fullWidth size="small" sx={{ bgcolor: 'white' }}>
+                  <InputLabel>Select EEG Recording</InputLabel>
+                  <Select
+                    value={selectedFileId || ''}
+                    onChange={(e) => setSelectedFileId(Number(e.target.value))}
+                    label="Select EEG Recording"
+                  >
+                    {signalFiles.map((file) => (
+                      <MenuItem key={file.id} value={file.id}>
+                        {file.original_filename} — {file.user_name || 'Unknown Patient'}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              {/* FIX: Replaced 'item xs' with 'size' */}
+              <Grid size={{ xs: 12, md: 4 }} display="flex" gap={2}>
+                <Button
+                  variant="contained"
+                  onClick={() => selectedFileId && handleCreateReport(selectedFileId)}
+                  disabled={!selectedFileId}
+                  fullWidth
+                  sx={{ textTransform: 'none', fontWeight: 600 }}
+                >
+                  Create Report
+                </Button>
+                <Button 
+                  onClick={() => { setShowReportForm(false); setSelectedFileId(null); }}
+                  fullWidth
+                  variant="outlined"
+                  sx={{ textTransform: 'none', fontWeight: 600 }}
+                >
+                  Cancel
+                </Button>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Box>
+      </Fade>
 
-      {/* Reports List */}
-      <Grid container spacing={3}>
-        {reports.map((report) => {
-          console.log('Rendering report:', report.id, 'PDF path:', report.pdf_file_path);
-          return (
-          <Grid sx={{ xs: 12, md: 6 }} key={report.id}>
-            <Card>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                  <Box>
-                    <Typography variant="h6">{report.patient_name}</Typography>
-                    <Typography color="textSecondary" variant="body2">
-                      {report.file_name}
-                    </Typography>
-                    <Typography color="textSecondary" variant="body2">
-                      {new Date(report.report_date).toLocaleDateString()}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" gap={1}>
-                    {report.pdf_file_path && (
-                      <Chip
-                        label="PDF"
-                        color="success"
-                        size="small"
-                        icon={<PDFIcon />}
-                      />
-                    )}
-                    <Chip
-                      label={report.impression}
-                      color={getImpressionColor(report.impression)}
-                      size="small"
+      {/* --- Reports Grid --- */}
+      {reports.length === 0 ? (
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: 8, 
+            textAlign: 'center', 
+            borderRadius: 3, 
+            border: '1px dashed', 
+            borderColor: 'divider',
+            bgcolor: 'background.paper' 
+          }}
+        >
+          <ReportIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
+          <Typography variant="h6" color="text.primary" gutterBottom>No Reports Found</Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            You haven't created any analysis reports yet.
+          </Typography>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setShowReportForm(true)}>
+            Create First Report
+          </Button>
+        </Paper>
+      ) : (
+        <Grid container spacing={3}>
+          {reports.map((report) => (
+            // FIX: Replaced 'item xs' with 'size'
+            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={report.id}>
+              <Card 
+                elevation={0}
+                sx={{ 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.05)',
+                    transform: 'translateY(-2px)'
+                  }
+                }}
+              >
+                <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                  
+                  {/* Status Badges */}
+                  <Box display="flex" justifyContent="space-between" mb={2}>
+                    <Chip 
+                      label={report.is_finalized ? "Finalized" : "Draft"} 
+                      size="small" 
+                      color={report.is_finalized ? "success" : "default"}
+                      icon={report.is_finalized ? <FinalizedIcon /> : <DraftIcon />}
+                      variant={report.is_finalized ? "filled" : "outlined"}
                     />
-                    {report.is_finalized && (
-                      <Chip label="Finalized" color="success" size="small" />
-                    )}
-                    {/* Debug info */}
-                    {process.env.NODE_ENV === 'development' && (
-                      <Chip
-                        label={`PDF: ${report.pdf_file_path ? 'Yes' : 'No'}`}
-                        color="info"
-                        size="small"
-                      />
-                    )}
+                    <Stack direction="row" spacing={1}>
+                        <Chip 
+                          label={report.impression || "Pending Analysis"} 
+                          size="small" 
+                          color={getImpressionColor(report.impression)}
+                          sx={{ fontWeight: 600 }}
+                        />
+                        {report.pdf_file_path && (
+                          <Tooltip title="PDF Available">
+                            <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id)} />
+                          </Tooltip>
+                        )}
+                    </Stack>
                   </Box>
-                </Box>
 
-                {report.factual_report && (
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    {report.factual_report.substring(0, 150)}
-                    {report.factual_report.length > 150 && '...'}
+                  {/* Main Info */}
+                  <Typography variant="h6" fontWeight="700" noWrap title={report.patient_name || 'Unknown Patient'}>
+                    {report.patient_name || 'Unknown Patient'}
                   </Typography>
-                )}
+                  
+                  <Stack direction="row" spacing={2} sx={{ mt: 1, mb: 2, color: 'text.secondary', fontSize: '0.875rem' }}>
+                    <Box display="flex" alignItems="center">
+                      <FileIcon fontSize="inherit" sx={{ mr: 0.5 }} />
+                      <Typography variant="caption" noWrap sx={{ maxWidth: 120 }}>{report.file_name}</Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center">
+                      <TimeIcon fontSize="inherit" sx={{ mr: 0.5 }} />
+                      <Typography variant="caption">{new Date(report.report_date).toLocaleDateString()}</Typography>
+                    </Box>
+                  </Stack>
 
-                <Box display="flex" justifyContent="flex-end" gap={1}>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleEditReport(report)}
-                    color="primary"
-                    title="Edit Report"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  {/* Always show Generate/Regenerate PDF button so users can regenerate if needed */}
-                  <IconButton
-                    size="small"
-                    onClick={() => handleGeneratePDF(report.id)}
-                    color={report.pdf_file_path ? 'primary' : 'secondary'}
-                    title={report.pdf_file_path ? 'Regenerate PDF' : 'Generate PDF'}
-                    disabled={pdfGenerating.has(report.id)}
-                  >
-                    {pdfGenerating.has(report.id) ? <CircularProgress size={16} /> : <PDFIcon />}
-                  </IconButton>
+                  <Divider sx={{ my: 2 }} />
 
-                  {/* If a PDF already exists, keep the download buttons visible as well */}
-                  {report.pdf_file_path && (
-                    <>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDownloadPDF(report.id)}
-                        color="success"
-                        title="Download PDF"
+                  {/* Summary Snippet */}
+                  <Typography variant="body2" color="text.secondary" sx={{ 
+                    mb: 2, 
+                    minHeight: 40,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}>
+                    {report.factual_report || "No summary available."}
+                  </Typography>
+
+                  {/* Actions */}
+                  <Box display="flex" justifyContent="flex-end" gap={1} mt="auto">
+                    <Tooltip title="Edit Report">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleEditReport(report)}
+                        sx={{ bgcolor: 'action.hover', color: 'primary.main' }}
                       >
-                        <DownloadIcon />
+                        <EditIcon fontSize="small" />
                       </IconButton>
-                    </>
-                  )}
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteReport(report.id)}
-                    color="error"
-                    title="Delete Report"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          );
-        })}
-      </Grid>
+                    </Tooltip>
 
-      {reports.length === 0 && (
-        <Card>
-          <CardContent>
-            <Box textAlign="center" py={4}>
-              <ReportIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary">
-                No reports found
-              </Typography>
-              <Typography color="text.secondary">
-                Create your first EEG report to get started
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
+                    <Tooltip title={report.pdf_file_path ? "Regenerate PDF" : "Generate PDF"}>
+                      <span>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleGeneratePDF(report.id)}
+                          disabled={pdfGenerating.has(report.id)}
+                          sx={{ bgcolor: 'action.hover', color: 'secondary.main' }}
+                        >
+                          {pdfGenerating.has(report.id) ? <CircularProgress size={18} /> : <PDFIcon fontSize="small" />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+
+                    {report.pdf_file_path && (
+                      <Tooltip title="Download PDF">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleDownloadPDF(report.id)}
+                          sx={{ bgcolor: 'action.hover', color: 'success.main' }}
+                        >
+                          <DownloadIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+
+                    <Tooltip title="Delete Report">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleDeleteReport(report.id)}
+                        sx={{ bgcolor: 'error.lighter', color: 'error.main', '&:hover': { bgcolor: 'error.light', color: 'white' } }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       )}
 
-      {/* Report Form Dialog */}
+      {/* --- Report Form Dialog --- */}
       {showReportForm && (selectedFileId || editingReport) && (
         <ReportForm
           fileId={selectedFileId || editingReport?.file_id}
@@ -375,15 +460,6 @@ const ReportsPage: React.FC = () => {
           }}
           isDialog={true}
         />
-      )}
-      {/* Debug info */}
-      {showReportForm && (
-        <div style={{ position: 'fixed', top: 0, right: 0, background: 'yellow', padding: '10px', zIndex: 9999 }}>
-          <div>selectedFileId: {selectedFileId}</div>
-          <div>editingReport: {editingReport ? 'exists' : 'null'}</div>
-          <div>editingReport?.file_id: {editingReport?.file_id}</div>
-          <div>fileId: {selectedFileId || editingReport?.file_id}</div>
-        </div>
       )}
     </Box>
   );
