@@ -526,7 +526,7 @@ def load_patient_files(patient_id: int, container):
                             with ui.row().classes('w-full justify-between items-center'):
                                 with ui.column().classes('flex-1'):
                                     ui.html(f'<h5 class="font-medium">{file["original_filename"]}</h5>')
-                                    ui.html(f'<p class="text-sm text-gray-600">Size: {file["file_size"]} bytes | Type: {file["file_type"]}</p>')
+                                    ui.html(f'<p class="text-sm text-gray-600">Size: {file["file_size"] / (1024*1024):.1f} MB | Type: {file["file_type"]}</p>')
                                     
                                     # Status badge
                                     status = file.get('processing_status', 'unknown')
@@ -573,7 +573,7 @@ def view_file_details(file):
         
         with ui.column().classes('w-full'):
             ui.html(f'<p><strong>Filename:</strong> {file["original_filename"]}</p>')
-            ui.html(f'<p><strong>Size:</strong> {file["file_size"]} bytes</p>')
+            ui.html(f'<p><strong>Size:</strong> {file["file_size"] / (1024*1024):.1f} MB</p>')
             ui.html(f'<p><strong>Type:</strong> {file["file_type"]}</p>')
             ui.html(f'<p><strong>Status:</strong> {file.get("processing_status", "unknown")}</p>')
             ui.html(f'<p><strong>Uploaded:</strong> {file.get("upload_time", "unknown")}</p>')

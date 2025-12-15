@@ -214,7 +214,7 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
               <Box flex={1}>
                 <Typography variant="h6">{file.original_filename}</Typography>
                 <Typography variant="body2" color="textSecondary">
-                  Size: {file.file_size} bytes | Type: {file.file_type}
+                  Size: {(file.file_size / (1024*1024)).toFixed(1)} MB | Type: {file.file_type}
                 </Typography>
                 <Box sx={{ mt: 1 }}>
                   <Chip
@@ -273,7 +273,7 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
                 </Grid>
                 <Grid sx={{ xs: 6 }}>
                   <Typography variant="body2">
-                    <strong>Size:</strong> {selectedFile.file_size} bytes
+                    <strong>Size:</strong> {(selectedFile.file_size / (1024*1024)).toFixed(1)} MB
                   </Typography>
                 </Grid>
                 <Grid sx={{ xs: 6 }}>

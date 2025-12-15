@@ -327,7 +327,7 @@ const Files: React.FC = () => {
                 </Grid>
                 <Grid sx={{ xs: 6 }}>
                   <Typography variant="body2">
-                    <strong>Size:</strong> {selectedFile.file_size} bytes
+                    <strong>Size:</strong> {(selectedFile.file_size / (1024*1024)).toFixed(1)} MB
                   </Typography>
                 </Grid>
                 <Grid sx={{ xs: 6 }}>
@@ -431,7 +431,7 @@ const FileCard: React.FC<FileCardProps> = ({
               {file.original_filename}
             </Typography>
             <Typography variant="body2" color="textSecondary">
-              Patient: {file.user_name || 'Unknown'} | Size: {file.file_size} bytes
+              Patient: {file.user_name || 'Unknown'} | Size: {(file.file_size / (1024*1024)).toFixed(1)} MB
             </Typography>
             <Box sx={{ mt: 1 }}>
               <Chip

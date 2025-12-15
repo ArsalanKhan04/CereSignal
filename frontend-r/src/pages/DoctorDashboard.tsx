@@ -29,6 +29,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Patients from '../components/Patients';
 import Files from '../components/Files';
 import ReportsPage from './ReportsPage';
+import Events from '../components/Events';
 
 // --- Components ---
 
@@ -139,6 +140,7 @@ const DoctorDashboard: React.FC = () => {
             >
               <Tab icon={<PeopleIcon sx={{ mb: 0, mr: 1 }} />} iconPosition="start" label="My Patients" />
               <Tab icon={<FileIcon sx={{ mb: 0, mr: 1 }} />} iconPosition="start" label="EEG Files" />
+              <Tab icon={<ReportIcon sx={{ mb: 0, mr: 1 }} />} iconPosition="start" label="EEG Analysis" />
               <Tab icon={<ReportIcon sx={{ mb: 0, mr: 1 }} />} iconPosition="start" label="Reports" />
             </Tabs>
 
@@ -208,12 +210,14 @@ const DoctorDashboard: React.FC = () => {
                 <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 0.5 }}>
                   {tabValue === 0 && 'Patient Management'}
                   {tabValue === 1 && 'EEG File Repository'}
-                  {tabValue === 2 && 'Analytics & Reports'}
+                  {tabValue === 2 && 'EEG File Analysis'}
+                  {tabValue === 3 && 'Analytics & Reports'}
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
                   {tabValue === 0 && 'Overview of your assigned patients and their status.'}
                   {tabValue === 1 && 'Access, review, and analyze uploaded EEG recordings.'}
-                  {tabValue === 2 && 'Generate detailed clinical reports and insights.'}
+                  {tabValue === 2 && 'Select an EEG file to view its analysis and events.'}
+                  {tabValue === 3 && 'Generate detailed clinical reports and insights.'}
                 </Typography>
               </Box>
             </Box>
@@ -227,6 +231,9 @@ const DoctorDashboard: React.FC = () => {
                 <Files />
               </TabPanel>
               <TabPanel value={tabValue} index={2}>
+                <Events />
+              </TabPanel>
+              <TabPanel value={tabValue} index={3}>
                 <ReportsPage />
               </TabPanel>
             </Box>
