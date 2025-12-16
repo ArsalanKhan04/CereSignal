@@ -192,7 +192,7 @@ const TechnicianDashboard: React.FC = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', mr: 6 }}>
               <LogoIcon sx={{ color: primaryColor, fontSize: 32, mr: 1.5 }} />
               <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px', color: '#1a1a1a' }}>
-                Neuro<Box component="span" sx={{ color: primaryColor }}>Tech</Box>
+                Cere<Box component="span" sx={{ color: primaryColor }}>Signal</Box>
               </Typography>
             </Box>
 
@@ -268,6 +268,7 @@ const TechnicianDashboard: React.FC = () => {
                 </Typography>
               </Box>
 
+              {/*
               {tabValue === 0 && (
                 <Button 
                   variant="contained" 
@@ -286,6 +287,7 @@ const TechnicianDashboard: React.FC = () => {
                   New Patient
                 </Button>
               )}
+              */}
             </Box>
 
             {/* Tab Content */}
