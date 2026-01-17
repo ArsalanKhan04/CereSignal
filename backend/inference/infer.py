@@ -259,7 +259,7 @@ def infer(self, mne_file_path):
     events, raw_events = _process_neurotransformer(mne_data)
     pdr_text = _compute_pdr(mne_data)
     region_report = _get_region_report(raw_events, 25)
-    factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
+    # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
 
     # Attempt to generate a topomap image for this inference
     try:
@@ -271,9 +271,17 @@ def infer(self, mne_file_path):
         print(f"Warning: failed to generate topomap image: {e}")
         out_path = None
 
+    report_task = generate_report.delay(float(ab_prob), region_report, pdr_text)
     ## Now doing processing steps for neurotransformer
 
     end_time = time.time()
 
-    return {'result': condition, 'events': events, 'factual_report':factual_report, 'impression': impression, 'inference_time': end_time - start_time, 'topomap_path': out_path}
+    return {'result': condition, 'events': events, 'inference_time': end_time - start_time, 'topomap_path': out_path,
+            'report_task_id': report_task.id}
+
+
+@app.task(name='generate_report')
+def generate_report(ab_prob, region_report, pdr_text):
+    factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
+    return {'factual_report': factual_report, 'impression': impression}
 

@@ -29,6 +29,10 @@ class SignalFileResponse(SignalFileBase):
     processed: bool
     processing_status: str
     condition: str
+    task_id: Optional[str] = None
+    report_task_id: Optional[str] = None
+    factual_report: Optional[str] = None
+    impression: Optional[str] = None
     user_name: Optional[str] = None  # Will be populated from relationship
     
     class Config:
