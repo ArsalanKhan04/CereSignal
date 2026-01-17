@@ -2,10 +2,12 @@ import time
 import os
 from celery import Celery
 import torch
+import torch.nn.functional as F
 import numpy as np
 import mne
 import re
 import json
+import ollama
 
 from external.CereProcess.datasets.pipeline import general_pipeline, neurotransformer_pipeline, resample
 from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
@@ -98,6 +100,7 @@ def _process_neurotransformer(mne_data):
     # model.eval()
 
     result_events = {}
+    raw_events = {}
 
     for i, ch_name in enumerate(NEUROTRANSFORMER_CHANNELS):
         ch_data = data[:, i:i+1, :]
@@ -153,7 +156,7 @@ def _get_clinical_adjective(percentage, threshold):
 
 def _get_region_report(result_events, threshold):
     region_report = {}
-    for region_name, channels in CHANNEL_REGIONS.items():
+    for region_name, channels in _CHANNEL_REGIONS.items():
         total_windows = 0
         spike_count = 0
         slow_count = 0
@@ -186,7 +189,7 @@ def _get_region_report(result_events, threshold):
         }
     return region_report
 
-def _generate_report(ab_prob, region_report, pdr_text)
+def _generate_report(ab_prob, region_report, pdr_text):
     prompt_content = f"""
             PATIENT STATISTICS:
             - Global Abnormality Probability: {ab_prob:.1f}% (If >50%, consider Abnormal)
@@ -268,5 +271,7 @@ def infer(self, mne_file_path):
 
     end_time = time.time()
 
+    print(factual_report)
+    print(impression)
     return {'result': condition, 'events': events, 'factual_report':factual_report, 'impression': impression, 'inference_time': end_time - start_time, 'topomap_path': out_path}
 
