@@ -26,7 +26,10 @@ class SignalFile(Base):
     processing_status: str = Column(String(50), default="pending")  # pending, processing, completed, failed
     condition: str = Column(String(20), default="processing")  # processing, normal, abnormal
     task_id: Optional[str] = Column(String(255), nullable=True)  # Celery task ID for inference
+    report_task_id: Optional[str] = Column(String(255), nullable=True)  # Celery task ID for report generation
     events: Optional[dict] = Column(JSON, nullable=True)  # Event data from neurotransformer
+    factual_report: Optional[str] = Column(Text, nullable=True)  # AI-generated factual report
+    impression: Optional[str] = Column(Text, nullable=True)  # AI-generated impression
     
     # Relationships
     user = relationship("User", back_populates="signal_files")

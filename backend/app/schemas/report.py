@@ -16,7 +16,7 @@ class EEGReportBase(BaseModel):
     indications: Optional[str] = None
     technique: Optional[str] = None
     factual_report: Optional[str] = None
-    impression: str = Field(..., pattern="^(normal|abnormal)$")
+    impression: Optional[str] = None
     doctor_info: Optional[str] = None
 
 
@@ -34,7 +34,7 @@ class EEGReportUpdate(BaseModel):
     indications: Optional[str] = None
     technique: Optional[str] = None
     factual_report: Optional[str] = None
-    impression: Optional[str] = Field(None, pattern="^(normal|abnormal)$")
+    impression: Optional[str] = None
     doctor_info: Optional[str] = None
     is_finalized: Optional[bool] = None
 

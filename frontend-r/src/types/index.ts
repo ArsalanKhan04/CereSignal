@@ -126,8 +126,22 @@ export interface SignalFile {
   processed: boolean;
   upload_time: string;
   task_id?: string;
+  report_task_id?: string;
   events?: Record<string, any>;
+  factual_report?: string;
+  impression?: string;
   user_name?: string;
+}
+
+export interface ReportStatus {
+  file_id: number;
+  report_status: 'not_started' | 'pending' | 'completed' | 'failed';
+  message: string;
+  has_report: boolean;
+  report?: {
+    factual_report: string;
+    impression: string;
+  };
 }
 
 export interface Signal {
@@ -194,7 +208,7 @@ export interface EEGReport {
   indications?: string;
   technique?: string;
   factual_report?: string;
-  impression: 'normal' | 'abnormal';
+  impression?: string;
   doctor_info?: string;
   created_at: string;
   updated_at?: string;
@@ -213,7 +227,7 @@ export interface EEGReportCreate {
   indications?: string;
   technique?: string;
   factual_report?: string;
-  impression: 'normal' | 'abnormal';
+  impression?: string;
   doctor_info?: string;
   pdf_file_path?: string;
 }
@@ -226,7 +240,7 @@ export interface EEGReportUpdate {
   indications?: string;
   technique?: string;
   factual_report?: string;
-  impression?: 'normal' | 'abnormal';
+  impression?: string;
   doctor_info?: string;
   is_finalized?: boolean;
   pdf_file_path?: string;

@@ -165,6 +165,11 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async checkReportStatus(fileId: number): Promise<ApiResponse<any>> {
+    const response = await this.client.get(`/signals/files/${fileId}/report-status`);
+    return { data: response.data, status: response.status };
+  }
+
   async deleteFile(fileId: number): Promise<ApiResponse<{ message: string }>> {
     const response = await this.client.delete(`/signals/files/${fileId}`);
     return { data: response.data, status: response.status };

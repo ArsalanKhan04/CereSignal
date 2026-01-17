@@ -29,7 +29,7 @@ class EEGReport(Base):
     indications: Optional[str] = Column(Text, nullable=True)
     technique: Optional[str] = Column(Text, nullable=True)
     factual_report: Optional[str] = Column(Text, nullable=True)
-    impression: str = Column(String(50), nullable=False)  # normal, abnormal
+    impression: Optional[str] = Column(Text, nullable=True)  # AI-generated impression text
     doctor_info: Optional[str] = Column(Text, nullable=True)
     
     # Metadata

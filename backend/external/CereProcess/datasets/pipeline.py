@@ -758,4 +758,9 @@ def neurotransformer_pipeline(dataset='NMT'):
     pipeline.add(WindowData(window_duration=2.0))
     return pipeline
 
+def resample():
+    pipeline = Pipeline()
+    pipeline.add(ReduceChannels(channels=NEUROTRANSFORMER_CHANNELS))
+    pipeline.add(ResampleData(200))
+    return pipeline
 

@@ -16,8 +16,8 @@ from app.models.signal import SignalFile, Signal
 from app.models.user import User
 from app.models.auth import AuthUser, UserType
 from app.schemas.signal import (
-    SignalFileResponse, 
-    SignalResponse, 
+    SignalFileResponse,
+    SignalResponse,
     FileUploadResponse,
     ProcessingRequest
 )
@@ -37,7 +37,7 @@ async def upload_signal_file(
     db: Session = Depends(get_db)
 ):
     """Upload a signal file for processing"""
-    
+
     print('patient_id', patient_id)
     # Validate file type
     if not file.filename:
@@ -51,14 +51,14 @@ async def upload_signal_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File type {file_extension} not allowed. Allowed types: {settings.ALLOWED_FILE_TYPES}"
         )
-    
+
     # Validate file size
     if file.size is not None and file.size > settings.MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File size exceeds maximum allowed size of {settings.MAX_FILE_SIZE} bytes"
         )
-    
+
     try:
         # Determine which patient this file belongs to
         if patient_id:
@@ -96,7 +96,7 @@ async def upload_signal_file(
                 User.auth_user_id == current_user.id,
                 User.name == f"Default Patient for {current_user.username}"
             ).first()
-            
+
             if not user:
                 # Create a default patient
                 user = User(
@@ -106,20 +106,20 @@ async def upload_signal_file(
                 db.add(user)
                 db.commit()
                 db.refresh(user)
-        
+
         # Use original filename (save_uploaded_file will add unique suffix)
         original_filename = file.filename
         if not original_filename:
             # Fallback if no filename provided
             file_id = str(uuid.uuid4())
             original_filename = f"{file_id}{file_extension}"
-        
+
         # Save file (this will add unique suffix to preserve original name)
         file_path = await save_uploaded_file(file, original_filename)
-        
+
         # Extract the actual saved filename from the path
         saved_filename = os.path.basename(file_path)
-        
+
         # Create database record
         db_file = SignalFile(
             user_id=user.id,
@@ -129,15 +129,15 @@ async def upload_signal_file(
             file_size=file.size,
             file_type=file_extension
         )
-        
+
         db.add(db_file)
         db.commit()
         db.refresh(db_file)
-        
+
         # Process the signal file and extract data
         try:
             file_info = process_signal_file(file_path)
-            
+
             # Create signal records for each channel - only essential fields
             for signal_info in file_info.get("signals", []):
                 # Create signal record with only essential data
@@ -148,17 +148,17 @@ async def upload_signal_file(
                     duration=float(signal_info["duration"]),
                     data_points=int(signal_info["samples"])
                 )
-                
+
                 db.add(signal_record)
-            
+
             db.commit()
-            
+
             # Mark file as processed
             db_file.processed = True
             db_file.processing_status = "processing"
             db_file.condition = "processing"
             db.commit()
-            
+
             # Start inference task
             try:
                 task_id = inference_service.start_inference(file_path)
@@ -170,13 +170,13 @@ async def upload_signal_file(
                 # Don't fail the upload if inference fails to start
                 db_file.condition = "failed"
                 db.commit()
-            
+
         except Exception as e:
             # Mark as failed but don't rollback the file record
             db_file.processing_status = "failed"
             db.commit()
             print(f"Error processing signal file: {e}")
-        
+
         return FileUploadResponse(
             message="File uploaded successfully",
             file_id=db_file.id,
@@ -184,7 +184,7 @@ async def upload_signal_file(
             file_size=db_file.file_size,
             processing_status=db_file.processing_status
         )
-        
+
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -198,13 +198,13 @@ async def serve_file(
     file_path: str
 ):
     """Serve a file directly by path - No authentication required"""
-    
+
     if not os.path.exists(file_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found on disk"
         )
-    
+
     filename = os.path.basename(file_path)
     return FileResponse(
         path=file_path,
@@ -222,7 +222,7 @@ async def get_signal_files(
     db: Session = Depends(get_db)
 ):
     """Get list of uploaded signal files for the authenticated user's patients"""
-    
+
     # Handle different user types
     if current_user.user_type == UserType.PATIENT.value:
         # Patients can only see files for their own patient record
@@ -238,7 +238,7 @@ async def get_signal_files(
     else:
         # Doctors can only see files for their assigned patients
         query = db.query(SignalFile).join(User).filter(User.auth_user_id == current_user.id)
-    
+
     if patient_id:
         # Verify access based on user type
         if current_user.user_type == UserType.DOCTOR.value:
@@ -263,18 +263,18 @@ async def get_signal_files(
                     detail="You can only access your own files"
                 )
         # For technicians, no additional check needed - they can see all patients
-        
+
         query = query.filter(SignalFile.user_id == patient_id)
-    
+
     files = query.offset(skip).limit(limit).all()
-    
+
     # Add user name to response
     result = []
     for file in files:
         file_dict = file.__dict__.copy()
         file_dict['user_name'] = file.user.name if file.user else None
         result.append(file_dict)
-    
+
     return result
 
 
@@ -285,17 +285,17 @@ async def get_file_events(
     db: Session = Depends(get_db)
 ):
     """Get events data for a specific file"""
-    
+
     file = db.query(SignalFile).filter(
         SignalFile.id == file_id
     ).first()
-    
+
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     return {
         "file_id": file_id,
         "filename": file.filename,
@@ -310,14 +310,14 @@ async def get_signal_file(
     db: Session = Depends(get_db)
 ):
     """Get specific signal file by ID"""
-    
+
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     return file
 
 
@@ -327,7 +327,7 @@ async def get_file_signals(
     db: Session = Depends(get_db)
 ):
     """Get all signals from a specific file"""
-    
+
     # Check if file exists
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
@@ -335,7 +335,7 @@ async def get_file_signals(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     signals = db.query(Signal).filter(Signal.file_id == file_id).all()
     return signals
 
@@ -348,16 +348,16 @@ async def get_signal_data(
     db: Session = Depends(get_db)
 ):
     """Get signal data for a specific time range"""
-    
+
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     signals = db.query(Signal).filter(Signal.file_id == file_id).all()
-    
+
     # For now, return basic signal info
     # In a real implementation, you'd load the actual signal data from the file
     signal_data = []
@@ -372,7 +372,7 @@ async def get_signal_data(
             "samples_per_second": signal.sampling_rate,
             "total_samples": int(signal.sampling_rate * signal.duration)
         })
-    
+
     return {
         "file_id": file_id,
         "file_info": {
@@ -459,12 +459,12 @@ async def get_signal_stats(
     db: Session = Depends(get_db)
 ):
     """Get statistics for the dashboard"""
-    
+
     # Get all files for the authenticated user's patients
     files = db.query(SignalFile).join(User).filter(
         User.auth_user_id == current_user.id
     ).all()
-    
+
     if not files:
         return {
             "total_files": 0,
@@ -479,7 +479,7 @@ async def get_signal_stats(
                 "total_size": 0
             }
         }
-    
+
     # Count files by condition
     condition_counts = {"normal": 0, "abnormal": 0, "checking": 0, "failed": 0}
     for file in files:
@@ -488,7 +488,7 @@ async def get_signal_stats(
             condition_counts[condition] += 1
         else:
             condition_counts["failed"] += 1
-    
+
     # Get recent files (last 3)
     recent_files = []
     for file in sorted(files, key=lambda x: x.upload_time, reverse=True)[:3]:
@@ -499,7 +499,7 @@ async def get_signal_stats(
             "uploaded_at": file.upload_time.isoformat() if file.upload_time else None,
             "patient_name": file.user.name if file.user else "Unknown"
         })
-    
+
     # Calculate file statistics
     # Get durations from related signals (each file can have multiple signals)
     durations = []
@@ -507,10 +507,10 @@ async def get_signal_stats(
         for signal in file.signals:
             if signal.duration is not None:
                 durations.append(signal.duration)
-    
+
     # Get file sizes from SignalFile
     file_sizes = [file.file_size for file in files if file.file_size is not None]
-    
+
     file_stats = {
         "average_duration": sum(durations) / len(durations) if durations else 0,
         "longest_duration": max(durations) if durations else 0,
@@ -518,10 +518,10 @@ async def get_signal_stats(
         "average_size": sum(file_sizes) / len(file_sizes) if file_sizes else 0,
         "total_size": sum(file_sizes) if file_sizes else 0
     }
-    
+
     # Get unique patients count
     unique_patients = len(set(file.user_id for file in files if file.user_id))
-    
+
     return {
         "total_files": len(files),
         "total_patients": unique_patients,
@@ -537,14 +537,14 @@ async def check_inference_status(
     db: Session = Depends(get_db)
 ):
     """Check the status of inference for a specific file"""
-    
+
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     # If no task ID, inference hasn't started
     if not file.task_id:
         return {
@@ -553,15 +553,23 @@ async def check_inference_status(
             "inference_status": "not_started",
             "message": "Inference not started"
         }
-    
+
     try:
         # Check task status
         task_status = inference_service.get_task_status(file.task_id)
-        
+        report_task_id = None
+
         # If task is completed, update the database
+        report_task_id = None
         if task_status['status'] in ['completed', 'failed']:
             if task_status['status'] == 'completed':
                 result = task_status.get('result', {})
+                report_task_id = result.get('report_task_id')
+                
+                # Store the report task ID for later polling
+                if report_task_id and not file.report_task_id:
+                    file.report_task_id = report_task_id
+                
                 if result and 'result' in result:
                     # Map inference result to condition
                     if result['result'].lower() == 'normal':
@@ -570,7 +578,7 @@ async def check_inference_status(
                         file.condition = 'abnormal'
                     else:
                         file.condition = 'failed'
-                    
+
                     # Store events data if available
                     if 'events' in result and result['events']:
                         file.events = result['events']
@@ -578,25 +586,99 @@ async def check_inference_status(
                     file.condition = 'failed'
             else:  # failed
                 file.condition = 'failed'
-            
+
             db.commit()
-        
+
         return {
             "file_id": file_id,
             "condition": file.condition,
             "inference_status": task_status['status'],
             "message": task_status['message'],
-            "task_id": file.task_id
+            "task_id": file.task_id,
+            "report_task_id": file.report_task_id or report_task_id
         }
-        
+
     except Exception as e:
         return {
             "file_id": file_id,
             "condition": file.condition,
             "inference_status": "error",
             "message": f"Error checking inference status: {str(e)}",
-            "task_id": file.task_id
+            "task_id": file.task_id,
+            "report_task_id": report_task_id
         }
+
+@router.get("/files/{file_id}/report-status")
+async def get_file_report_status(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Check the status of the LLM report generation task for a specific file.
+    If completed, stores the report in the database.
+    """
+    try:
+        file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+        if not file:
+            raise HTTPException(status_code=404, detail="Signal file not found")
+        
+        # If no report task ID, report generation hasn't started
+        if not file.report_task_id:
+            return {
+                "file_id": file_id,
+                "report_status": "not_started",
+                "message": "Report generation not started",
+                "has_report": bool(file.factual_report)
+            }
+        
+        # If already has report data, return it
+        if file.factual_report and file.impression:
+            return {
+                "file_id": file_id,
+                "report_status": "completed",
+                "message": "Report ready",
+                "has_report": True,
+                "report": {
+                    "factual_report": file.factual_report,
+                    "impression": file.impression
+                }
+            }
+        
+        # Check task status
+        status_data = inference_service.get_task_status(file.report_task_id)
+        
+        if not status_data:
+            raise HTTPException(status_code=404, detail="Report task not found")
+        
+        # If task completed, store the report
+        if status_data['status'] == 'completed':
+            result = status_data.get('result', {})
+            if result:
+                file.factual_report = result.get('factual_report', '')
+                file.impression = result.get('impression', '')
+                db.commit()
+                
+                return {
+                    "file_id": file_id,
+                    "report_status": "completed",
+                    "message": "Report ready",
+                    "has_report": True,
+                    "report": {
+                        "factual_report": file.factual_report,
+                        "impression": file.impression
+                    }
+                }
+        
+        # Task still pending or failed
+        return {
+            "file_id": file_id,
+            "report_status": status_data['status'],
+            "message": status_data.get('message', ''),
+            "has_report": False
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking report status: {str(e)}")
 
 
 @router.delete("/files/{file_id}")
@@ -605,25 +687,25 @@ async def delete_signal_file(
     db: Session = Depends(get_db)
 ):
     """Delete a signal file and its associated data"""
-    
+
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     try:
         # Delete physical file
         if os.path.exists(file.file_path):
             os.remove(file.file_path)
-        
+
         # Delete from database (cascade will handle related records)
         db.delete(file)
         db.commit()
-        
+
         return {"message": "File deleted successfully"}
-        
+
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -638,20 +720,20 @@ async def download_file(
     db: Session = Depends(get_db)
 ):
     """Download/serve a signal file for viewing - No authentication required"""
-    
+
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal file not found"
         )
-    
+
     if not os.path.exists(file.file_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found on disk"
         )
-    
+
     return FileResponse(
         path=file.file_path,
         filename=file.original_filename,
