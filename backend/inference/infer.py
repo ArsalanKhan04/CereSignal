@@ -212,29 +212,33 @@ def _generate_report(ab_prob, region_report, pdr_text):
             6. Do not use points.
             7. Do not describe each and every region separately.
             8. Do not assume any information on your own.
+            9. Output JSON.
 
             EXAMPLES:
-            Normal Report:
-            FACTUAL REPORT: Background rhythm shows alpha waveform seen around 8 Hz which is appropriate for age. Photic stimulation and HV not performed due to the state of patient. Intermittent EMG artifacts were seen. Stage II sleep was not achieved.
 
-            IMPRESSION: This EEG showed very mild encephalopathy and there is no element of non convulsive status. Kindly correlate with clinical picture.
+            Example 1 (Normal):
+            {
+                "factual_report": "Background rhythm shows alpha waveform seen around 8 Hz which is appropriate for age. Photic stimulation and HV not performed due to the state of patient. Intermittent EMG artifacts were seen. Stage II sleep was not achieved."
+                "impression": "This EEG showed very mild encephalopathy and there is no element of non convulsive status. Kindly correlate with clinical picture."
+            }
 
-            Abnormal Report:
-            FACTUAL REPORT: Background rhythm during awake stage shows well-organized, welldeveloped, average voltage 10 hertz alpha activity in the posterior regions which is appropriate for age. It blocks with eye opening and it is bilaterally synchronous and symmetrical. Beta activity in the frontal or central areas is seen with average voltage and amplitude. Photic stimulation and hyperventilation was performed. Intermittent EMG artifacts were seen. Stage II sleep was not achieved.
-
-            IMPRESSION: This is an abnormal EEG with asymmetrical features there is delta wave slowing from right hemisphere. There are some faster frequencies on left side also that could be due to breach rhythm .kindly correlate clinically
+            Example 2 (Abnormal):
+            {
+                "factual_report": "Background rhythm during awake stage shows well-organized, welldeveloped, average voltage 10 hertz alpha activity in the posterior regions which is appropriate for age. It blocks with eye opening and it is bilaterally synchronous and symmetrical. Beta activity in the frontal or central areas is seen with average voltage and amplitude. Photic stimulation and hyperventilation was performed. Intermittent EMG artifacts were seen. Stage II sleep was not achieved."
+                "impression": "This is an abnormal EEG with asymmetrical features there is delta wave slowing from right hemisphere. There are some faster frequencies on left side also that could be due to breach rhythm .kindly correlate clinically."
+            }
             """
 
     try:
         response = ollama.chat(model="qwen3:8b", format="json", messages=[
                     {'role': 'system', 'content': system_instruction},
-                    {'role': 'user', 'content': prompt_content},
-                ])
+                    {'role': 'user', 'content': prompt_content}
+        ],        )
         json_str = response['message']['content']
         data = json.loads(json_str)
 
-        factual_report = data.get('factual_report', "")
-        impression = data.get('impression', "")
+        factual_report = data.get('factual_report', "invalid")
+        impression = data.get('impression', "invalid")
     except Exception as e:
         print(f"Ollama Error: {e}")
         factual_report = ""
@@ -271,7 +275,5 @@ def infer(self, mne_file_path):
 
     end_time = time.time()
 
-    print(factual_report)
-    print(impression)
     return {'result': condition, 'events': events, 'factual_report':factual_report, 'impression': impression, 'inference_time': end_time - start_time, 'topomap_path': out_path}
 
