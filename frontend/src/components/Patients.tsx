@@ -307,25 +307,38 @@ const Patients: React.FC<{
   const handleOpenDialog = (patient?: Patient) => {
     if (patient) {
       setEditingPatient(patient);
-      setFormData({
-        name: patient.name,
-        email: patient.email || '',
-        phone: patient.phone || '',
-        medical_id: patient.medical_id || '',
-        gender: patient.gender || 'M',
-        date_of_birth: patient.date_of_birth || '',
-        address: patient.address || '',
-        emergency_contact_name: patient.emergency_contact_name || '',
-        emergency_contact_phone: patient.emergency_contact_phone || '',
-        blood_type: patient.blood_type || 'A+',
-        allergies: patient.allergies || '',
-        medical_conditions: patient.medical_conditions || '',
-        current_medications: patient.current_medications || '',
-        notes: patient.notes || '',
-        referred_by: patient.referred_by || '',
-        doctor_id: undefined, // leave undefined on edit so it's only sent if changed
-        age: patient.age,
-      });
+      setDetailPatientLoading(true);
+      apiClient.getPatient(patient.id)
+        .then((response) => {
+          if (response.status === 200) {
+            const fullPatient = response.data;
+            setFormData({
+              name: fullPatient.name,
+              email: fullPatient.email || '',
+              phone: fullPatient.phone || '',
+              medical_id: fullPatient.medical_id || '',
+              gender: fullPatient.gender || 'M',
+              date_of_birth: fullPatient.date_of_birth || '',
+              address: fullPatient.address || '',
+              emergency_contact_name: fullPatient.emergency_contact_name || '',
+              emergency_contact_phone: fullPatient.emergency_contact_phone || '',
+              blood_type: fullPatient.blood_type || 'A+',
+              allergies: fullPatient.allergies || '',
+              medical_conditions: fullPatient.medical_conditions || '',
+              current_medications: fullPatient.current_medications || '',
+              notes: fullPatient.notes || '',
+              referred_by: fullPatient.referred_by || '',
+              doctor_id: undefined, // leave undefined on edit so it's only sent if changed
+              age: fullPatient.age,
+            });
+          }
+        })
+        .catch(() => {
+          setError('Failed to load patient details');
+        })
+        .finally(() => {
+          setDetailPatientLoading(false);
+        });
     } else {
       setEditingPatient(null);
       setFormData({
@@ -466,9 +479,15 @@ const Patients: React.FC<{
         };
         const createdPatient = await apiClient.createPatient(createData);
         if (selectedFile) {
-          await apiClient.uploadFile(selectedFile, createdPatient.data.id);
+          const uploadResponse = await apiClient.uploadFile(selectedFile, createdPatient.data.id);
+          if (uploadResponse.data.message === 'Matlab Script automatically applied') {
+            setSuccess('Matlab Script automatically applied');
+          } else {
+            setSuccess('Patient created successfully!');
+          }
+        } else {
+          setSuccess('Patient created successfully!');
         }
-        setSuccess('Patient created successfully!');
       }
       await loadPatients();
       handleCloseDialog();
@@ -839,11 +858,6 @@ const Patients: React.FC<{
                                   : normalizedCondition === 'failed'
                                     ? 'warning'
                                     : 'info'}
-                            />
-                            <Chip
-                              label={inferenceStatus}
-                              size="small"
-                              variant="outlined"
                             />
                           </>
                         );

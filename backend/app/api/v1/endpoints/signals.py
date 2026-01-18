@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import json
+import uuid
 from datetime import datetime
 
 from sqlalchemy import or_
@@ -27,6 +28,8 @@ from app.core.config import settings
 from app.utils.file_processing import save_uploaded_file, process_signal_file
 from app.services.inference_service import inference_service
 from app.services.eeg_cache_service import eeg_cache
+from external.edf_preprocess import process_edf
+import mne
 
 EEG_CHANNEL_ORDER = [
     "FP1",
@@ -149,6 +152,15 @@ async def upload_signal_file(
         # Save file (this will add unique suffix to preserve original name)
         file_path = await save_uploaded_file(file, original_filename)
 
+        matlab_applied = False
+        try:
+            raw = mne.io.read_raw_edf(file_path, preload=False, verbose=False)
+            if len(raw.ch_names) == 24:
+                process_edf(file_path, file_path)
+                matlab_applied = True
+        except Exception as e:
+            print(f"Skipping MATLAB preprocessing: {e}")
+
         # Extract the actual saved filename from the path
         saved_filename = os.path.basename(file_path)
 
@@ -210,7 +222,9 @@ async def upload_signal_file(
             print(f"Error processing signal file: {e}")
 
         return FileUploadResponse(
-            message="File uploaded successfully",
+            message="Matlab Script automatically applied"
+            if matlab_applied
+            else "File uploaded successfully",
             file_id=db_file.id,
             filename=db_file.original_filename,
             file_size=db_file.file_size,
