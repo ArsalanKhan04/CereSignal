@@ -83,7 +83,7 @@ async def create_user(
 
         # Handle doctor assignment for technicians
         if current_user.user_type == UserType.TECHNICIAN.value:
-            if user_data.doctor_id:
+            if user_data.doctor_id is not None:
                 # Verify the doctor exists and is active
                 doctor = (
                     db.query(AuthUser)
@@ -101,10 +101,8 @@ async def create_user(
                     )
                 user_dict["auth_user_id"] = user_data.doctor_id
             else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Doctor assignment is required when creating patients as a technician",
-                )
+                # Allow unassigned patients for technicians
+                user_dict["auth_user_id"] = None
         else:
             # For doctors, assign to themselves
             user_dict["auth_user_id"] = current_user.id
@@ -121,6 +119,8 @@ async def create_user(
             user_dict["phone"] = None
         if user_dict.get("notes") == "":
             user_dict["notes"] = None
+        if user_dict.get("referred_by") == "":
+            user_dict["referred_by"] = None
         if user_dict.get("date_of_birth") == "":
             user_dict["date_of_birth"] = None
 
@@ -378,7 +378,7 @@ async def update_user(
             user.auth_user_id = doctor_id
 
         # Convert empty strings to None for optional fields to avoid unique constraint issues
-        for field in ["medical_id", "email", "phone", "notes"]:
+        for field in ["medical_id", "email", "phone", "notes", "referred_by"]:
             if field in update_data and update_data[field] == "":
                 update_data[field] = None
 

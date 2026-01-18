@@ -50,6 +50,7 @@ class PatientRegister(BaseModel):
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
     medical_id: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = None
+    referred_by: Optional[str] = Field(None, max_length=255)
     emergency_contact_name: Optional[str] = Field(None, max_length=255)
     emergency_contact_phone: Optional[str] = Field(None, max_length=50)
     blood_type: Optional[str] = Field(

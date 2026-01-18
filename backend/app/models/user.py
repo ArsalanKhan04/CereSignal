@@ -27,6 +27,7 @@ class User(Base):
     medical_id: Optional[str] = Column(String(100), nullable=True, unique=True)
     # Additional patient information
     address: Optional[str] = Column(Text, nullable=True)
+    referred_by: Optional[str] = Column(String(255), nullable=True)
     emergency_contact_name: Optional[str] = Column(String(255), nullable=True)
     emergency_contact_phone: Optional[str] = Column(String(50), nullable=True)
     blood_type: Optional[str] = Column(String(10), nullable=True)  # A+, B-, O+, etc.

@@ -63,10 +63,13 @@ const Patients: React.FC = () => {
     medical_conditions: '',
     current_medications: '',
     notes: '',
+    referred_by: '',
     doctor_id: undefined,
     age: undefined,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string>('');
 
   // Doctor list (for technicians assigning patients)
   const [doctors, setDoctors] = useState<User[]>([]);
@@ -88,9 +91,11 @@ const Patients: React.FC = () => {
       } else {
         setError('Failed to load patients');
       }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Error loading patients';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } catch (err) {
+      const errorMessage = err && typeof err === 'object'
+        ? ((err as any).response?.data?.detail || (err as any).message)
+        : undefined;
+      setError(typeof errorMessage === 'string' ? errorMessage : 'Error loading patients');
     } finally {
       setLoading(false);
     }
@@ -131,6 +136,31 @@ const Patients: React.FC = () => {
     }
   };
 
+  const handleFileSelect = (file: File | null) => {
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    const allowedTypes = ['.edf'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!allowedTypes.includes(fileExtension)) {
+      setFileError('Only EDF files are allowed');
+      setSelectedFile(null);
+      return;
+    }
+
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setFileError('File size must be less than 100MB');
+      setSelectedFile(null);
+      return;
+    }
+
+    setFileError('');
+    setSelectedFile(file);
+  };
+
   const handleOpenDialog = (patient?: Patient) => {
     if (patient) {
       setEditingPatient(patient);
@@ -149,6 +179,7 @@ const Patients: React.FC = () => {
         medical_conditions: patient.medical_conditions || '',
         current_medications: patient.current_medications || '',
         notes: patient.notes || '',
+        referred_by: patient.referred_by || '',
         doctor_id: undefined, // leave undefined on edit so it's only sent if changed
         age: patient.age,
       });
@@ -169,35 +200,40 @@ const Patients: React.FC = () => {
         medical_conditions: '',
         current_medications: '',
         notes: '',
+        referred_by: '',
         doctor_id: undefined,
         age: undefined,
       });
     }
     setOpenDialog(true);
+    setSelectedFile(null);
+    setFileError('');
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingPatient(null);
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        medical_id: '',
-        gender: 'M',
-        date_of_birth: '',
-        address: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-        blood_type: 'A+',
-        allergies: '',
-        medical_conditions: '',
-        current_medications: '',
-        notes: '',
-        doctor_id: undefined,
-        age: undefined,
-      });
-
+    setSelectedFile(null);
+    setFileError('');
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      medical_id: '',
+      gender: 'M',
+      date_of_birth: '',
+      address: '',
+      emergency_contact_name: '',
+      emergency_contact_phone: '',
+      blood_type: 'A+',
+      allergies: '',
+      medical_conditions: '',
+      current_medications: '',
+      notes: '',
+      referred_by: '',
+      doctor_id: undefined,
+      age: undefined,
+    });
   };
 
   const handleSubmit = async () => {
@@ -233,30 +269,6 @@ const Patients: React.FC = () => {
       return;
     }
 
-    if (!formData.gender) {
-      setError('Gender is required');
-      return;
-    }
-    if (formData.date_of_birth) {
-      const calculatedAge = calculateAge(formData.date_of_birth);
-      if (calculatedAge === undefined) {
-        setError('Date of birth cannot be in the future');
-        return;
-      }
-      if (formData.age !== undefined && formData.age !== calculatedAge) {
-        setError('Age must match the date of birth');
-        return;
-      }
-    }
-    if (formData.age !== undefined && formData.age > 130) {
-      setError('Age must be 130 or less');
-      return;
-    }
-    if (formData.age === undefined || Number.isNaN(Number(formData.age)) || Number(formData.age) < 0) {
-      setError('Age is required');
-      return;
-    }
-
     setSubmitting(true);
     setError('');
     setSuccess('');
@@ -278,6 +290,7 @@ const Patients: React.FC = () => {
           medical_conditions: formData.medical_conditions || undefined,
           current_medications: formData.current_medications || undefined,
           notes: formData.notes || undefined,
+          referred_by: formData.referred_by || undefined,
         };
         if (formData.age !== undefined) {
           updateData.age = formData.age;
@@ -289,13 +302,6 @@ const Patients: React.FC = () => {
         await apiClient.updatePatient(editingPatient.id, updateData);
         setSuccess('Patient updated successfully!');
       } else {
-        // If a technician is creating a patient, include doctor_id when provided
-        if (user?.user_type === 'technician' && !formData.doctor_id) {
-          setError('Please assign a doctor to this patient');
-          setSubmitting(false);
-          return;
-        }
-
         const createData: PatientCreate = {
           name: formData.name,
           email: formData.email || undefined,
@@ -311,21 +317,25 @@ const Patients: React.FC = () => {
           medical_conditions: formData.medical_conditions || undefined,
           current_medications: formData.current_medications || undefined,
           notes: formData.notes || undefined,
+          referred_by: formData.referred_by || undefined,
           doctor_id: formData.doctor_id || undefined,
+          age: formData.age,
         };
-        if (formData.age !== undefined) {
-          createData.age = formData.age;
+        const createdPatient = await apiClient.createPatient(createData);
+        if (selectedFile) {
+          await apiClient.uploadFile(selectedFile, createdPatient.data.id);
         }
-        await apiClient.createPatient(createData);
         setSuccess('Patient created successfully!');
       }
       await loadPatients();
       handleCloseDialog();
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Failed to save patient';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } catch (err) {
+      const errorMessage = err && typeof err === 'object'
+        ? ((err as any).response?.data?.detail || (err as any).message)
+        : undefined;
+      setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to save patient');
     } finally {
       setSubmitting(false);
     }
@@ -344,9 +354,9 @@ const Patients: React.FC = () => {
         } else {
           setError('Failed to delete patient');
         }
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.detail || err.message || 'Failed to delete patient';
-        setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      } catch (err) {
+        const errorMessage = err && typeof err === 'object' ? ((err as any).response?.data?.detail || (err as any).message) : undefined;
+        setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to delete patient');
       }
     }
   };
@@ -356,9 +366,9 @@ const Patients: React.FC = () => {
       await apiClient.uploadFile(file, patientId);
       // Refresh patients to show updated file counts
       await loadPatients();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Failed to upload file';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } catch (err) {
+      const errorMessage = err && typeof err === 'object' ? ((err as any).response?.data?.detail || (err as any).message) : undefined;
+      setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to upload file');
     }
   };
 
@@ -389,11 +399,6 @@ const Patients: React.FC = () => {
         )}
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
 
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
@@ -489,6 +494,49 @@ const Patients: React.FC = () => {
             <Alert severity="info">
               Date of birth is optional. If provided, age will sync to the calculated value.
             </Alert>
+            {error && (
+              <Alert severity="error" onClose={() => setError('')}>
+                {error}
+              </Alert>
+            )}
+            {!editingPatient && (
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  EEG File
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12 }}>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<UploadIcon />}
+                      disabled={submitting}
+                      fullWidth
+                    >
+                      {selectedFile ? `Selected: ${selectedFile.name}` : 'Upload EEG File'}
+                      <input
+                        type="file"
+                        hidden
+                        accept=".edf"
+                        onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                      />
+                    </Button>
+                  </Grid>
+                  {fileError && (
+                    <Grid size={{ xs: 12 }}>
+                      <Alert severity="error" onClose={() => setFileError('')}>
+                        {fileError}
+                      </Alert>
+                    </Grid>
+                  )}
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="caption" color="textSecondary">
+                      Supported format: EDF files only (max 100MB)
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 Required Details
@@ -593,11 +641,17 @@ const Patients: React.FC = () => {
                 </Grid>
                 {user?.user_type === 'technician' && (
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <FormControl fullWidth required>
+                    <FormControl fullWidth>
                       <InputLabel>Assign Doctor</InputLabel>
                       <Select
                         value={formData.doctor_id ?? ''}
-                        onChange={(e) => setFormData({ ...formData, doctor_id: e.target.value as number })}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData({
+                            ...formData,
+                            doctor_id: typeof value === 'string' && value === '' ? undefined : Number(value),
+                          });
+                        }}
                         label="Assign Doctor"
                         disabled={loadingDoctors}
                       >
@@ -606,7 +660,7 @@ const Patients: React.FC = () => {
                             Current: {editingPatient.doctor_name || 'Unassigned'}
                           </MenuItem>
                         ) : (
-                          <MenuItem value="">-- Select Doctor --</MenuItem>
+                          <MenuItem value="">Unassigned</MenuItem>
                         )}
                         {doctors.map((doc) => (
                           <MenuItem key={doc.id} value={doc.id}>
@@ -617,8 +671,17 @@ const Patients: React.FC = () => {
                     </FormControl>
                   </Grid>
                 )}
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Referred By"
+                    value={formData.referred_by || ''}
+                    onChange={(e) => setFormData({ ...formData, referred_by: e.target.value })}
+                  />
+                </Grid>
               </Grid>
             </Box>
+
 
             <Divider />
 

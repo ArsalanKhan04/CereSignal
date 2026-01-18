@@ -55,12 +55,14 @@ export interface PatientRegisterRequest {
   gender?: 'M' | 'F' | 'Other';
   medical_id?: string;
   address?: string;
+  referred_by?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
   allergies?: string;
   medical_conditions?: string;
   current_medications?: string;
+  notes?: string;
 }
 
 export interface AuthResponse {
@@ -69,8 +71,8 @@ export interface AuthResponse {
   expires_in: number;
 }
 
-// Patient types
 export interface Patient {
+
   id: number;
   name: string;
   email?: string;
@@ -80,6 +82,7 @@ export interface Patient {
   date_of_birth?: string;
   age?: number;
   address?: string;
+  referred_by?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
@@ -90,7 +93,7 @@ export interface Patient {
   is_active: boolean;
   created_at: string;
   doctor_name?: string;
-  auth_user_id: number;
+  auth_user_id?: number | null;
 }
 
 export interface PatientCreate {
@@ -102,6 +105,7 @@ export interface PatientCreate {
   date_of_birth?: string;
   age?: number;
   address?: string;
+  referred_by?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
