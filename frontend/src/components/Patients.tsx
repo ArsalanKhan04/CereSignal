@@ -21,6 +21,9 @@ import {
   Chip,
   Divider,
   Stack,
+  AppBar,
+  Toolbar,
+  Paper,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -28,10 +31,12 @@ import {
   Delete as DeleteIcon,
   Upload as UploadIcon,
   Description as FileIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { User, Patient, PatientCreate, PatientUpdate, SignalFile } from '../types';
+import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import EEGPlot from './EEGPlot';
 
 
 const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorViewMode = 'assigned' }) => {
@@ -44,6 +49,8 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [patientFiles, setPatientFiles] = useState<Record<number, SignalFile[]>>({});
+  const [activeEEGFileId, setActiveEEGFileId] = useState<number | null>(null);
+  const [activeEEGEvents, setActiveEEGEvents] = useState<EventsData | null>(null);
   const [fileStatuses, setFileStatuses] = useState<Record<number, { condition: string; inference_status: string }>>({});
   const pollingRef = useRef<number | null>(null);
   const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number; age?: number }>({
@@ -426,13 +433,29 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
     }
   };
 
-  const handleFilePreview = (patientId: number) => {
-    const viewerUrl = `/edf-viewer/viewer.html?patient_id=${patientId}`;
-    window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+  const handleFilePreview = async (patientId: number) => {
+    const file = patientFiles[patientId]?.[0];
+    if (!file) return;
+
+    try {
+      const eventsResponse = await apiClient.getFileEvents(file.id);
+      if (eventsResponse.status === 200) {
+        setActiveEEGEvents(eventsResponse.data);
+      } else {
+        setActiveEEGEvents(null);
+      }
+    } catch (err) {
+      setActiveEEGEvents(null);
+    }
+
+    setActiveEEGFileId(file.id);
   };
 
 
   const maxBirthDate = new Date().toISOString().split('T')[0];
+  const activeEEGFile = activeEEGFileId
+    ? Object.values(patientFiles).flat().find((file) => file.id === activeEEGFileId) || null
+    : null;
 
   if (loading) {
     return (
@@ -475,147 +498,136 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
           </CardContent>
         </Card>
       ) : (
-        <Grid container spacing={3}>
+        <Stack spacing={1.5}>
           {patients.map((patient) => (
-            <Grid size={{ xs: 12, md: 6 }} key={patient.id}>
-              <Card
-                sx={{
-                  height: '100%',
-                  border: patient.auth_user_id === user?.id ? '1px solid' : '1px solid transparent',
-                  borderColor: patient.auth_user_id === user?.id ? 'primary.main' : 'divider',
-                  bgcolor: patient.auth_user_id === user?.id ? 'primary.50' : 'background.paper',
-                }}
-              >
-                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: patient.auth_user_id === user?.id ? 700 : 600 }}>
-                        {patient.name}
-                      </Typography>
-                      <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                        {patient.age !== undefined && (
-                          <Chip label={`Age ${patient.age}`} size="small" />
-                        )}
-                        {patient.gender && (
-                          <Chip label={`Gender ${patient.gender}`} size="small" />
-                        )}
-                        {patient.blood_type && (
-                          <Chip label={`Blood ${patient.blood_type}`} size="small" />
-                        )}
-                      </Stack>
-                    </Box>
-                    {!isReadOnly && (
-                      <Box>
-                        <IconButton
-                          onClick={() => handleOpenDialog(patient)}
-                          color="primary"
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={() => handleDelete(patient.id)}
-                          color="error"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    )}
-                  </Box>
+            <Paper
+              key={patient.id}
+              variant="outlined"
+              sx={{
+                p: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                borderColor: patient.auth_user_id === user?.id ? 'primary.main' : 'divider',
+                bgcolor: patient.auth_user_id === user?.id ? 'primary.50' : 'background.paper',
+              }}
+            >
+              <Box sx={{ minWidth: 200, flexGrow: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: patient.auth_user_id === user?.id ? 700 : 600 }}>
+                  {patient.name}
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                  {patient.age !== undefined && (
+                    <Chip label={`Age ${patient.age}`} size="small" />
+                  )}
+                  {patient.gender && (
+                    <Chip label={`Gender ${patient.gender}`} size="small" />
+                  )}
+                  {patient.blood_type && (
+                    <Chip label={`Blood ${patient.blood_type}`} size="small" />
+                  )}
+                  {patient.medical_id && (
+                    <Chip label={`ID ${patient.medical_id}`} size="small" variant="outlined" />
+                  )}
+                  {patient.referred_by && (
+                    <Chip label={`Referred by: ${patient.referred_by}`} size="small" variant="outlined" />
+                  )}
+                </Stack>
+              </Box>
 
-                  <Grid container spacing={1.5}>
-                    {patient.medical_id && (
-                      <Grid size={{ xs: 12 }}>
-                        <Typography variant="body2" color="textSecondary">
-                          ID: {patient.medical_id}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {patient.email && (
-                      <Grid size={{ xs: 12 }}>
-                        <Typography variant="body2" color="textSecondary">
-                          {patient.email}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {patient.phone && (
-                      <Grid size={{ xs: 12 }}>
-                        <Typography variant="body2" color="textSecondary">
-                          Phone: {patient.phone}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {patient.referred_by && (
-                      <Grid size={{ xs: 12 }}>
-                        <Typography variant="body2" color="textSecondary">
-                          Referred by: {patient.referred_by}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
+              <Box sx={{ minWidth: 220 }}>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  {patientFiles[patient.id]?.[0] ? (
+                    (() => {
+                      const file = patientFiles[patient.id][0];
+                      const status = fileStatuses[file.id];
+                      const condition = status?.condition || file.condition;
+                      const inferenceStatus = status?.inference_status || file.processing_status;
+                      const normalizedCondition = condition === 'processing' ? 'processing' : condition;
+                      return (
+                        <>
+                          <Chip
+                            label={normalizedCondition === 'normal'
+                              ? 'Normal'
+                              : normalizedCondition === 'abnormal'
+                                ? 'Abnormal'
+                                : normalizedCondition === 'failed'
+                                  ? 'Failed'
+                                  : 'Processing'}
+                            size="small"
+                            color={normalizedCondition === 'normal'
+                              ? 'success'
+                              : normalizedCondition === 'abnormal'
+                                ? 'error'
+                                : normalizedCondition === 'failed'
+                                  ? 'warning'
+                                  : 'info'}
+                          />
+                          <Chip
+                            label={inferenceStatus}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <Chip label="No EEG" size="small" variant="outlined" />
+                  )}
+                </Stack>
+              </Box>
 
-                  <Divider />
-
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                        EEG File
-                      </Typography>
-                      <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                        {patientFiles[patient.id]?.[0] ? (
-                          (() => {
-                            const file = patientFiles[patient.id][0];
-                            const status = fileStatuses[file.id];
-                            const condition = status?.condition || file.condition;
-                            const inferenceStatus = status?.inference_status || file.processing_status;
-                            const normalizedCondition = condition === 'processing' ? 'processing' : condition;
-                            return (
-                              <>
-                                <Chip
-                                  label={normalizedCondition === 'normal'
-                                    ? 'Normal'
-                                    : normalizedCondition === 'abnormal'
-                                      ? 'Abnormal'
-                                      : normalizedCondition === 'failed'
-                                        ? 'Failed'
-                                        : 'Processing'}
-                                  size="small"
-                                  color={normalizedCondition === 'normal'
-                                    ? 'success'
-                                    : normalizedCondition === 'abnormal'
-                                      ? 'error'
-                                      : normalizedCondition === 'failed'
-                                        ? 'warning'
-                                        : 'info'}
-                                />
-                                <Chip
-                                  label={inferenceStatus}
-                                  size="small"
-                                  variant="outlined"
-                                />
-                              </>
-                            );
-                          })()
-                        ) : (
-                          <Chip label="No EEG" size="small" variant="outlined" />
-                        )}
-                      </Stack>
-                    </Box>
-                    <Button
-                      variant="outlined"
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+                {!isReadOnly && (
+                  <>
+                    <IconButton
+                      onClick={() => handleOpenDialog(patient)}
+                      color="primary"
                       size="small"
-                      startIcon={<FileIcon />}
-                      onClick={() => handleFilePreview(patient.id)}
-                      disabled={!patientFiles[patient.id]?.length}
                     >
-                      View EEG
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => handleDelete(patient.id)}
+                      color="error"
+                      size="small"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </>
+                )}
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<FileIcon fontSize="small" />}
+                  onClick={() => handleFilePreview(patient.id)}
+                  disabled={!patientFiles[patient.id]?.length}
+                >
+                  View EEG
+                </Button>
+              </Box>
+            </Paper>
           ))}
-        </Grid>
+        </Stack>
       )}
+
+      <Dialog fullScreen open={Boolean(activeEEGFileId)} onClose={() => { setActiveEEGFileId(null); setActiveEEGEvents(null); }}>
+        <AppBar sx={{ position: 'relative' }} color="default" elevation={0}>
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              {activeEEGFile?.user_name ? `${activeEEGFile.user_name} EEG` : 'EEG Viewer'}
+            </Typography>
+            <IconButton edge="end" color="inherit" onClick={() => { setActiveEEGFileId(null); setActiveEEGEvents(null); }}>
+              <CloseIcon />
+            </IconButton>
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ p: 2, bgcolor: '#f7f8fa', minHeight: '100%' }}>
+          {activeEEGFileId && (
+            <EEGPlot fileId={activeEEGFileId} eventsData={activeEEGEvents} />
+          )}
+        </Box>
+      </Dialog>
 
       {/* Add/Edit Patient Dialog */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>

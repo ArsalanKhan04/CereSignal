@@ -28,6 +28,30 @@ from app.utils.file_processing import save_uploaded_file, process_signal_file
 from app.services.inference_service import inference_service
 from app.services.eeg_cache_service import eeg_cache
 
+EEG_CHANNEL_ORDER = [
+    "FP1",
+    "FP2",
+    "F7",
+    "F3",
+    "FZ",
+    "F4",
+    "F8",
+    "T3",
+    "C3",
+    "CZ",
+    "C4",
+    "T4",
+    "T5",
+    "P3",
+    "PZ",
+    "P4",
+    "T6",
+    "O1",
+    "O2",
+    "A1",
+    "A2",
+]
+
 router = APIRouter()
 
 
@@ -408,6 +432,7 @@ async def get_plot_data(
     start_time: float = 0.0,
     duration: float = 10.0,
     channels: Optional[str] = None,
+    montage: str = "original",
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -439,6 +464,116 @@ async def get_plot_data(
         seg = eeg_cache.get_segment(
             file_id, start_time=start_time, duration=duration, channels=channels_list
         )
+
+        if montage != "original" and seg.get("channels"):
+            try:
+                import numpy as np
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to load numpy for montage: {e}",
+                )
+
+            raw_channels = {
+                ch["channel_name"].upper(): np.array(ch["data"])
+                for ch in seg["channels"]
+            }
+            sampling_rate = seg.get("sampling_rate", 0)
+            times = seg.get("times", [])
+
+            def build_channel(name, data):
+                return {
+                    "channel_name": name,
+                    "data": data.tolist(),
+                    "sampling_rate": sampling_rate,
+                }
+
+            montage_channels = []
+            if montage == "bipolar_longitudinal":
+                pairs = [
+                    ("FP1", "F7"),
+                    ("F7", "T3"),
+                    ("T3", "T5"),
+                    ("T5", "O1"),
+                    ("FP2", "F8"),
+                    ("F8", "T4"),
+                    ("T4", "T6"),
+                    ("T6", "O2"),
+                    ("FP1", "F3"),
+                    ("F3", "C3"),
+                    ("C3", "P3"),
+                    ("P3", "O1"),
+                    ("FP2", "F4"),
+                    ("F4", "C4"),
+                    ("C4", "P4"),
+                    ("P4", "O2"),
+                    ("FZ", "CZ"),
+                    ("CZ", "PZ"),
+                ]
+            elif montage == "bipolar_transverse":
+                pairs = [
+                    ("FP1", "FP2"),
+                    ("F7", "F8"),
+                    ("F3", "F4"),
+                    ("T3", "T4"),
+                    ("C3", "C4"),
+                    ("T5", "T6"),
+                    ("P3", "P4"),
+                    ("O1", "O2"),
+                    ("A1", "A2"),
+                    ("FZ", "CZ"),
+                    ("CZ", "PZ"),
+                ]
+            elif montage == "laplacian":
+                pairs = [
+                    ("F3", "FP1"),
+                    ("F3", "F7"),
+                    ("F3", "C3"),
+                    ("F4", "FP2"),
+                    ("F4", "F8"),
+                    ("F4", "C4"),
+                    ("C3", "F3"),
+                    ("C3", "T3"),
+                    ("C3", "P3"),
+                    ("C4", "F4"),
+                    ("C4", "T4"),
+                    ("C4", "P4"),
+                    ("P3", "C3"),
+                    ("P3", "T5"),
+                    ("P3", "O1"),
+                    ("P4", "C4"),
+                    ("P4", "T6"),
+                    ("P4", "O2"),
+                ]
+            else:
+                pairs = []
+
+            for left, right in pairs:
+                if left in raw_channels and right in raw_channels:
+                    montage_channels.append(
+                        build_channel(
+                            f"{left}-{right}", raw_channels[left] - raw_channels[right]
+                        )
+                    )
+
+            seg = {
+                "sampling_rate": sampling_rate,
+                "channels": montage_channels,
+                "times": times,
+                "start_time": seg.get("start_time", 0),
+                "end_time": seg.get("end_time", 0),
+                "n_samples": seg.get("n_samples", 0),
+            }
+
+        if montage == "original" and seg.get("channels"):
+            order_map = {name: idx for idx, name in enumerate(EEG_CHANNEL_ORDER)}
+            seg["channels"] = sorted(
+                seg["channels"],
+                key=lambda ch: order_map.get(
+                    ch["channel_name"].upper(), len(order_map)
+                ),
+            )
+
         return {"file_id": file_id, "filename": file.filename, "plot_data": seg}
     except KeyError:
         raise HTTPException(
