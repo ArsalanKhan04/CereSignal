@@ -21,6 +21,15 @@ export interface User {
   last_login?: string;
 }
 
+export interface NotificationItem {
+  id: number;
+  patient_id?: number | null;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  read_at?: string | null;
+}
+
 export interface LoginRequest {
   username: string;
   password: string;

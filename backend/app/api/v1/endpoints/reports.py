@@ -16,6 +16,7 @@ from app.models.report import EEGReport
 from app.models.signal import SignalFile
 from app.models.auth import AuthUser, UserType
 from app.models.user import User
+from app.models.notification import Notification
 from app.schemas.report import (
     EEGReportCreate,
     EEGReportUpdate,
@@ -80,10 +81,20 @@ async def create_report(
             doctor_info=report_dict.get("doctor_info"),
         )
 
+        notification = None
         if current_user.user_type == UserType.DOCTOR.value:
             signal_file.user.auth_user_id = current_user.id
+            notification = Notification(
+                auth_user_id=current_user.id,
+                patient_id=signal_file.user.id,
+                message=f"Patient named {signal_file.user.name} has been assigned to you for EEG review",
+            )
 
         db.add(db_report)
+
+        if notification:
+            db.add(notification)
+
         db.commit()
         db.refresh(db_report)
 

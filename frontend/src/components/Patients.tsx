@@ -53,6 +53,8 @@ const Patients: React.FC<{
   showStatusToggle?: boolean;
   showDoctorViewToggle?: boolean;
   onDoctorViewModeChange?: (value: 'assigned' | 'all') => void;
+  selectedPatientId?: number | null;
+  onPatientDetailsClose?: () => void;
 }> = ({
   doctorViewMode = 'assigned',
   initialStatusFilter = 'all',
@@ -61,6 +63,8 @@ const Patients: React.FC<{
   showStatusToggle = true,
   showDoctorViewToggle = false,
   onDoctorViewModeChange,
+  selectedPatientId,
+  onPatientDetailsClose,
 }) => {
   const { user } = useAuth();
   const isReadOnly = user?.user_type === 'doctor'; // Doctors have read-only access
@@ -83,6 +87,8 @@ const Patients: React.FC<{
   const [activeEEGEvents, setActiveEEGEvents] = useState<EventsData | null>(null);
   const [fileStatuses, setFileStatuses] = useState<Record<number, { condition: string; inference_status: string }>>({});
   const [localStatusFilter, setLocalStatusFilter] = useState<'pending' | 'examined' | 'all'>(initialStatusFilter);
+  const [detailPatient, setDetailPatient] = useState<Patient | null>(null);
+  const [detailPatientLoading, setDetailPatientLoading] = useState(false);
   const pollingRef = useRef<number | null>(null);
 
   const activeStatusFilter = statusFilter ?? localStatusFilter;
@@ -123,6 +129,11 @@ const Patients: React.FC<{
       loadDoctors();
     }
   }, [user, doctorViewMode, searchQuery]);
+
+  useEffect(() => {
+    if (!selectedPatientId) return;
+    handleOpenPatientDetails(selectedPatientId);
+  }, [selectedPatientId]);
 
   useEffect(() => () => {
     if (searchTimeoutRef.current) {
@@ -513,6 +524,27 @@ const Patients: React.FC<{
     setActiveEEGFileId(file.id);
   };
 
+  const handleOpenPatientDetails = async (patientId: number) => {
+    setDetailPatientLoading(true);
+    try {
+      const response = await apiClient.getPatient(patientId);
+      if (response.status === 200) {
+        setDetailPatient(response.data);
+      }
+    } catch (err) {
+      setError('Failed to load patient details');
+    } finally {
+      setDetailPatientLoading(false);
+    }
+  };
+
+  const handleClosePatientDetails = () => {
+    setDetailPatient(null);
+    if (onPatientDetailsClose) {
+      onPatientDetailsClose();
+    }
+  };
+
   const handleCreateReport = (patient: Patient) => {
     const file = patientFiles[patient.id]?.[0];
     if (!file) return;
@@ -577,6 +609,10 @@ const Patients: React.FC<{
 
   const getPatientReport = (patient: Patient, file: SignalFile | null) =>
     patientReports[patient.id]?.find((item) => item.file_id === file?.id) || null;
+
+  const detailFile = detailPatient ? getPatientFile(detailPatient) : null;
+  const detailReport = detailPatient ? getPatientReport(detailPatient, detailFile) : null;
+  const detailHasPdf = Boolean(detailReport?.pdf_file_path);
 
   const shouldShowPatient = (report: EEGReport | null) => {
     if (activeStatusFilter === 'all') return true;
@@ -680,7 +716,13 @@ const Patients: React.FC<{
         <Card>
           <CardContent>
             <Typography color="textSecondary" align="center" sx={{ py: 4 }}>
-              No patients found. Add your first patient!
+              {isReadOnly
+                ? activeStatusFilter === 'examined'
+                  ? 'No Reviewed Patients'
+                  : activeStatusFilter === 'pending'
+                    ? 'No Unreviewed Patients'
+                    : ''
+                : 'No patients found. Add your first patient!'}
             </Typography>
           </CardContent>
         </Card>
@@ -692,10 +734,18 @@ const Patients: React.FC<{
             const hasPdf = Boolean(report?.pdf_file_path);
             const reportStatusLabel = report ? 'Examined' : 'Pending Review';
             const statusColor = report ? getReportStatusColor(report.impression) : 'default';
+            const isNewPatient = Boolean(
+              isReadOnly &&
+              activeStatusFilter === 'pending' &&
+              user?.last_login &&
+              patient.created_at &&
+              new Date(patient.created_at) > new Date(user.last_login)
+            );
             return (
               <Paper
                 key={patient.id}
                 variant="outlined"
+                onClick={() => handleOpenPatientDetails(patient.id)}
                 sx={{
                   p: 2,
                   display: 'flex',
@@ -703,8 +753,29 @@ const Patients: React.FC<{
                   gap: 2,
                   borderColor: patient.auth_user_id === user?.id ? 'primary.main' : 'divider',
                   bgcolor: patient.auth_user_id === user?.id ? 'primary.50' : 'background.paper',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    boxShadow: '0px 4px 14px rgba(15, 23, 42, 0.08)'
+                  },
                 }}
               >
+                {isNewPatient && (
+                  <Chip
+                    label="New"
+                    size="small"
+                    color="error"
+                    sx={{
+                      position: 'absolute',
+                      top: 10,
+                      left: 10,
+                      fontWeight: 600,
+                      height: 20,
+                    }}
+                  />
+                )}
                 <Box sx={{ minWidth: 200, flexGrow: 1 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: patient.auth_user_id === user?.id ? 700 : 600 }}>
                     {patient.name}
@@ -795,14 +866,20 @@ const Patients: React.FC<{
                   {!isReadOnly && (
                     <>
                       <IconButton
-                        onClick={() => handleOpenDialog(patient)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleOpenDialog(patient);
+                        }}
                         color="primary"
                         size="small"
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
                       <IconButton
-                        onClick={() => handleDelete(patient.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDelete(patient.id);
+                        }}
                         color="error"
                         size="small"
                       >
@@ -815,7 +892,14 @@ const Patients: React.FC<{
                       variant={report ? 'outlined' : 'contained'}
                       size="small"
                       startIcon={report ? <EditIcon fontSize="small" /> : <ReportIcon fontSize="small" />}
-                      onClick={() => (report ? handleEditReport(patient, report) : handleCreateReport(patient))}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (report) {
+                          handleEditReport(patient, report);
+                        } else {
+                          handleCreateReport(patient);
+                        }
+                      }}
                       disabled={!file}
                       sx={{ minWidth: 108, height: 28, fontSize: '0.75rem', px: 1 }}
                     >
@@ -827,7 +911,10 @@ const Patients: React.FC<{
                       variant="outlined"
                       size="small"
                       startIcon={<DownloadIcon fontSize="small" />}
-                      onClick={() => handleDownloadReport(report.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDownloadReport(report.id);
+                      }}
                       disabled={!hasPdf}
                       sx={{ minWidth: 140, height: 28, fontSize: '0.75rem', px: 1 }}
                     >
@@ -837,7 +924,10 @@ const Patients: React.FC<{
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={() => setActiveTopomapFileId(file?.id || null)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveTopomapFileId(file?.id || null);
+                    }}
                     disabled={!file}
                     sx={{ minWidth: 78, height: 28, fontSize: '0.75rem', px: 1 }}
                   >
@@ -847,7 +937,10 @@ const Patients: React.FC<{
                     variant="outlined"
                     size="small"
                     startIcon={<FileIcon fontSize="small" />}
-                    onClick={() => handleFilePreview(patient.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleFilePreview(patient.id);
+                    }}
                     disabled={!file}
                     sx={{ minWidth: 86, height: 28, fontSize: '0.75rem', px: 1 }}
                   >
@@ -864,6 +957,7 @@ const Patients: React.FC<{
         setActiveEEGFileId(null);
         setActiveEEGEvents(null);
       }}>
+
         <AppBar sx={{ position: 'relative' }} color="default" elevation={0}>
           <Toolbar sx={{ justifyContent: 'space-between' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -895,6 +989,171 @@ const Patients: React.FC<{
         <Box sx={{ p: 2, bgcolor: '#f7f8fa', minHeight: '100%' }}>
           {activeTopomapFileId && (
             <TopographicMap fileId={activeTopomapFileId} />
+          )}
+        </Box>
+      </Dialog>
+
+      <Dialog fullScreen open={Boolean(detailPatient)} onClose={handleClosePatientDetails}>
+        <AppBar sx={{ position: 'relative' }} color="default" elevation={0}>
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                {detailPatient?.name || 'Patient Details'}
+              </Typography>
+              {detailPatient?.created_at && (
+                <Typography variant="caption" color="textSecondary">
+                  Added {new Date(detailPatient.created_at).toLocaleString()}
+                </Typography>
+              )}
+            </Box>
+            <IconButton edge="end" color="inherit" onClick={handleClosePatientDetails}>
+              <CloseIcon />
+            </IconButton>
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ p: 3, bgcolor: '#f7f8fa', minHeight: '100%' }}>
+          {detailPatientLoading ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+              <CircularProgress />
+            </Box>
+          ) : detailPatient ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Paper sx={{ p: 3 }} variant="outlined">
+                <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                      {detailPatient.name}
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap' }}>
+                      {detailPatient.age !== undefined && <Chip label={`Age ${detailPatient.age}`} size="small" />}
+                      {detailPatient.gender && <Chip label={`Gender ${detailPatient.gender}`} size="small" />}
+                      {detailPatient.blood_type && <Chip label={`Blood ${detailPatient.blood_type}`} size="small" />}
+                      {detailPatient.medical_id && <Chip label={`ID ${detailPatient.medical_id}`} size="small" variant="outlined" />}
+                      {detailPatient.referred_by && (
+                        <Chip label={`Referred by: ${detailPatient.referred_by}`} size="small" variant="outlined" />
+                      )}
+                      {detailPatient.doctor_name && (
+                        <Chip label={`Assigned: ${detailPatient.doctor_name}`} size="small" variant="outlined" />
+                      )}
+                    </Stack>
+                  </Box>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    {detailFile ? (
+                      <Chip label={detailFile.original_filename} size="small" variant="outlined" />
+                    ) : (
+                      <Chip label="No EEG" size="small" variant="outlined" />
+                    )}
+                    {detailReport && (
+                      <Chip
+                        label="Examined"
+                        size="small"
+                        color={getReportStatusColor(detailReport.impression) as any}
+                      />
+                    )}
+                  </Stack>
+                </Box>
+              </Paper>
+
+              <Paper sx={{ p: 3 }} variant="outlined">
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                  Patient Details
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Typography variant="caption" color="textSecondary">Email</Typography>
+                    <Typography variant="body2">{detailPatient.email || '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Typography variant="caption" color="textSecondary">Phone</Typography>
+                    <Typography variant="body2">{detailPatient.phone || '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Typography variant="caption" color="textSecondary">DOB</Typography>
+                    <Typography variant="body2">{detailPatient.date_of_birth ? new Date(detailPatient.date_of_birth).toLocaleDateString() : '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="textSecondary">Address</Typography>
+                    <Typography variant="body2">{detailPatient.address || '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="textSecondary">Emergency Contact</Typography>
+                    <Typography variant="body2">
+                      {detailPatient.emergency_contact_name || '—'}
+                      {detailPatient.emergency_contact_phone ? ` · ${detailPatient.emergency_contact_phone}` : ''}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="textSecondary">Allergies</Typography>
+                    <Typography variant="body2">{detailPatient.allergies || '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="textSecondary">Medical Conditions</Typography>
+                    <Typography variant="body2">{detailPatient.medical_conditions || '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="textSecondary">Current Medications</Typography>
+                    <Typography variant="body2">{detailPatient.current_medications || '—'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" color="textSecondary">Notes</Typography>
+                    <Typography variant="body2">{detailPatient.notes || '—'}</Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+
+              <Paper sx={{ p: 3 }} variant="outlined">
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                  Actions
+                </Typography>
+                <Stack direction="row" spacing={1.5} flexWrap="wrap">
+                  {detailFile && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<FileIcon fontSize="small" />}
+                      onClick={() => handleFilePreview(detailPatient.id)}
+                    >
+                      View EEG
+                    </Button>
+                  )}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setActiveTopomapFileId(detailFile?.id || null)}
+                    disabled={!detailFile}
+                  >
+                    Topomap
+                  </Button>
+                  {isReadOnly && detailFile && (
+                    <Button
+                      variant={detailReport ? 'outlined' : 'contained'}
+                      size="small"
+                      startIcon={detailReport ? <EditIcon fontSize="small" /> : <ReportIcon fontSize="small" />}
+                      onClick={() =>
+                        detailReport
+                          ? handleEditReport(detailPatient, detailReport)
+                          : handleCreateReport(detailPatient)
+                      }
+                    >
+                      {detailReport ? 'Edit Report' : 'Create Report'}
+                    </Button>
+                  )}
+                  {(isReadOnly || user?.user_type === 'technician') && detailReport && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<DownloadIcon fontSize="small" />}
+                      onClick={() => handleDownloadReport(detailReport.id)}
+                      disabled={!detailHasPdf}
+                    >
+                      Download Report
+                    </Button>
+                  )}
+                </Stack>
+              </Paper>
+            </Box>
+          ) : (
+            <Typography color="textSecondary">Patient details unavailable.</Typography>
           )}
         </Box>
       </Dialog>

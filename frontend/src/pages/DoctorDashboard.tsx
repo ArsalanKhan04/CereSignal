@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   AppBar,
@@ -14,7 +14,12 @@ import {
   Tooltip,
   Stack,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Badge,
+  Popover,
+  List,
+  ListItemButton,
+  ListItemText
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
@@ -22,11 +27,16 @@ import {
   Notifications as NotificationsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../services/api';
+import { NotificationItem } from '../types';
 import Patients from '../components/Patients';
 
 const DoctorDashboard: React.FC = () => {
   const [patientFilter, setPatientFilter] = useState<'assigned' | 'all'>('assigned');
   const [statusFilter, setStatusFilter] = useState<'pending' | 'examined' | 'all'>('pending');
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsAnchor, setNotificationsAnchor] = useState<null | HTMLElement>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const { user, logout } = useAuth();
   const theme = useTheme();
 
@@ -39,6 +49,52 @@ const DoctorDashboard: React.FC = () => {
   const doctorName = user?.first_name && user?.last_name 
     ? `Dr. ${user.first_name} ${user.last_name}` 
     : user?.username || 'Doctor';
+
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
+  const notificationsOpen = Boolean(notificationsAnchor);
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!user || user.user_type !== 'doctor') return;
+      try {
+        const response = await apiClient.getNotifications();
+        if (response.status === 200) {
+          setNotifications(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load notifications', error);
+      }
+    };
+
+    loadNotifications();
+  }, [user]);
+
+  const handleNotificationsClick = (event: React.MouseEvent<HTMLElement>) => {
+    setNotificationsAnchor(event.currentTarget);
+  };
+
+  const handleNotificationsClose = () => {
+    setNotificationsAnchor(null);
+  };
+
+  const handleNotificationRead = async (notification: NotificationItem) => {
+    try {
+      if (!notification.is_read) {
+        const response = await apiClient.markNotificationRead(notification.id);
+        if (response.status === 200) {
+          setNotifications((prev) =>
+            prev.map((item) => (item.id === notification.id ? response.data : item))
+          );
+        }
+      }
+      if (notification.patient_id) {
+        setSelectedPatientId(notification.patient_id);
+      }
+      setNotificationsAnchor(null);
+    } catch (error) {
+      console.error('Failed to mark notification as read', error);
+    }
+  };
 
   // --- Design Constants ---
   const primaryColor = theme.palette.primary.main;
@@ -84,8 +140,10 @@ const DoctorDashboard: React.FC = () => {
             {/* User Profile Section */}
             <Stack direction="row" spacing={2} alignItems="center">
               <Tooltip title="Notifications">
-                <IconButton sx={{ color: 'text.secondary' }}>
-                  <NotificationsIcon />
+                <IconButton sx={{ color: 'text.secondary' }} onClick={handleNotificationsClick}>
+                  <Badge color="error" variant="dot" invisible={unreadCount === 0}>
+                    <NotificationsIcon />
+                  </Badge>
                 </IconButton>
               </Tooltip>
               
@@ -116,6 +174,51 @@ const DoctorDashboard: React.FC = () => {
           </Toolbar>
         </Container>
       </AppBar>
+
+      <Popover
+        open={notificationsOpen}
+        anchorEl={notificationsAnchor}
+        onClose={handleNotificationsClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { width: 360, maxWidth: '90vw' } }}
+      >
+        <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Notifications
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {unreadCount ? `${unreadCount} unread` : 'All caught up'}
+          </Typography>
+        </Box>
+        <List disablePadding>
+          {notifications.length === 0 ? (
+            <Box sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                No notifications yet.
+              </Typography>
+            </Box>
+          ) : (
+            notifications.map((notification) => (
+              <ListItemButton
+                key={notification.id}
+                onClick={() => handleNotificationRead(notification)}
+                sx={{
+                  alignItems: 'flex-start',
+                  bgcolor: notification.is_read ? 'transparent' : 'rgba(25, 118, 210, 0.08)'
+                }}
+              >
+                <ListItemText
+                  primary={notification.message}
+                  secondary={new Date(notification.created_at).toLocaleString()}
+                  primaryTypographyProps={{ variant: 'body2' }}
+                  secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+                />
+              </ListItemButton>
+            ))
+          )}
+        </List>
+      </Popover>
 
       {/* --- Main Content Area --- */}
       <Container maxWidth="xl" sx={{ mt: 3, mb: 3, flexGrow: 1 }}>
@@ -169,6 +272,8 @@ const DoctorDashboard: React.FC = () => {
                 showStatusToggle={false}
                 showDoctorViewToggle={true}
                 onDoctorViewModeChange={setPatientFilter}
+                selectedPatientId={selectedPatientId}
+                onPatientDetailsClose={() => setSelectedPatientId(null)}
               />
             </Box>
           </Paper>

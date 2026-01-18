@@ -15,6 +15,7 @@ from app.core.auth import get_current_active_user
 from app.models.user import User
 from app.models.auth import AuthUser, UserType
 from app.models.signal import SignalFile
+from app.models.notification import Notification
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse
 
 router = APIRouter()
@@ -84,10 +85,11 @@ async def create_user(
         user_dict = user_data.dict()
 
         # Handle doctor assignment for technicians
+        assigned_doctor = None
         if current_user.user_type == UserType.TECHNICIAN.value:
             if user_data.doctor_id is not None:
                 # Verify the doctor exists and is active
-                doctor = (
+                assigned_doctor = (
                     db.query(AuthUser)
                     .filter(
                         AuthUser.id == user_data.doctor_id,
@@ -96,7 +98,7 @@ async def create_user(
                     )
                     .first()
                 )
-                if not doctor:
+                if not assigned_doctor:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Invalid doctor ID or doctor not found",
@@ -169,6 +171,15 @@ async def create_user(
         db_user = User(**user_dict)
 
         db.add(db_user)
+
+        if assigned_doctor:
+            notification = Notification(
+                auth_user_id=assigned_doctor.id,
+                patient_id=db_user.id,
+                message=f"Patient named {db_user.name} has been assigned to you for EEG review",
+            )
+            db.add(notification)
+
         db.commit()
         db.refresh(db_user)
         # Attach doctor_name to response
@@ -385,7 +396,15 @@ async def update_user(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid doctor ID or doctor not found",
                 )
+            previous_doctor_id = user.auth_user_id
             user.auth_user_id = doctor_id
+            if previous_doctor_id != doctor_id:
+                notification = Notification(
+                    auth_user_id=doctor_id,
+                    patient_id=user.id,
+                    message=f"Patient named {user.name} has been assigned to you for EEG review",
+                )
+                db.add(notification)
 
         # Convert empty strings to None for optional fields to avoid unique constraint issues
         for field in ["medical_id", "email", "phone", "notes", "referred_by"]:

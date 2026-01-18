@@ -17,7 +17,8 @@ import {
   EEGReportCreate,
   EEGReportUpdate,
   ApiResponse,
-  ApiError
+  ApiError,
+  NotificationItem
 } from '../types';
 
 class ApiClient {
@@ -80,6 +81,16 @@ class ApiClient {
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
     const response = await this.client.get('/auth/me');
+    return { data: response.data, status: response.status };
+  }
+
+  async getNotifications(): Promise<ApiResponse<NotificationItem[]>> {
+    const response = await this.client.get('/notifications/');
+    return { data: response.data, status: response.status };
+  }
+
+  async markNotificationRead(notificationId: number): Promise<ApiResponse<NotificationItem>> {
+    const response = await this.client.post(`/notifications/${notificationId}/read`);
     return { data: response.data, status: response.status };
   }
 
