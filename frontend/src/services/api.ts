@@ -89,8 +89,9 @@ class ApiClient {
   }
 
   // Patient management methods
-  async getPatients(): Promise<ApiResponse<Patient[]>> {
-    const response = await this.client.get('/users/');
+  async getPatients(includeUnassigned?: boolean): Promise<ApiResponse<Patient[]>> {
+    const params = includeUnassigned ? { include_unassigned: true } : {};
+    const response = await this.client.get('/users/', { params });
     return { data: response.data, status: response.status };
   }
 
@@ -160,7 +161,7 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
-  async checkInferenceStatus(fileId: number): Promise<ApiResponse<any>> {
+  async checkInferenceStatus(fileId: number): Promise<ApiResponse<{ file_id: number; condition: string; inference_status: string; message: string; task_id?: string }>> {
     const response = await this.client.get(`/signals/files/${fileId}/inference-status`);
     return { data: response.data, status: response.status };
   }

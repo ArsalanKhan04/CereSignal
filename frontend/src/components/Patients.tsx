@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -19,9 +19,6 @@ import {
   Alert,
   CircularProgress,
   Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Divider,
   Stack,
 } from '@mui/material';
@@ -29,17 +26,15 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  ExpandMore as ExpandMoreIcon,
   Upload as UploadIcon,
-  Visibility as ViewIcon,
+  Description as FileIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { User, Patient, PatientCreate, PatientUpdate, SignalFile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import FileUpload from './FileUpload';
-import FileList from './FileList';
 
-const Patients: React.FC = () => {
+
+const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorViewMode = 'assigned' }) => {
   const { user } = useAuth();
   const isReadOnly = user?.user_type === 'doctor'; // Doctors have read-only access
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -48,6 +43,9 @@ const Patients: React.FC = () => {
   const [success, setSuccess] = useState<string>('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [patientFiles, setPatientFiles] = useState<Record<number, SignalFile[]>>({});
+  const [fileStatuses, setFileStatuses] = useState<Record<number, { condition: string; inference_status: string }>>({});
+  const pollingRef = useRef<number | null>(null);
   const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number; age?: number }>({
     name: '',
     email: '',
@@ -81,13 +79,78 @@ const Patients: React.FC = () => {
     if (user?.user_type === 'technician') {
       loadDoctors();
     }
-  }, [user]);
+  }, [user, doctorViewMode]);
+
+  useEffect(() => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+
+    const activeFiles = Object.values(patientFiles)
+      .flat()
+      .filter((file) => file.processing_status === 'processing' || file.condition === 'processing');
+
+    if (activeFiles.length === 0) {
+      return undefined;
+    }
+
+    pollingRef.current = window.setInterval(async () => {
+      await Promise.all(
+        activeFiles.map(async (file) => {
+          const statusResponse = await apiClient.checkInferenceStatus(file.id);
+          setFileStatuses((prev) => ({
+            ...prev,
+            [file.id]: {
+              condition: statusResponse.data.condition,
+              inference_status: statusResponse.data.inference_status,
+            },
+          }));
+        })
+      );
+      await loadPatients();
+    }, 10000);
+
+    return () => {
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [patientFiles]);
 
   const loadPatients = async () => {
     try {
-      const response = await apiClient.getPatients();
+      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all');
       if (response.status === 200) {
-        setPatients(response.data);
+        const filteredPatients = isReadOnly && doctorViewMode === 'assigned'
+          ? response.data.filter((patient) => patient.auth_user_id === user?.id)
+          : response.data;
+        setPatients(filteredPatients);
+        const fileRequests = filteredPatients.map((patient) => apiClient.getFiles(patient.id));
+        const fileResponses = await Promise.all(fileRequests);
+        const filesMap = filteredPatients.reduce((acc, patient, index) => {
+          acc[patient.id] = fileResponses[index]?.data || [];
+          return acc;
+        }, {} as Record<number, SignalFile[]>);
+        setPatientFiles(filesMap);
+
+        const statusRequests = fileResponses
+          .flatMap((resp) => resp.data)
+          .filter((file) => file.processing_status === 'processing' || file.condition === 'processing')
+          .map((file) => apiClient.checkInferenceStatus(file.id));
+        if (statusRequests.length > 0) {
+          const statusResponses = await Promise.all(statusRequests);
+          setFileStatuses((prev) =>
+            statusResponses.reduce((acc, status) => {
+              acc[status.data.file_id] = {
+                condition: status.data.condition,
+                inference_status: status.data.inference_status,
+              };
+              return acc;
+            }, { ...prev } as Record<number, { condition: string; inference_status: string }>)
+          );
+        }
       } else {
         setError('Failed to load patients');
       }
@@ -355,22 +418,19 @@ const Patients: React.FC = () => {
           setError('Failed to delete patient');
         }
       } catch (err) {
-        const errorMessage = err && typeof err === 'object' ? ((err as any).response?.data?.detail || (err as any).message) : undefined;
+        const errorMessage = err && typeof err === 'object'
+          ? ((err as any).response?.data?.detail || (err as any).message)
+          : undefined;
         setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to delete patient');
       }
     }
   };
 
-  const handleFileUpload = async (file: File, patientId: number) => {
-    try {
-      await apiClient.uploadFile(file, patientId);
-      // Refresh patients to show updated file counts
-      await loadPatients();
-    } catch (err) {
-      const errorMessage = err && typeof err === 'object' ? ((err as any).response?.data?.detail || (err as any).message) : undefined;
-      setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to upload file');
-    }
+  const handleFilePreview = (patientId: number) => {
+    const viewerUrl = `/edf-viewer/viewer.html?patient_id=${patientId}`;
+    window.open(viewerUrl, '_blank', 'noopener,noreferrer');
   };
+
 
   const maxBirthDate = new Date().toISOString().split('T')[0];
 
@@ -417,35 +477,32 @@ const Patients: React.FC = () => {
       ) : (
         <Grid container spacing={3}>
           {patients.map((patient) => (
-            <Grid sx={{ xs: 12 }} key={patient.id}>
-              <Card>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+            <Grid size={{ xs: 12, md: 6 }} key={patient.id}>
+              <Card
+                sx={{
+                  height: '100%',
+                  border: patient.auth_user_id === user?.id ? '1px solid' : '1px solid transparent',
+                  borderColor: patient.auth_user_id === user?.id ? 'primary.main' : 'divider',
+                  bgcolor: patient.auth_user_id === user?.id ? 'primary.50' : 'background.paper',
+                }}
+              >
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                     <Box>
-                      <Typography variant="h6">{patient.name}</Typography>
-                      {patient.age && (
-                        <Typography variant="body2" color="textSecondary">
-                          Age: {patient.age} years
-                        </Typography>
-                      )}
-                      {patient.gender && (
-                        <Typography variant="body2" color="textSecondary">
-                          Gender: {patient.gender}
-                        </Typography>
-                      )}
-                      {patient.email && (
-                        <Typography color="textSecondary">{patient.email}</Typography>
-                      )}
-                      {patient.medical_id && (
-                        <Typography variant="body2" color="textSecondary">
-                          ID: {patient.medical_id}
-                        </Typography>
-                      )}
-                      {patient.blood_type && (
-                        <Typography variant="body2" color="textSecondary">
-                          Blood Type: {patient.blood_type}
-                        </Typography>
-                      )}
+                      <Typography variant="h6" sx={{ fontWeight: patient.auth_user_id === user?.id ? 700 : 600 }}>
+                        {patient.name}
+                      </Typography>
+                      <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                        {patient.age !== undefined && (
+                          <Chip label={`Age ${patient.age}`} size="small" />
+                        )}
+                        {patient.gender && (
+                          <Chip label={`Gender ${patient.gender}`} size="small" />
+                        )}
+                        {patient.blood_type && (
+                          <Chip label={`Blood ${patient.blood_type}`} size="small" />
+                        )}
+                      </Stack>
                     </Box>
                     {!isReadOnly && (
                       <Box>
@@ -465,18 +522,94 @@ const Patients: React.FC = () => {
                     )}
                   </Box>
 
-                  <Accordion>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography>EEG Files</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <FileUpload
-                        patientId={patient.id}
-                        onUpload={(file) => handleFileUpload(file, patient.id)}
-                      />
-                      <FileList patientId={patient.id} />
-                    </AccordionDetails>
-                  </Accordion>
+                  <Grid container spacing={1.5}>
+                    {patient.medical_id && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="body2" color="textSecondary">
+                          ID: {patient.medical_id}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {patient.email && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="body2" color="textSecondary">
+                          {patient.email}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {patient.phone && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="body2" color="textSecondary">
+                          Phone: {patient.phone}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {patient.referred_by && (
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="body2" color="textSecondary">
+                          Referred by: {patient.referred_by}
+                        </Typography>
+                      </Grid>
+                    )}
+                  </Grid>
+
+                  <Divider />
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        EEG File
+                      </Typography>
+                      <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                        {patientFiles[patient.id]?.[0] ? (
+                          (() => {
+                            const file = patientFiles[patient.id][0];
+                            const status = fileStatuses[file.id];
+                            const condition = status?.condition || file.condition;
+                            const inferenceStatus = status?.inference_status || file.processing_status;
+                            const normalizedCondition = condition === 'processing' ? 'processing' : condition;
+                            return (
+                              <>
+                                <Chip
+                                  label={normalizedCondition === 'normal'
+                                    ? 'Normal'
+                                    : normalizedCondition === 'abnormal'
+                                      ? 'Abnormal'
+                                      : normalizedCondition === 'failed'
+                                        ? 'Failed'
+                                        : 'Processing'}
+                                  size="small"
+                                  color={normalizedCondition === 'normal'
+                                    ? 'success'
+                                    : normalizedCondition === 'abnormal'
+                                      ? 'error'
+                                      : normalizedCondition === 'failed'
+                                        ? 'warning'
+                                        : 'info'}
+                                />
+                                <Chip
+                                  label={inferenceStatus}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </>
+                            );
+                          })()
+                        ) : (
+                          <Chip label="No EEG" size="small" variant="outlined" />
+                        )}
+                      </Stack>
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<FileIcon />}
+                      onClick={() => handleFilePreview(patient.id)}
+                      disabled={!patientFiles[patient.id]?.length}
+                    >
+                      View EEG
+                    </Button>
+                  </Box>
                 </CardContent>
               </Card>
             </Grid>

@@ -15,7 +15,9 @@ import {
   useTheme,
   IconButton,
   Tooltip,
-  Stack
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -62,6 +64,7 @@ function TabPanel(props: TabPanelProps) {
 
 const DoctorDashboard: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
+  const [patientFilter, setPatientFilter] = useState<'assigned' | 'all'>('assigned');
   const { user, logout } = useAuth();
   const theme = useTheme();
 
@@ -214,18 +217,29 @@ const DoctorDashboard: React.FC = () => {
                   {tabValue === 3 && 'Analytics & Reports'}
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  {tabValue === 0 && 'Overview of your assigned patients and their status.'}
+                  {tabValue === 0 && 'Overview of your assigned patients and unassigned records.'}
                   {tabValue === 1 && 'Access, review, and analyze uploaded EEG recordings.'}
                   {tabValue === 2 && 'Select an EEG file to view its analysis and events.'}
                   {tabValue === 3 && 'Generate detailed clinical reports and insights.'}
                 </Typography>
               </Box>
+              {tabValue === 0 && (
+                <ToggleButtonGroup
+                  value={patientFilter}
+                  exclusive
+                  onChange={(_event, value) => value && setPatientFilter(value)}
+                  size="small"
+                >
+                  <ToggleButton value="assigned">Assigned to me</ToggleButton>
+                  <ToggleButton value="all">All patients</ToggleButton>
+                </ToggleButtonGroup>
+              )}
             </Box>
 
             {/* Content Render */}
             <Box sx={{ p: 4, bgcolor: '#fcfcfc' }}>
               <TabPanel value={tabValue} index={0}>
-                <Patients />
+                <Patients doctorViewMode={patientFilter} />
               </TabPanel>
               <TabPanel value={tabValue} index={1}>
                 <Files />

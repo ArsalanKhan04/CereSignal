@@ -8,6 +8,8 @@ from typing import List
 from datetime import date
 import os
 
+from sqlalchemy import or_
+
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
@@ -192,6 +194,7 @@ async def get_users(
     skip: int = 0,
     limit: int = 100,
     search: str | None = None,
+    include_unassigned: bool = False,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -209,11 +212,18 @@ async def get_users(
     # Technicians can see all active patients
     if current_user.user_type == UserType.TECHNICIAN.value:
         query = db.query(User).filter(User.is_active == True)
+    elif current_user.user_type == UserType.DOCTOR.value:
+        if include_unassigned:
+            query = db.query(User).filter(
+                User.is_active == True,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+        else:
+            query = db.query(User).filter(
+                User.auth_user_id == current_user.id, User.is_active == True
+            )
     else:
-        # Doctors see only patients assigned to them
-        query = db.query(User).filter(
-            User.auth_user_id == current_user.id, User.is_active == True
-        )
+        query = db.query(User).filter(User.is_active == True)
 
     if search:
         query = query.filter(

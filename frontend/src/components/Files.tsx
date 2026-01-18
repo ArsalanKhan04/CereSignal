@@ -57,10 +57,14 @@ const Files: React.FC = () => {
           const response = await apiClient.checkInferenceStatus(file.id);
           if (response.status === 200 && response.data) {
             // Update the file status if it has changed
-            setFiles(prevFiles => 
-              prevFiles.map(f => 
-                f.id === file.id 
-                  ? { ...f, ...response.data }
+            setFiles((prevFiles) =>
+              prevFiles.map((f) =>
+                f.id === file.id
+                  ? {
+                      ...f,
+                      condition: response.data.condition as SignalFile['condition'],
+                      processing_status: response.data.inference_status as SignalFile['processing_status'],
+                    }
                   : f
               )
             );

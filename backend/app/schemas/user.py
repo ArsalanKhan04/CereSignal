@@ -72,6 +72,7 @@ class UserResponse(UserBase):
     id: int
     age: Optional[int] = None
     referred_by: Optional[str] = None
+    auth_user_id: Optional[int] = None
     profile_picture: Optional[str] = None
     is_active: bool
     created_at: datetime
@@ -92,6 +93,7 @@ class UserListResponse(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     referred_by: Optional[str] = None
+    auth_user_id: Optional[int] = None
     is_active: bool
     created_at: datetime
     doctor_name: Optional[str] = None
