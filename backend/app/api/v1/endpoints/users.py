@@ -4,7 +4,7 @@ User management endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import date
 import os
 
@@ -192,8 +192,8 @@ async def create_user(
 @router.get("/", response_model=List[UserListResponse])
 async def get_users(
     skip: int = 0,
-    limit: int = 100,
-    search: str | None = None,
+    limit: int = 50,
+    search: Optional[str] = None,
     include_unassigned: bool = False,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
@@ -232,7 +232,7 @@ async def get_users(
             | User.medical_id.ilike(f"%{search}%")
         )
 
-    users = query.offset(skip).limit(limit).all()
+    users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
     # Attach doctor name for each patient if available
     for u in users:
         doc = db.query(AuthUser).filter(AuthUser.id == u.auth_user_id).first()

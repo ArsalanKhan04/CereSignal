@@ -89,10 +89,17 @@ class ApiClient {
   }
 
   // Patient management methods
-  async getPatients(includeUnassigned?: boolean, search?: string): Promise<ApiResponse<Patient[]>> {
+  async getPatients(
+    includeUnassigned?: boolean,
+    search?: string,
+    skip?: number,
+    limit?: number
+  ): Promise<ApiResponse<Patient[]>> {
     const params: Record<string, any> = {};
     if (includeUnassigned) params.include_unassigned = true;
     if (search) params.search = search;
+    if (skip !== undefined) params.skip = skip;
+    if (limit !== undefined) params.limit = limit;
     const response = await this.client.get('/users/', { params });
     return { data: response.data, status: response.status };
   }

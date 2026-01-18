@@ -69,7 +69,7 @@ const ReportsPage: React.FC = () => {
       const [reportsResponse, filesResponse, patientsResponse] = await Promise.all([
         apiClient.getReports(),
         apiClient.getFiles(),
-        apiClient.getPatients()
+        apiClient.getPatients(false)
       ]);
 
       if (reportsResponse.status === 200) setReports(reportsResponse.data);

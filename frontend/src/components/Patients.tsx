@@ -175,7 +175,7 @@ const Patients: React.FC<{
 
   const loadPatients = async () => {
     try {
-      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all', searchQuery.trim() || undefined);
+      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all', searchQuery.trim() || undefined, 0, 200);
       if (response.status === 200) {
         const filteredPatients = isReadOnly && doctorViewMode === 'assigned'
           ? response.data.filter((patient) => patient.auth_user_id === user?.id)
@@ -725,6 +725,13 @@ const Patients: React.FC<{
                     {patient.referred_by && (
                       <Chip label={`Referred by: ${patient.referred_by}`} size="small" variant="outlined" />
                     )}
+                    {patient.created_at && (
+                      <Chip
+                        label={`Added ${new Date(patient.created_at).toLocaleDateString()}`}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
                     {user?.user_type === 'technician' && (
                       <Chip
                         label={patient.doctor_name ? `Assigned: ${patient.doctor_name}` : 'Assigned: Unassigned'}
@@ -822,9 +829,9 @@ const Patients: React.FC<{
                       startIcon={<DownloadIcon fontSize="small" />}
                       onClick={() => handleDownloadReport(report.id)}
                       disabled={!hasPdf}
-                      sx={{ minWidth: 118, height: 28, fontSize: '0.75rem', px: 1 }}
+                      sx={{ minWidth: 140, height: 28, fontSize: '0.75rem', px: 1 }}
                     >
-                      Download
+                      Download Report
                     </Button>
                   )}
                   <Button
