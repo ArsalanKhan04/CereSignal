@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   AppBar,
@@ -12,10 +12,11 @@ import {
   IconButton,
   Paper,
   Stack,
-  Tooltip
+  Tooltip,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
-  People as PeopleIcon,
   Logout as LogoutIcon,
   LocalHospital as LogoIcon
 } from '@mui/icons-material';
@@ -23,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Patients from '../components/Patients';
 
 const TechnicianDashboard: React.FC = () => {
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'examined' | 'all'>('pending');
   const { user, logout } = useAuth();
   const theme = useTheme();
 
@@ -46,20 +48,12 @@ const TechnicianDashboard: React.FC = () => {
         }}
       >
         <Container maxWidth="xl">
-          <Toolbar disableGutters sx={{ height: 70 }}>
+          <Toolbar disableGutters sx={{ height: 56 }}>
             {/* Logo */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mr: 6 }}>
-              <LogoIcon sx={{ color: primaryColor, fontSize: 32, mr: 1.5 }} />
-              <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px', color: '#1a1a1a' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 2, flexGrow: 1 }}>
+              <LogoIcon sx={{ color: primaryColor, fontSize: 26, mr: 1 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.4px', color: '#1a1a1a' }}>
                 Cere<Box component="span" sx={{ color: primaryColor }}>Signal</Box>
-              </Typography>
-            </Box>
-
-            {/* Navigation */}
-            <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PeopleIcon sx={{ color: primaryColor }} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Patient Registry
               </Typography>
             </Box>
 
@@ -73,7 +67,7 @@ const TechnicianDashboard: React.FC = () => {
                   border: '1px solid', 
                   borderColor: 'divider',
                   fontWeight: 500,
-                  height: 40,
+                  height: 36,
                   '& .MuiChip-label': { px: 2 }
                 }}
               />
@@ -88,44 +82,51 @@ const TechnicianDashboard: React.FC = () => {
       </AppBar>
 
       {/* --- Main Content Area --- */}
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4, flexGrow: 1 }}>
+      <Container maxWidth="xl" sx={{ mt: 3, mb: 3, flexGrow: 1 }}>
         <Fade in={true}>
           <Paper 
             elevation={0} 
             sx={{ 
-              borderRadius: 4, 
+              borderRadius: 3, 
               border: '1px solid',
               borderColor: 'rgba(0,0,0,0.06)',
               overflow: 'hidden',
-              minHeight: '80vh',
+              minHeight: '70vh',
               boxShadow: '0px 4px 20px rgba(0,0,0,0.02)'
             }}
           >
             {/* Header Area */}
             <Box sx={{ 
-              px: 4, 
-              py: 3, 
+              px: 3, 
+              py: 2.5, 
               borderBottom: '1px solid', 
               borderColor: 'divider', 
               bgcolor: '#ffffff',
               display: 'flex', 
               justifyContent: 'space-between', 
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: 2
             }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 0.5 }}>
-                  Patient Registry
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Typography variant="body2" color="text.secondary">
                   Create patients and attach EEG files in one step.
                 </Typography>
               </Box>
-
+              <ToggleButtonGroup
+                value={statusFilter}
+                exclusive
+                onChange={(_event: React.SyntheticEvent, value: 'pending' | 'examined' | 'all' | null) => value && setStatusFilter(value)}
+                size="small"
+              >
+                <ToggleButton value="pending">Pending Review</ToggleButton>
+                <ToggleButton value="examined">Examined</ToggleButton>
+                <ToggleButton value="all">All</ToggleButton>
+              </ToggleButtonGroup>
             </Box>
 
             {/* Content */}
-            <Box sx={{ p: 4, bgcolor: '#fcfcfc' }}>
-              <Patients />
+            <Box sx={{ p: 3, bgcolor: '#fcfcfc' }}>
+              <Patients statusFilter={statusFilter} showStatusToggle={false} />
             </Box>
           </Paper>
         </Fade>

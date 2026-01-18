@@ -103,11 +103,11 @@ const PatientPortal: React.FC = () => {
         }}
       >
         <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ height: 70 }}>
+          <Toolbar disableGutters sx={{ height: 56 }}>
             {/* Branding */}
             <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-              <LogoIcon sx={{ color: primaryColor, fontSize: 32, mr: 1.5 }} />
-              <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.5px', color: '#1a1a1a' }}>
+              <LogoIcon sx={{ color: primaryColor, fontSize: 26, mr: 1 }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.4px', color: '#1a1a1a' }}>
                 Cere<Box component="span" sx={{ color: primaryColor }}>Signal</Box>
               </Typography>
             </Box>
@@ -121,7 +121,8 @@ const PatientPortal: React.FC = () => {
                   bgcolor: 'transparent', 
                   border: '1px solid', 
                   borderColor: 'divider',
-                  fontWeight: 500
+                  fontWeight: 500,
+                  height: 36
                 }}
               />
               <Button 
@@ -140,16 +141,16 @@ const PatientPortal: React.FC = () => {
       </AppBar>
 
       {/* --- Main Content --- */}
-      <Container maxWidth="lg" sx={{ mt: 5, mb: 5, flexGrow: 1 }}>
+      <Container maxWidth="lg" sx={{ mt: 3, mb: 3, flexGrow: 1 }}>
         <Fade in={true} timeout={800}>
           <Box>
             {/* Page Title */}
-            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
+            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 1 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 0.5 }}>
                   Medical Reports
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Typography variant="body2" color="text.secondary">
                   View and download your latest EEG analysis and clinical findings.
                 </Typography>
               </Box>
@@ -162,22 +163,22 @@ const PatientPortal: React.FC = () => {
             )}
 
             {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}>
                 <CircularProgress size={50} />
               </Box>
             ) : reports.length === 0 ? (
               // --- Empty State ---
-              <Paper 
-                elevation={0}
-                sx={{ 
-                  p: 6, 
-                  textAlign: 'center', 
-                  borderRadius: 4, 
-                  bgcolor: '#fff', 
-                  border: '1px dashed',
-                  borderColor: 'divider'
-                }}
-              >
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 5, 
+                    textAlign: 'center', 
+                    borderRadius: 3, 
+                    bgcolor: '#fff', 
+                    border: '1px dashed',
+                    borderColor: 'divider'
+                  }}
+                >
                 <Box sx={{ bgcolor: 'action.hover', width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 3 }}>
                    <FileIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
                 </Box>

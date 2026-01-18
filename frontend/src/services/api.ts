@@ -89,8 +89,10 @@ class ApiClient {
   }
 
   // Patient management methods
-  async getPatients(includeUnassigned?: boolean): Promise<ApiResponse<Patient[]>> {
-    const params = includeUnassigned ? { include_unassigned: true } : {};
+  async getPatients(includeUnassigned?: boolean, search?: string): Promise<ApiResponse<Patient[]>> {
+    const params: Record<string, any> = {};
+    if (includeUnassigned) params.include_unassigned = true;
+    if (search) params.search = search;
     const response = await this.client.get('/users/', { params });
     return { data: response.data, status: response.status };
   }
@@ -211,6 +213,11 @@ class ApiClient {
 
   async getReportByFile(fileId: number): Promise<ApiResponse<EEGReport | null>> {
     const response = await this.client.get(`/reports/file/${fileId}`);
+    return { data: response.data, status: response.status };
+  }
+
+  async getReportsForPatient(patientId: number): Promise<ApiResponse<EEGReport[]>> {
+    const response = await this.client.get(`/reports/`, { params: { patient_id: patientId } });
     return { data: response.data, status: response.status };
   }
 

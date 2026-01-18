@@ -24,22 +24,44 @@ import {
   AppBar,
   Toolbar,
   Paper,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Upload as UploadIcon,
-  Description as FileIcon,
+  Description as ReportIcon,
+  InsertDriveFile as FileIcon,
+  Download as DownloadIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData } from '../types';
+import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData, EEGReport } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import EEGPlot from './EEGPlot';
+import TopographicMap from './TopographicMap';
+import ReportForm from './ReportForm';
 
 
-const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorViewMode = 'assigned' }) => {
+const Patients: React.FC<{
+  doctorViewMode?: 'assigned' | 'all';
+  initialStatusFilter?: 'pending' | 'examined' | 'all';
+  statusFilter?: 'pending' | 'examined' | 'all';
+  onStatusFilterChange?: (value: 'pending' | 'examined' | 'all') => void;
+  showStatusToggle?: boolean;
+  showDoctorViewToggle?: boolean;
+  onDoctorViewModeChange?: (value: 'assigned' | 'all') => void;
+}> = ({
+  doctorViewMode = 'assigned',
+  initialStatusFilter = 'all',
+  statusFilter,
+  onStatusFilterChange,
+  showStatusToggle = true,
+  showDoctorViewToggle = false,
+  onDoctorViewModeChange,
+}) => {
   const { user } = useAuth();
   const isReadOnly = user?.user_type === 'doctor'; // Doctors have read-only access
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -49,10 +71,21 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [patientFiles, setPatientFiles] = useState<Record<number, SignalFile[]>>({});
+  const [patientReports, setPatientReports] = useState<Record<number, EEGReport[]>>({});
   const [activeEEGFileId, setActiveEEGFileId] = useState<number | null>(null);
+  const [activeTopomapFileId, setActiveTopomapFileId] = useState<number | null>(null);
+  const [activeReportContext, setActiveReportContext] = useState<{
+    patient: Patient;
+    file: SignalFile;
+    report?: EEGReport | null;
+  } | null>(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const [activeEEGEvents, setActiveEEGEvents] = useState<EventsData | null>(null);
   const [fileStatuses, setFileStatuses] = useState<Record<number, { condition: string; inference_status: string }>>({});
+  const [localStatusFilter, setLocalStatusFilter] = useState<'pending' | 'examined' | 'all'>(initialStatusFilter);
   const pollingRef = useRef<number | null>(null);
+
+  const activeStatusFilter = statusFilter ?? localStatusFilter;
   const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number; age?: number }>({
     name: '',
     email: '',
@@ -75,6 +108,9 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<number | null>(null);
 
   // Doctor list (for technicians assigning patients)
   const [doctors, setDoctors] = useState<User[]>([]);
@@ -86,7 +122,18 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
     if (user?.user_type === 'technician') {
       loadDoctors();
     }
-  }, [user, doctorViewMode]);
+  }, [user, doctorViewMode, searchQuery]);
+
+  useEffect(() => () => {
+    if (searchTimeoutRef.current) {
+      window.clearTimeout(searchTimeoutRef.current);
+    }
+  }, []);
+
+
+  useEffect(() => {
+    setLocalStatusFilter(initialStatusFilter);
+  }, [initialStatusFilter]);
 
   useEffect(() => {
     if (pollingRef.current) {
@@ -128,19 +175,34 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
 
   const loadPatients = async () => {
     try {
-      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all');
+      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all', searchQuery.trim() || undefined);
       if (response.status === 200) {
         const filteredPatients = isReadOnly && doctorViewMode === 'assigned'
           ? response.data.filter((patient) => patient.auth_user_id === user?.id)
           : response.data;
-        setPatients(filteredPatients);
-        const fileRequests = filteredPatients.map((patient) => apiClient.getFiles(patient.id));
-        const fileResponses = await Promise.all(fileRequests);
-        const filesMap = filteredPatients.reduce((acc, patient, index) => {
+        const uniquePatients = Array.from(new Map(filteredPatients.map((patient) => [patient.id, patient])).values());
+        setPatients(uniquePatients);
+        const fileRequests = uniquePatients.map((patient) => apiClient.getFiles(patient.id));
+        const reportRequests = (isReadOnly || user?.user_type === 'technician')
+          ? uniquePatients.map((patient) => apiClient.getReportsForPatient(patient.id))
+          : [];
+        const [fileResponses, reportResponses] = await Promise.all([
+          Promise.all(fileRequests),
+          Promise.all(reportRequests),
+        ]);
+        const filesMap = uniquePatients.reduce((acc, patient, index) => {
           acc[patient.id] = fileResponses[index]?.data || [];
           return acc;
         }, {} as Record<number, SignalFile[]>);
         setPatientFiles(filesMap);
+
+        if (isReadOnly || user?.user_type === 'technician') {
+          const reportsMap = uniquePatients.reduce((acc, patient, index) => {
+            acc[patient.id] = reportResponses[index]?.data || [];
+            return acc;
+          }, {} as Record<number, EEGReport[]>);
+          setPatientReports(reportsMap);
+        }
 
         const statusRequests = fileResponses
           .flatMap((resp) => resp.data)
@@ -451,11 +513,85 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
     setActiveEEGFileId(file.id);
   };
 
+  const handleCreateReport = (patient: Patient) => {
+    const file = patientFiles[patient.id]?.[0];
+    if (!file) return;
+    const existingReport = patientReports[patient.id]?.find((report) => report.file_id === file.id) || null;
+    setActiveReportContext({ patient, file, report: existingReport });
+  };
+
+  const handleEditReport = (patient: Patient, report: EEGReport) => {
+    const file = patientFiles[patient.id]?.[0];
+    if (!file) return;
+    setActiveReportContext({ patient, file, report });
+  };
+
+  const handleReportSaved = async (report: EEGReport) => {
+    setReportSubmitting(true);
+    try {
+      await apiClient.generateReportPDF(report.id);
+      setSuccess('Report saved and PDF generated.');
+      await loadPatients();
+      setActiveReportContext(null);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      const errorMessage = err && typeof err === 'object'
+        ? ((err as any).response?.data?.detail || (err as any).message)
+        : undefined;
+      setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to generate PDF');
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
+  const handleDownloadReport = async (reportId: number) => {
+    try {
+      const blob = await apiClient.downloadReportPDF(reportId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `EEG_Report_${reportId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    } catch (err) {
+      setError('Error downloading report PDF');
+    }
+  };
+
 
   const maxBirthDate = new Date().toISOString().split('T')[0];
   const activeEEGFile = activeEEGFileId
     ? Object.values(patientFiles).flat().find((file) => file.id === activeEEGFileId) || null
     : null;
+
+  const getReportStatusColor = (impression?: string) => {
+    if (impression === 'normal' || impression === 'abnormal') return 'success';
+    return 'default';
+  };
+
+  const getPatientFile = (patient: Patient) => patientFiles[patient.id]?.[0] || null;
+
+  const getPatientReport = (patient: Patient, file: SignalFile | null) =>
+    patientReports[patient.id]?.find((item) => item.file_id === file?.id) || null;
+
+  const shouldShowPatient = (report: EEGReport | null) => {
+    if (activeStatusFilter === 'all') return true;
+    if (activeStatusFilter === 'examined') return Boolean(report);
+    return !report;
+  };
+
+  const filteredPatients = patients.filter((patient) => {
+    if (isReadOnly && doctorViewMode === 'assigned' && patient.auth_user_id !== user?.id) {
+      return false;
+    }
+    const file = getPatientFile(patient);
+    const report = getPatientReport(patient, file);
+    return shouldShowPatient(report);
+  });
 
   if (loading) {
     return (
@@ -467,21 +603,72 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">
-          {isReadOnly ? 'My Patients' : 'Patient Management'}
-        </Typography>
-        {!isReadOnly && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
-          >
-            Add Patient
-          </Button>
-        )}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          {!isReadOnly && (
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              Patient Registry
+            </Typography>
+          )}
+          <TextField
+            size="small"
+            label="Search patients"
+            value={searchInput}
+            onChange={(event) => {
+              const value = event.target.value;
+              setSearchInput(value);
+              if (searchTimeoutRef.current) {
+                window.clearTimeout(searchTimeoutRef.current);
+              }
+              searchTimeoutRef.current = window.setTimeout(() => {
+                setSearchQuery(value.trim());
+              }, 350);
+            }}
+            sx={{ width: 240 }}
+          />
+          {!isReadOnly && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenDialog()}
+            >
+              Add Patient
+            </Button>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto', flexWrap: 'wrap' }}>
+          {showStatusToggle && (isReadOnly || user?.user_type === 'technician') && (
+            <ToggleButtonGroup
+              value={activeStatusFilter}
+              exclusive
+              onChange={(_event, value) => {
+                if (!value) return;
+                if (onStatusFilterChange) {
+                  onStatusFilterChange(value);
+                } else {
+                  setLocalStatusFilter(value);
+                }
+              }}
+              size="small"
+            >
+              <ToggleButton value="pending">Pending Review</ToggleButton>
+              <ToggleButton value="examined">Examined</ToggleButton>
+              <ToggleButton value="all">All</ToggleButton>
+            </ToggleButtonGroup>
+          )}
+          {showDoctorViewToggle && onDoctorViewModeChange && (
+            <ToggleButtonGroup
+              value={doctorViewMode}
+              exclusive
+              onChange={(_event, value) => value && onDoctorViewModeChange(value)}
+              size="small"
+            >
+              <ToggleButton value="assigned">Assigned to me</ToggleButton>
+              <ToggleButton value="all">All patients</ToggleButton>
+            </ToggleButtonGroup>
+          )}
+        </Box>
       </Box>
-
 
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
@@ -489,7 +676,7 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
         </Alert>
       )}
 
-      {patients.length === 0 ? (
+      {filteredPatients.length === 0 ? (
         <Card>
           <CardContent>
             <Typography color="textSecondary" align="center" sx={{ py: 4 }}>
@@ -499,119 +686,177 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
         </Card>
       ) : (
         <Stack spacing={1.5}>
-          {patients.map((patient) => (
-            <Paper
-              key={patient.id}
-              variant="outlined"
-              sx={{
-                p: 2,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                borderColor: patient.auth_user_id === user?.id ? 'primary.main' : 'divider',
-                bgcolor: patient.auth_user_id === user?.id ? 'primary.50' : 'background.paper',
-              }}
-            >
-              <Box sx={{ minWidth: 200, flexGrow: 1 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: patient.auth_user_id === user?.id ? 700 : 600 }}>
-                  {patient.name}
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                  {patient.age !== undefined && (
-                    <Chip label={`Age ${patient.age}`} size="small" />
-                  )}
-                  {patient.gender && (
-                    <Chip label={`Gender ${patient.gender}`} size="small" />
-                  )}
-                  {patient.blood_type && (
-                    <Chip label={`Blood ${patient.blood_type}`} size="small" />
-                  )}
-                  {patient.medical_id && (
-                    <Chip label={`ID ${patient.medical_id}`} size="small" variant="outlined" />
-                  )}
-                  {patient.referred_by && (
-                    <Chip label={`Referred by: ${patient.referred_by}`} size="small" variant="outlined" />
-                  )}
-                </Stack>
-              </Box>
+          {filteredPatients.map((patient) => {
+            const file = getPatientFile(patient);
+            const report = getPatientReport(patient, file);
+            const hasPdf = Boolean(report?.pdf_file_path);
+            const reportStatusLabel = report ? 'Examined' : 'Pending Review';
+            const statusColor = report ? getReportStatusColor(report.impression) : 'default';
+            return (
+              <Paper
+                key={patient.id}
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  borderColor: patient.auth_user_id === user?.id ? 'primary.main' : 'divider',
+                  bgcolor: patient.auth_user_id === user?.id ? 'primary.50' : 'background.paper',
+                }}
+              >
+                <Box sx={{ minWidth: 200, flexGrow: 1 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: patient.auth_user_id === user?.id ? 700 : 600 }}>
+                    {patient.name}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                    {patient.age !== undefined && (
+                      <Chip label={`Age ${patient.age}`} size="small" />
+                    )}
+                    {patient.gender && (
+                      <Chip label={`Gender ${patient.gender}`} size="small" />
+                    )}
+                    {patient.blood_type && (
+                      <Chip label={`Blood ${patient.blood_type}`} size="small" />
+                    )}
+                    {patient.medical_id && (
+                      <Chip label={`ID ${patient.medical_id}`} size="small" variant="outlined" />
+                    )}
+                    {patient.referred_by && (
+                      <Chip label={`Referred by: ${patient.referred_by}`} size="small" variant="outlined" />
+                    )}
+                    {user?.user_type === 'technician' && (
+                      <Chip
+                        label={patient.doctor_name ? `Assigned: ${patient.doctor_name}` : 'Assigned: Unassigned'}
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
+                  </Stack>
+                </Box>
 
-              <Box sx={{ minWidth: 220 }}>
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  {patientFiles[patient.id]?.[0] ? (
-                    (() => {
-                      const file = patientFiles[patient.id][0];
-                      const status = fileStatuses[file.id];
-                      const condition = status?.condition || file.condition;
-                      const inferenceStatus = status?.inference_status || file.processing_status;
-                      const normalizedCondition = condition === 'processing' ? 'processing' : condition;
-                      return (
-                        <>
-                          <Chip
-                            label={normalizedCondition === 'normal'
-                              ? 'Normal'
-                              : normalizedCondition === 'abnormal'
-                                ? 'Abnormal'
-                                : normalizedCondition === 'failed'
-                                  ? 'Failed'
-                                  : 'Processing'}
-                            size="small"
-                            color={normalizedCondition === 'normal'
-                              ? 'success'
-                              : normalizedCondition === 'abnormal'
-                                ? 'error'
-                                : normalizedCondition === 'failed'
-                                  ? 'warning'
-                                  : 'info'}
-                          />
-                          <Chip
-                            label={inferenceStatus}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </>
-                      );
-                    })()
-                  ) : (
-                    <Chip label="No EEG" size="small" variant="outlined" />
-                  )}
-                </Stack>
-              </Box>
+                <Box sx={{ minWidth: 220 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    {file ? (
+                      (() => {
+                        const status = fileStatuses[file.id];
+                        const condition = status?.condition || file.condition;
+                        const inferenceStatus = status?.inference_status || file.processing_status;
+                        const normalizedCondition = condition === 'processing' ? 'processing' : condition;
+                        return (
+                          <>
+                            <Chip
+                              label={normalizedCondition === 'normal'
+                                ? 'Normal'
+                                : normalizedCondition === 'abnormal'
+                                  ? 'Abnormal'
+                                  : normalizedCondition === 'failed'
+                                    ? 'Failed'
+                                    : 'Processing'}
+                              size="small"
+                              color={normalizedCondition === 'normal'
+                                ? 'success'
+                                : normalizedCondition === 'abnormal'
+                                  ? 'error'
+                                  : normalizedCondition === 'failed'
+                                    ? 'warning'
+                                    : 'info'}
+                            />
+                            <Chip
+                              label={inferenceStatus}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <Chip label="No EEG" size="small" variant="outlined" />
+                    )}
+                    {(isReadOnly || user?.user_type === 'technician') && (
+                      <Chip
+                        label={reportStatusLabel}
+                        size="small"
+                        variant={report ? 'filled' : 'outlined'}
+                        color={statusColor as any}
+                      />
+                    )}
+                  </Stack>
+                </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
-                {!isReadOnly && (
-                  <>
-                    <IconButton
-                      onClick={() => handleOpenDialog(patient)}
-                      color="primary"
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto', flexWrap: 'wrap' }}>
+                  {!isReadOnly && (
+                    <>
+                      <IconButton
+                        onClick={() => handleOpenDialog(patient)}
+                        color="primary"
+                        size="small"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        onClick={() => handleDelete(patient.id)}
+                        color="error"
+                        size="small"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  )}
+                  {isReadOnly && (
+                    <Button
+                      variant={report ? 'outlined' : 'contained'}
                       size="small"
+                      startIcon={report ? <EditIcon fontSize="small" /> : <ReportIcon fontSize="small" />}
+                      onClick={() => (report ? handleEditReport(patient, report) : handleCreateReport(patient))}
+                      disabled={!file}
+                      sx={{ minWidth: 108, height: 28, fontSize: '0.75rem', px: 1 }}
                     >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleDelete(patient.id)}
-                      color="error"
+                      {report ? 'Edit Report' : 'Create Report'}
+                    </Button>
+                  )}
+                  {(isReadOnly || user?.user_type === 'technician') && report && (
+                    <Button
+                      variant="outlined"
                       size="small"
+                      startIcon={<DownloadIcon fontSize="small" />}
+                      onClick={() => handleDownloadReport(report.id)}
+                      disabled={!hasPdf}
+                      sx={{ minWidth: 118, height: 28, fontSize: '0.75rem', px: 1 }}
                     >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </>
-                )}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<FileIcon fontSize="small" />}
-                  onClick={() => handleFilePreview(patient.id)}
-                  disabled={!patientFiles[patient.id]?.length}
-                >
-                  View EEG
-                </Button>
-              </Box>
-            </Paper>
-          ))}
+                      Download
+                    </Button>
+                  )}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setActiveTopomapFileId(file?.id || null)}
+                    disabled={!file}
+                    sx={{ minWidth: 78, height: 28, fontSize: '0.75rem', px: 1 }}
+                  >
+                    Topomap
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<FileIcon fontSize="small" />}
+                    onClick={() => handleFilePreview(patient.id)}
+                    disabled={!file}
+                    sx={{ minWidth: 86, height: 28, fontSize: '0.75rem', px: 1 }}
+                  >
+                    View EEG
+                  </Button>
+                </Box>
+              </Paper>
+            );
+          })}
         </Stack>
       )}
 
-      <Dialog fullScreen open={Boolean(activeEEGFileId)} onClose={() => { setActiveEEGFileId(null); setActiveEEGEvents(null); }}>
+      <Dialog fullScreen open={Boolean(activeEEGFileId)} onClose={() => {
+        setActiveEEGFileId(null);
+        setActiveEEGEvents(null);
+      }}>
         <AppBar sx={{ position: 'relative' }} color="default" elevation={0}>
           <Toolbar sx={{ justifyContent: 'space-between' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -627,6 +872,51 @@ const Patients: React.FC<{ doctorViewMode?: 'assigned' | 'all' }> = ({ doctorVie
             <EEGPlot fileId={activeEEGFileId} eventsData={activeEEGEvents} />
           )}
         </Box>
+      </Dialog>
+
+      <Dialog fullScreen open={Boolean(activeTopomapFileId)} onClose={() => setActiveTopomapFileId(null)}>
+        <AppBar sx={{ position: 'relative' }} color="default" elevation={0}>
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Topographic Map
+            </Typography>
+            <IconButton edge="end" color="inherit" onClick={() => setActiveTopomapFileId(null)}>
+              <CloseIcon />
+            </IconButton>
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ p: 2, bgcolor: '#f7f8fa', minHeight: '100%' }}>
+          {activeTopomapFileId && (
+            <TopographicMap fileId={activeTopomapFileId} />
+          )}
+        </Box>
+      </Dialog>
+
+      {activeReportContext && (
+        <ReportForm
+          fileId={activeReportContext.file.id}
+          signalFile={activeReportContext.file}
+          patient={activeReportContext.patient}
+          existingReport={activeReportContext.report || undefined}
+          onSave={handleReportSaved}
+          onCancel={() => setActiveReportContext(null)}
+          isDialog={true}
+        />
+      )}
+
+      <Dialog open={reportSubmitting} onClose={() => setReportSubmitting(false)} maxWidth="xs">
+        <DialogTitle>Generating PDF</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
+            <CircularProgress />
+            <Typography variant="body2" color="textSecondary">
+              Finalizing report and preparing the PDF.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportSubmitting(false)}>Hide</Button>
+        </DialogActions>
       </Dialog>
 
       {/* Add/Edit Patient Dialog */}

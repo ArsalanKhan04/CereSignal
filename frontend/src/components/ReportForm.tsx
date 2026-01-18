@@ -63,32 +63,17 @@ const ReportForm: React.FC<ReportFormProps> = ({
     doctor_info: '',
   });
   
-  // Debug formData changes
-  useEffect(() => {
-    console.log('formData state changed:', formData);
-  }, [formData]);
-  
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [existingReport, setExistingReport] = useState<EEGReport | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  
-  // Debug isEditing changes
-  useEffect(() => {
-    console.log('isEditing state changed to:', isEditing);
-  }, [isEditing]);
 
   useEffect(() => {
-    console.log('ReportForm useEffect - propExistingReport:', propExistingReport);
-    console.log('ReportForm useEffect - fileId:', fileId);
-    
     if (propExistingReport) {
-      // Use the provided existing report
-      console.log('Using provided existing report:', propExistingReport);
       setExistingReport(propExistingReport);
-      const newFormData = {
+      setFormData({
         file_id: propExistingReport.file_id,
         patient_name: propExistingReport.patient_name,
         patient_age: propExistingReport.patient_age,
@@ -99,21 +84,11 @@ const ReportForm: React.FC<ReportFormProps> = ({
         factual_report: propExistingReport.factual_report || '',
         impression: propExistingReport.impression,
         doctor_info: propExistingReport.doctor_info || '',
-      };
-      console.log('Setting form data for editing:', newFormData);
-      setFormData(newFormData);
+      });
       setIsEditing(true);
-      console.log('Set isEditing to true for report:', propExistingReport.id);
-      
-      // Verify the form data was set correctly
-      setTimeout(() => {
-        console.log('Form data after setting:', formData);
-      }, 100);
     } else if (fileId) {
-      console.log('Loading existing report for fileId:', fileId);
       loadExistingReport();
     } else {
-      // Only prefill if we're not editing an existing report
       prefillFormData();
     }
   }, [fileId, signalFile, patient, doctor, propExistingReport, user]);
@@ -225,14 +200,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
   };
 
   const handleSave = async () => {
-    console.log('handleSave called');
-    console.log('isEditing:', isEditing);
-    console.log('existingReport:', existingReport);
-    console.log('formData:', formData);
-    console.log('formData.file_id:', formData.file_id);
-    
     if (!formData.file_id) {
-      console.error('No file_id in formData:', formData);
       setError('No file selected for report');
       return;
     }
@@ -244,9 +212,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
     try {
       let response;
       if (isEditing && existingReport) {
-        // Update existing report
-        console.log('Updating report:', existingReport.id);
-        console.log('Form data:', formData);
         const updateData: EEGReportUpdate = {
           patient_name: formData.patient_name,
           patient_age: formData.patient_age,
@@ -258,12 +223,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
           impression: formData.impression,
           doctor_info: formData.doctor_info,
         };
-        console.log('Update data:', updateData);
         response = await apiClient.updateReport(existingReport.id, updateData);
-        console.log('Update response:', response);
       } else {
-        // Create new report
-        console.log('Creating new report');
         response = await apiClient.createReport(formData);
       }
 
