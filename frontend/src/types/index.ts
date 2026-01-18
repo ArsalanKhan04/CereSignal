@@ -51,6 +51,7 @@ export interface PatientRegisterRequest {
   name: string;
   phone?: string;
   date_of_birth?: string;
+  age?: number;
   gender?: 'M' | 'F' | 'Other';
   medical_id?: string;
   address?: string;
@@ -99,6 +100,7 @@ export interface PatientCreate {
   medical_id?: string;
   gender: 'M' | 'F' | 'Other';
   date_of_birth?: string;
+  age?: number;
   address?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;

@@ -8,16 +8,6 @@ import {
   Tabs,
   Tab,
   Container,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
   CircularProgress,
   Card,
   CardContent,
@@ -35,17 +25,12 @@ import {
 import {
   People as PeopleIcon,
   CloudUpload as UploadIcon,
-  Add as AddIcon,
   Logout as LogoutIcon,
-  Person as PersonIcon,
-  LocalHospital as LogoIcon,
-  Close as CloseIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon
+  LocalHospital as LogoIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
-import { PatientCreate, User, Patient } from '../types';
+import { Patient } from '../types';
 import Patients from '../components/Patients';
 import FileUpload from '../components/FileUpload';
 
@@ -84,36 +69,15 @@ const TechnicianDashboard: React.FC = () => {
   
   // Data States
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [doctors, setDoctors] = useState<User[]>([]);
   const [loadingData, setLoadingData] = useState(false);
-  
-  // Dialog States
-  const [openDialog, setOpenDialog] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [success, setSuccess] = useState<string>('');
-  
-  // Form State
-  const initialFormState: PatientCreate & { doctor_id?: number } = {
-    name: '', email: '', phone: '', medical_id: '', gender: 'M',
-    date_of_birth: '', address: '', emergency_contact_name: '',
-    emergency_contact_phone: '', blood_type: 'A+', allergies: '',
-    medical_conditions: '', current_medications: '', notes: '',
-    doctor_id: undefined,
-  };
-  const [formData, setFormData] = useState(initialFormState);
 
   // --- Effects ---
   useEffect(() => {
     const fetchData = async () => {
       setLoadingData(true);
       try {
-        const [patientsRes, doctorsRes] = await Promise.all([
-          apiClient.getPatients(),
-          apiClient.getDoctors()
-        ]);
+        const patientsRes = await apiClient.getPatients();
         if (patientsRes.status === 200) setPatients(patientsRes.data);
-        if (doctorsRes.status === 200) setDoctors(doctorsRes.data);
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {
@@ -126,51 +90,10 @@ const TechnicianDashboard: React.FC = () => {
   // --- Handlers ---
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => setTabValue(newValue);
 
-  const handleOpenDialog = () => {
-    setFormData(initialFormState);
-    setError('');
-    setSuccess('');
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    if (!submitting) setOpenDialog(false);
-  };
-
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | any) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (!formData.name) return setError('Patient name is required');
-    if (!formData.doctor_id) return setError('Please assign a doctor');
-
-    setSubmitting(true);
-    try {
-      const response = await apiClient.createPatient(formData);
-      if (response.status === 201) {
-        setSuccess('Patient registered successfully!');
-        const updatedPatients = await apiClient.getPatients();
-        setPatients(updatedPatients.data);
-        setTimeout(handleCloseDialog, 1500);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create patient');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const technicianName = user?.first_name ? `${user.first_name} ${user.last_name}` : 'Technician';
 
   // --- Custom Colors ---
   const primaryColor = theme.palette.primary.main;
-  const cardBg = '#ffffff';
 
   return (
     <Box sx={{ flexGrow: 1, bgcolor: '#f0f2f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -268,26 +191,6 @@ const TechnicianDashboard: React.FC = () => {
                 </Typography>
               </Box>
 
-              {/*
-              {tabValue === 0 && (
-                <Button 
-                  variant="contained" 
-                  size="large"
-                  startIcon={<AddIcon />} 
-                  onClick={handleOpenDialog}
-                  sx={{ 
-                    borderRadius: 3, 
-                    px: 4, 
-                    py: 1, 
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    boxShadow: '0 8px 16px rgba(25, 118, 210, 0.24)'
-                  }}
-                >
-                  New Patient
-                </Button>
-              )}
-              */}
             </Box>
 
             {/* Tab Content */}
@@ -377,110 +280,9 @@ const TechnicianDashboard: React.FC = () => {
         </Fade>
       </Container>
 
-      {/* --- Add Patient Modal --- */}
-      <Dialog 
-        open={openDialog} 
-        onClose={handleCloseDialog} 
-        maxWidth="md" 
-        fullWidth
-        TransitionComponent={Fade}
-        PaperProps={{ 
-          sx: { 
-            borderRadius: 3,
-            boxShadow: '0 24px 48px rgba(0,0,0,0.2)'
-          } 
-        }}
-      >
-        <DialogTitle sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          borderBottom: '1px solid', 
-          borderColor: 'divider',
-          p: 3
-        }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>Register New Patient</Typography>
-          <IconButton onClick={handleCloseDialog} size="small" sx={{ color: 'text.secondary' }}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        
-        <form onSubmit={handleSubmit}>
-          <DialogContent sx={{ p: 4 }}>
-            {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>{error}</Alert>}
-            {success && <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>{success}</Alert>}
-
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="overline" color="primary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
-                Personal Details
-              </Typography>
-              <Grid container spacing={3} sx={{ mt: 0 }}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField fullWidth required label="Full Name" name="name" variant="outlined" value={formData.name} onChange={handleFormChange} />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField fullWidth label="Medical ID" name="medical_id" variant="outlined" value={formData.medical_id} onChange={handleFormChange} />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField fullWidth label="Date of Birth" type="date" name="date_of_birth" variant="outlined" value={formData.date_of_birth} onChange={handleFormChange} InputLabelProps={{ shrink: true }} />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Gender</InputLabel>
-                    <Select name="gender" value={formData.gender} label="Gender" onChange={handleFormChange}>
-                      <MenuItem value="M">Male</MenuItem>
-                      <MenuItem value="F">Female</MenuItem>
-                      <MenuItem value="O">Other</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </Box>
-
-            <Divider sx={{ my: 3 }} />
-
-            <Box>
-              <Typography variant="overline" color="primary" sx={{ fontWeight: 700, letterSpacing: 1 }}>
-                Medical Assignment
-              </Typography>
-              <Grid container spacing={3} sx={{ mt: 0 }}>
-                 <Grid size={{ xs: 12 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Assign Doctor</InputLabel>
-                    <Select name="doctor_id" value={formData.doctor_id || ''} label="Assign Doctor" onChange={handleFormChange}>
-                      {doctors.map((doc) => (
-                        <MenuItem key={doc.id} value={doc.id}>
-                          Dr. {doc.first_name} {doc.last_name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                   <TextField fullWidth multiline rows={3} label="Initial Clinical Notes" name="notes" variant="outlined" value={formData.notes} onChange={handleFormChange} placeholder="Enter any important initial observations..." />
-                </Grid>
-              </Grid>
-            </Box>
-
-          </DialogContent>
-          
-          <DialogActions sx={{ p: 3, borderTop: '1px solid', borderColor: 'divider', bgcolor: '#f8f9fa' }}>
-            <Button onClick={handleCloseDialog} color="inherit" sx={{ fontWeight: 600 }}>Cancel</Button>
-            <Button 
-              type="submit" 
-              variant="contained" 
-              size="large"
-              disabled={submitting}
-              sx={{ px: 4, fontWeight: 600, boxShadow: 'none' }}
-              startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : null}
-            >
-              {submitting ? 'Registering...' : 'Register Patient'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
     </Box>
   );
 };
+
 
 export default TechnicianDashboard;

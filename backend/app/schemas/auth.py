@@ -10,12 +10,14 @@ from app.models.auth import UserType
 
 class UserLogin(BaseModel):
     """Schema for user login"""
+
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
 
 
 class UserRegister(BaseModel):
     """Schema for user registration"""
+
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6)
@@ -35,6 +37,7 @@ class UserRegister(BaseModel):
 
 class PatientRegister(BaseModel):
     """Schema for patient registration (creates both AuthUser and User)"""
+
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6)
@@ -43,12 +46,15 @@ class PatientRegister(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     phone: Optional[str] = Field(None, max_length=50)
     date_of_birth: Optional[datetime] = None
+    age: Optional[int] = Field(None, ge=0, le=130)
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
     medical_id: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = None
     emergency_contact_name: Optional[str] = Field(None, max_length=255)
     emergency_contact_phone: Optional[str] = Field(None, max_length=50)
-    blood_type: Optional[str] = Field(None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$")
+    blood_type: Optional[str] = Field(
+        None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$"
+    )
     allergies: Optional[str] = None
     medical_conditions: Optional[str] = None
     current_medications: Optional[str] = None
@@ -56,6 +62,7 @@ class PatientRegister(BaseModel):
 
 class Token(BaseModel):
     """Schema for JWT token response"""
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int
@@ -63,12 +70,14 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     """Schema for token data"""
+
     username: Optional[str] = None
     user_id: Optional[int] = None
 
 
 class AuthUserResponse(BaseModel):
     """Schema for authenticated user response"""
+
     id: int
     username: str
     email: str
@@ -87,13 +96,14 @@ class AuthUserResponse(BaseModel):
     is_superuser: bool
     created_at: datetime
     last_login: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
 
 class PasswordChange(BaseModel):
     """Schema for password change"""
+
     current_password: str
     new_password: str = Field(..., min_length=6)
     confirm_new_password: str = Field(..., min_length=6)

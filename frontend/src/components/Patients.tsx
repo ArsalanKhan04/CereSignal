@@ -22,6 +22,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Divider,
+  Stack,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -46,7 +48,7 @@ const Patients: React.FC = () => {
   const [success, setSuccess] = useState<string>('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number}>({
+  const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number; age?: number }>({
     name: '',
     email: '',
     phone: '',
@@ -62,6 +64,7 @@ const Patients: React.FC = () => {
     current_medications: '',
     notes: '',
     doctor_id: undefined,
+    age: undefined,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -91,6 +94,28 @@ const Patients: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateAge = (birthDate: string) => {
+    const dateValue = new Date(birthDate);
+    if (Number.isNaN(dateValue.getTime())) return undefined;
+    const today = new Date();
+    if (dateValue > today) return undefined;
+    let age = today.getFullYear() - dateValue.getFullYear();
+    const monthDiff = today.getMonth() - dateValue.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateValue.getDate())) {
+      age -= 1;
+    }
+    return age;
+  };
+
+  const handleDateOfBirthChange = (value: string) => {
+    const derivedAge = value ? calculateAge(value) : undefined;
+    setFormData((prev) => ({
+      ...prev,
+      date_of_birth: value,
+      age: value ? derivedAge : prev.age,
+    }));
   };
 
   const loadDoctors = async () => {
@@ -125,6 +150,7 @@ const Patients: React.FC = () => {
         current_medications: patient.current_medications || '',
         notes: patient.notes || '',
         doctor_id: undefined, // leave undefined on edit so it's only sent if changed
+        age: patient.age,
       });
     } else {
       setEditingPatient(null);
@@ -144,6 +170,7 @@ const Patients: React.FC = () => {
         current_medications: '',
         notes: '',
         doctor_id: undefined,
+        age: undefined,
       });
     }
     setOpenDialog(true);
@@ -152,19 +179,81 @@ const Patients: React.FC = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingPatient(null);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      medical_id: '',
-      gender: 'M',
-      notes: '',
-    });
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        medical_id: '',
+        gender: 'M',
+        date_of_birth: '',
+        address: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        blood_type: 'A+',
+        allergies: '',
+        medical_conditions: '',
+        current_medications: '',
+        notes: '',
+        doctor_id: undefined,
+        age: undefined,
+      });
+
   };
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
       setError('Name is required');
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      setError('Phone is required');
+      return;
+    }
+    if (!formData.gender) {
+      setError('Gender is required');
+      return;
+    }
+    if (formData.date_of_birth) {
+      const calculatedAge = calculateAge(formData.date_of_birth);
+      if (calculatedAge === undefined) {
+        setError('Date of birth cannot be in the future');
+        return;
+      }
+      if (formData.age !== calculatedAge) {
+        setError('Age must match the date of birth');
+        return;
+      }
+    }
+    if (formData.age === undefined || Number.isNaN(Number(formData.age)) || Number(formData.age) < 0) {
+      setError('Age is required');
+      return;
+    }
+    if (formData.age !== undefined && formData.age > 130) {
+      setError('Age must be 130 or less');
+      return;
+    }
+
+    if (!formData.gender) {
+      setError('Gender is required');
+      return;
+    }
+    if (formData.date_of_birth) {
+      const calculatedAge = calculateAge(formData.date_of_birth);
+      if (calculatedAge === undefined) {
+        setError('Date of birth cannot be in the future');
+        return;
+      }
+      if (formData.age !== undefined && formData.age !== calculatedAge) {
+        setError('Age must match the date of birth');
+        return;
+      }
+    }
+    if (formData.age !== undefined && formData.age > 130) {
+      setError('Age must be 130 or less');
+      return;
+    }
+    if (formData.age === undefined || Number.isNaN(Number(formData.age)) || Number(formData.age) < 0) {
+      setError('Age is required');
       return;
     }
 
@@ -180,8 +269,19 @@ const Patients: React.FC = () => {
           phone: formData.phone || undefined,
           medical_id: formData.medical_id || undefined,
           gender: formData.gender,
+          date_of_birth: formData.date_of_birth || undefined,
+          address: formData.address || undefined,
+          emergency_contact_name: formData.emergency_contact_name || undefined,
+          emergency_contact_phone: formData.emergency_contact_phone || undefined,
+          blood_type: formData.blood_type || undefined,
+          allergies: formData.allergies || undefined,
+          medical_conditions: formData.medical_conditions || undefined,
+          current_medications: formData.current_medications || undefined,
           notes: formData.notes || undefined,
         };
+        if (formData.age !== undefined) {
+          updateData.age = formData.age;
+        }
         // Include doctor_id only if technician explicitly selected a new doctor
         if (formData.doctor_id !== undefined) {
           (updateData as any).doctor_id = formData.doctor_id;
@@ -202,9 +302,20 @@ const Patients: React.FC = () => {
           phone: formData.phone || undefined,
           medical_id: formData.medical_id || undefined,
           gender: formData.gender,
+          date_of_birth: formData.date_of_birth || undefined,
+          address: formData.address || undefined,
+          emergency_contact_name: formData.emergency_contact_name || undefined,
+          emergency_contact_phone: formData.emergency_contact_phone || undefined,
+          blood_type: formData.blood_type || undefined,
+          allergies: formData.allergies || undefined,
+          medical_conditions: formData.medical_conditions || undefined,
+          current_medications: formData.current_medications || undefined,
           notes: formData.notes || undefined,
           doctor_id: formData.doctor_id || undefined,
         };
+        if (formData.age !== undefined) {
+          createData.age = formData.age;
+        }
         await apiClient.createPatient(createData);
         setSuccess('Patient created successfully!');
       }
@@ -250,6 +361,8 @@ const Patients: React.FC = () => {
       setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     }
   };
+
+  const maxBirthDate = new Date().toISOString().split('T')[0];
 
   if (loading) {
     return (
@@ -367,167 +480,231 @@ const Patients: React.FC = () => {
       )}
 
       {/* Add/Edit Patient Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           {editingPatient ? 'Edit Patient' : 'Add New Patient'}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <TextField
-              fullWidth
-              label="Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              label="Email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Phone"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Medical ID"
-              value={formData.medical_id}
-              onChange={(e) => setFormData({ ...formData, medical_id: e.target.value })}
-              margin="normal"
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Gender</InputLabel>
-              <Select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'Other' })}
-                label="Gender"
-              >
-                <MenuItem value="M">Male</MenuItem>
-                <MenuItem value="F">Female</MenuItem>
-                <MenuItem value="Other">Other</MenuItem>
-              </Select>
-            </FormControl>
-                    <TextField
-              fullWidth
-              label="Date of Birth"
-              type="date"
-              value={formData.date_of_birth}
-              onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-              margin="normal"
-              InputLabelProps={{ shrink: true }}
-            />
+          <Stack spacing={3} sx={{ pt: 1 }}>
+            <Alert severity="info">
+              Date of birth is optional. If provided, age will sync to the calculated value.
+            </Alert>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                Required Details
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    required
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    fullWidth
+                    label="Age"
+                    type="number"
+                    value={formData.age ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        age: e.target.value === '' ? undefined : Number(e.target.value),
+                      })
+                    }
+                    required
+                    inputProps={{ min: 0, max: 130 }}
+                    disabled={Boolean(formData.date_of_birth)}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Gender</InputLabel>
+                    <Select
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'Other' })}
+                      label="Gender"
+                    >
+                      <MenuItem value="M">Male</MenuItem>
+                      <MenuItem value="F">Female</MenuItem>
+                      <MenuItem value="Other">Other</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    fullWidth
+                    label="Date of Birth"
+                    type="date"
+                    value={formData.date_of_birth}
+                    onChange={(e) => handleDateOfBirthChange(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{ max: maxBirthDate }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
 
-            {/* If technician, allow assigning a doctor when creating patient */}
-            {user?.user_type === 'technician' && (
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Assign Doctor</InputLabel>
-                <Select
-                  value={formData.doctor_id ?? ''}
-                  onChange={(e) => setFormData({ ...formData, doctor_id: e.target.value as number })}
-                  label="Assign Doctor"
-                  disabled={loadingDoctors}
-                >
-                  {/* If editing, show current doctor as disabled placeholder */}
-                  {editingPatient ? (
-                    <MenuItem value="" disabled>
-                      Current: {editingPatient.doctor_name || 'Unassigned'}
-                    </MenuItem>
-                  ) : (
-                    <MenuItem value="">-- Select Doctor --</MenuItem>
-                  )}
-                  {doctors.map((doc) => (
-                    <MenuItem key={doc.id} value={doc.id}>
-                      {doc.title ? `${doc.title} ` : ''}{doc.first_name} {doc.last_name}{doc.specialization ? ` - ${doc.specialization}` : ''}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-            <TextField
-              fullWidth
-              label="Address"
-              multiline
-              rows={2}
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Emergency Contact Name"
-              value={formData.emergency_contact_name}
-              onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Emergency Contact Phone"
-              value={formData.emergency_contact_phone}
-              onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-              margin="normal"
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Blood Type</InputLabel>
-              <Select
-                value={formData.blood_type || 'A+'}
-                onChange={(e) => setFormData({ ...formData, blood_type: e.target.value as any })}
-                label="Blood Type"
-              >
-                <MenuItem value="A+">A+</MenuItem>
-                <MenuItem value="A-">A-</MenuItem>
-                <MenuItem value="B+">B+</MenuItem>
-                <MenuItem value="B-">B-</MenuItem>
-                <MenuItem value="AB+">AB+</MenuItem>
-                <MenuItem value="AB-">AB-</MenuItem>
-                <MenuItem value="O+">O+</MenuItem>
-                <MenuItem value="O-">O-</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              label="Allergies"
-              multiline
-              rows={2}
-              value={formData.allergies}
-              onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Medical Conditions"
-              multiline
-              rows={2}
-              value={formData.medical_conditions}
-              onChange={(e) => setFormData({ ...formData, medical_conditions: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Current Medications"
-              multiline
-              rows={2}
-              value={formData.current_medications}
-              onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Notes"
-              multiline
-              rows={3}
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              margin="normal"
-            />
-          </Box>
+            <Divider />
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                Contact & Assignment
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Medical ID"
+                    value={formData.medical_id}
+                    onChange={(e) => setFormData({ ...formData, medical_id: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Address"
+                    multiline
+                    rows={2}
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  />
+                </Grid>
+                {user?.user_type === 'technician' && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <FormControl fullWidth required>
+                      <InputLabel>Assign Doctor</InputLabel>
+                      <Select
+                        value={formData.doctor_id ?? ''}
+                        onChange={(e) => setFormData({ ...formData, doctor_id: e.target.value as number })}
+                        label="Assign Doctor"
+                        disabled={loadingDoctors}
+                      >
+                        {editingPatient ? (
+                          <MenuItem value="" disabled>
+                            Current: {editingPatient.doctor_name || 'Unassigned'}
+                          </MenuItem>
+                        ) : (
+                          <MenuItem value="">-- Select Doctor --</MenuItem>
+                        )}
+                        {doctors.map((doc) => (
+                          <MenuItem key={doc.id} value={doc.id}>
+                            {doc.title ? `${doc.title} ` : ''}{doc.first_name} {doc.last_name}{doc.specialization ? ` - ${doc.specialization}` : ''}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+
+            <Divider />
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                Emergency & Medical Details
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Emergency Contact Name"
+                    value={formData.emergency_contact_name}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Emergency Contact Phone"
+                    value={formData.emergency_contact_phone}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Blood Type</InputLabel>
+                    <Select
+                      value={formData.blood_type || 'A+'}
+                      onChange={(e) => setFormData({ ...formData, blood_type: e.target.value as any })}
+                      label="Blood Type"
+                    >
+                      <MenuItem value="A+">A+</MenuItem>
+                      <MenuItem value="A-">A-</MenuItem>
+                      <MenuItem value="B+">B+</MenuItem>
+                      <MenuItem value="B-">B-</MenuItem>
+                      <MenuItem value="AB+">AB+</MenuItem>
+                      <MenuItem value="AB-">AB-</MenuItem>
+                      <MenuItem value="O+">O+</MenuItem>
+                      <MenuItem value="O-">O-</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, md: 8 }}>
+                  <TextField
+                    fullWidth
+                    label="Allergies"
+                    multiline
+                    rows={2}
+                    value={formData.allergies}
+                    onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Medical Conditions"
+                    multiline
+                    rows={2}
+                    value={formData.medical_conditions}
+                    onChange={(e) => setFormData({ ...formData, medical_conditions: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    label="Current Medications"
+                    multiline
+                    rows={2}
+                    value={formData.current_medications}
+                    onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <TextField
+                    fullWidth
+                    label="Notes"
+                    multiline
+                    rows={3}
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
@@ -540,6 +717,7 @@ const Patients: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
     </Box>
   );
 };
