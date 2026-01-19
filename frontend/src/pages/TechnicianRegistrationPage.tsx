@@ -143,7 +143,7 @@ const TechnicianRegistrationPage: React.FC = () => {
 
         <Box sx={{ mt: 'auto' }}>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }}>
-            © 2025 NeuroTech Systems Inc.
+            © 2025 CereSignal Systems Inc.
           </Typography>
         </Box>
       </Grid>

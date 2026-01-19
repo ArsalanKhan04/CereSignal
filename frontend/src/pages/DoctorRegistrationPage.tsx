@@ -115,17 +115,17 @@ const DoctorRegistrationPage: React.FC = () => {
         </Box>
 
         <Typography variant="h4" fontWeight="700" sx={{ mb: 2 }}>
-          Partner with the Future of Neurology
+          The Future of Neurology
         </Typography>
         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)', mb: 6 }}>
-          Join our network of top-tier specialists using AI to decode EEG data.
+          Access EEG files anywhere and write reports in no time with our AI-powered platform designed for medical professionals.
         </Typography>
 
         <List>
           {[
-            { icon: <SpeedIcon />, text: 'Real-time EEG Streaming' },
-            { icon: <CloudIcon />, text: 'Secure Cloud Storage' },
-            { icon: <SecurityIcon />, text: 'HIPAA Compliant' },
+            { icon: <SpeedIcon />, text: 'In-built EEG Viewer' },
+            { icon: <CloudIcon />, text: 'Ubiquitous Access' },
+            { icon: <SecurityIcon />, text: 'Accurate Models' },
             { icon: <CheckIcon />, text: 'Automated Reporting' }
           ].map((item, index) => (
             <ListItem key={index} disableGutters sx={{ mb: 2 }}>
@@ -144,7 +144,7 @@ const DoctorRegistrationPage: React.FC = () => {
 
         <Box sx={{ mt: 'auto' }}>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)' }}>
-            © 2025 NeuroTech Systems Inc.
+            © 2025 CereSignal Systems Inc.
           </Typography>
         </Box>
       </Grid>
