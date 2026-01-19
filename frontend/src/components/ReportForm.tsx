@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -17,11 +17,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  LinearProgress,
+  Stack,
 } from '@mui/material';
 import {
   Save as SaveIcon,
   Edit as EditIcon,
   Check as CheckIcon,
+  HourglassEmpty as WaitingIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
@@ -69,61 +72,173 @@ const ReportForm: React.FC<ReportFormProps> = ({
   const [success, setSuccess] = useState<string>('');
   const [existingReport, setExistingReport] = useState<EEGReport | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [waitingForLLM, setWaitingForLLM] = useState(false);
+  const [llmProgress, setLlmProgress] = useState(0);
+  const pollingIntervalRef = useRef<number | null>(null);
+  const pollCountRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 30; // 30 attempts * 2 seconds = 60 seconds max wait
 
   useEffect(() => {
-    if (propExistingReport) {
-      setExistingReport(propExistingReport);
-      setFormData({
-        file_id: propExistingReport.file_id,
-        patient_name: propExistingReport.patient_name,
-        patient_age: propExistingReport.patient_age,
-        patient_gender: propExistingReport.patient_gender || 'M',
-        ref_physician: propExistingReport.ref_physician || '',
-        indications: propExistingReport.indications || '',
-        technique: propExistingReport.technique || '',
-        factual_report: propExistingReport.factual_report || '',
-        impression: propExistingReport.impression,
-        doctor_info: propExistingReport.doctor_info || '',
-      });
-      setIsEditing(true);
-    } else if (fileId) {
-      loadExistingReport();
-    } else {
-      prefillFormData();
-    }
-  }, [fileId, signalFile, patient, doctor, propExistingReport, user]);
-
-  const loadExistingReport = async () => {
-    if (!fileId) return;
-    
-    try {
-      setLoading(true);
-      const response = await apiClient.getReportByFile(fileId);
-      if (response.status === 200 && response.data) {
-        setExistingReport(response.data);
+    const initializeForm = async () => {
+      if (propExistingReport) {
+        // Editing existing report - no need to check for LLM report
+        setExistingReport(propExistingReport);
         setFormData({
-          file_id: response.data.file_id,
-          patient_name: response.data.patient_name,
-          patient_age: response.data.patient_age,
-          patient_gender: response.data.patient_gender || 'M',
-          ref_physician: response.data.ref_physician || '',
-          indications: response.data.indications || '',
-          technique: response.data.technique || '',
-          factual_report: response.data.factual_report || '',
-          impression: response.data.impression,
-          doctor_info: response.data.doctor_info || '',
+          file_id: propExistingReport.file_id,
+          patient_name: propExistingReport.patient_name,
+          patient_age: propExistingReport.patient_age,
+          patient_gender: propExistingReport.patient_gender || 'M',
+          ref_physician: propExistingReport.ref_physician || '',
+          indications: propExistingReport.indications || '',
+          technique: propExistingReport.technique || '',
+          // Use LLM-generated data if report fields are empty
+          factual_report: propExistingReport.factual_report || signalFile?.factual_report || '',
+          impression: propExistingReport.impression || signalFile?.impression || '',
+          doctor_info: propExistingReport.doctor_info || '',
         });
         setIsEditing(true);
+      } else if (fileId) {
+        // First check if existing report exists
+        try {
+          setLoading(true);
+          const response = await apiClient.getReportByFile(fileId);
+          if (response.status === 200 && response.data) {
+            // Report already exists - edit mode
+            setExistingReport(response.data);
+            setFormData({
+              file_id: response.data.file_id,
+              patient_name: response.data.patient_name,
+              patient_age: response.data.patient_age,
+              patient_gender: response.data.patient_gender || 'M',
+              ref_physician: response.data.ref_physician || '',
+              indications: response.data.indications || '',
+              technique: response.data.technique || '',
+              factual_report: response.data.factual_report || signalFile?.factual_report || '',
+              impression: response.data.impression || signalFile?.impression || '',
+              doctor_info: response.data.doctor_info || '',
+            });
+            setIsEditing(true);
+          } else {
+            // No existing report - create new and check for LLM report
+            prefillFormData();
+            checkForLLMReport();
+          }
+        } catch (err: any) {
+          console.error('Error loading existing report:', err);
+          // On error, still prefill and check for LLM report
+          prefillFormData();
+          checkForLLMReport();
+        } finally {
+          setLoading(false);
+        }
       } else {
-        // No existing report for this file - prefill using provided props
         prefillFormData();
       }
+    };
+
+    initializeForm();
+  }, [fileId, signalFile, patient, doctor, propExistingReport, user]);
+
+  useEffect(() => {
+    // Cleanup polling on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        window.clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  const checkForLLMReport = async () => {
+    if (!fileId) return;
+
+    try {
+      // Check if LLM report is already available
+      const reportStatusResponse = await apiClient.checkReportStatus(fileId);
+      
+      if (reportStatusResponse.data.report_status === 'completed' && reportStatusResponse.data.has_report) {
+        // LLM report is ready, update form data immediately
+        const report = reportStatusResponse.data.report;
+        if (report) {
+          setFormData(prev => ({
+            ...prev,
+            factual_report: report.factual_report || prev.factual_report,
+            impression: report.impression || prev.impression,
+          }));
+          setSuccess('AI-generated report loaded successfully!');
+          setTimeout(() => setSuccess(''), 5000);
+        }
+      } else if (reportStatusResponse.data.report_status === 'pending') {
+        // LLM is still generating, start polling
+        setWaitingForLLM(true);
+        pollCountRef.current = 0;
+        startPollingForLLM();
+      } else if (reportStatusResponse.data.report_status === 'not_started') {
+        // No LLM generation started, just open form normally
+        console.log('LLM report generation not started');
+      } else if (reportStatusResponse.data.report_status === 'failed') {
+        // LLM generation failed, open form anyway
+        console.log('LLM report generation failed');
+        setError('AI report generation failed. You can still create the report manually.');
+      }
     } catch (err: any) {
-      console.error('Error loading existing report:', err);
-      // On error, still try to prefill so user can create a new report
-      prefillFormData();
-    } finally {
-      setLoading(false);
+      console.error('Error checking LLM report status:', err);
+      // Silently fail and let user create report manually
+    }
+  };
+
+  const startPollingForLLM = () => {
+    if (pollingIntervalRef.current) {
+      window.clearInterval(pollingIntervalRef.current);
+    }
+
+    pollingIntervalRef.current = window.setInterval(async () => {
+      pollCountRef.current += 1;
+      setLlmProgress((pollCountRef.current / MAX_POLL_ATTEMPTS) * 100);
+
+      if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
+        // Max polling attempts reached, stop waiting and open form
+        stopPollingForLLM();
+        setWaitingForLLM(false);
+        setError('LLM report generation took too long. You can still create the report manually.');
+        return;
+      }
+
+      try {
+        const reportStatusResponse = await apiClient.checkReportStatus(fileId!);
+        
+        if (reportStatusResponse.data.report_status === 'completed' && reportStatusResponse.data.has_report) {
+          // LLM report is ready
+          const report = reportStatusResponse.data.report;
+          if (report) {
+            setFormData(prev => ({
+              ...prev,
+              factual_report: report.factual_report || prev.factual_report,
+              impression: report.impression || prev.impression,
+            }));
+          }
+          stopPollingForLLM();
+          setWaitingForLLM(false);
+          setSuccess('AI-generated report loaded successfully!');
+          setTimeout(() => setSuccess(''), 5000);
+        } else if (reportStatusResponse.data.report_status === 'failed') {
+          // LLM generation failed
+          stopPollingForLLM();
+          setWaitingForLLM(false);
+          setError('AI report generation failed. You can still create the report manually.');
+        }
+      } catch (err: any) {
+        console.error('Error polling for LLM report:', err);
+        stopPollingForLLM();
+        setWaitingForLLM(false);
+      }
+    }, 2000); // Poll every 2 seconds
+  };
+
+  const stopPollingForLLM = () => {
+    if (pollingIntervalRef.current) {
+      window.clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
   };
 
@@ -403,6 +518,45 @@ const ReportForm: React.FC<ReportFormProps> = ({
       <Box display="flex" justifyContent="center" p={3}>
         <CircularProgress />
       </Box>
+    );
+  }
+
+  // Show waiting dialog while LLM is generating the report
+  if (waitingForLLM) {
+    return (
+      <Dialog open={true} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <WaitingIcon color="primary" />
+            <Typography>Generating AI Report</Typography>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ py: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Please wait while our AI analyzes the EEG data and generates the report. This may take up to 60 seconds.
+            </Typography>
+            <Box>
+              <LinearProgress variant="determinate" value={llmProgress} />
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Progress: {Math.round(llmProgress)}%
+              </Typography>
+            </Box>
+            <CircularProgress sx={{ alignSelf: 'center' }} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              stopPollingForLLM();
+              setWaitingForLLM(false);
+            }}
+            variant="outlined"
+          >
+            Skip and Create Manually
+          </Button>
+        </DialogActions>
+      </Dialog>
     );
   }
 
