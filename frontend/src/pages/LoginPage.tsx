@@ -14,7 +14,9 @@ import {
   Fade,
   useTheme,
   Paper,
-  Grid // MUI v6 Grid (Grid2)
+  Grid, // MUI v6 Grid (Grid2)
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -25,7 +27,7 @@ import {
   Psychology as BrainIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { LoginRequest } from '../types';
+import { LoginRequest, PatientIdLoginRequest } from '../types';
 
 const LoginPage: React.FC = () => {
   const theme = useTheme();
@@ -33,9 +35,13 @@ const LoginPage: React.FC = () => {
     username: '',
     password: '',
   });
+  const [patientFormData, setPatientFormData] = useState<PatientIdLoginRequest>({
+    patient_id: 0,
+  });
+  const [loginMode, setLoginMode] = useState<'staff' | 'patient'>('staff');
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginPatient } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,13 +51,35 @@ const LoginPage: React.FC = () => {
     });
   };
 
+  const handlePatientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value === '' ? 0 : Number(e.target.value);
+    setPatientFormData({
+      patient_id: value,
+    });
+  };
+
+  const handleModeChange = (_: React.MouseEvent<HTMLElement>, value: 'staff' | 'patient' | null) => {
+    if (!value) return;
+    setLoginMode(value);
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      await login(formData);
+      if (loginMode === 'patient') {
+        if (!patientFormData.patient_id) {
+          setError('Please enter your patient ID.');
+          setIsLoading(false);
+          return;
+        }
+        await loginPatient(patientFormData);
+      } else {
+        await login(formData);
+      }
       navigate('/dashboard');
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Login failed.';
@@ -103,9 +131,29 @@ const LoginPage: React.FC = () => {
                 Welcome Back
               </Typography>
               <Typography variant="body1" color="text.secondary">
-                Please enter your credentials to access the portal.
+                Choose a login method to access the portal.
               </Typography>
             </Box>
+
+            <ToggleButtonGroup
+              exclusive
+              value={loginMode}
+              onChange={handleModeChange}
+              sx={{ width: '100%', mb: 3 }}
+            >
+              <ToggleButton
+                value="staff"
+                sx={{ flex: 1, textTransform: 'none', fontWeight: 600, borderRadius: 2 }}
+              >
+                Staff Login
+              </ToggleButton>
+              <ToggleButton
+                value="patient"
+                sx={{ flex: 1, textTransform: 'none', fontWeight: 600, borderRadius: 2 }}
+              >
+                Patient Login
+              </ToggleButton>
+            </ToggleButtonGroup>
 
             {error && (
               <Alert severity="error" sx={{ width: '100%', mb: 3, borderRadius: 2 }}>
@@ -114,77 +162,129 @@ const LoginPage: React.FC = () => {
             )}
 
             <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
-              <Stack spacing={3}>
-                <TextField
-                  required
-                  fullWidth
-                  id="username"
-                  label="Username or Medical ID"
-                  name="username"
-                  autoComplete="username"
-                  autoFocus
-                  value={formData.username}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
-                  }}
-                />
-                
-                <TextField
-                  required
-                  fullWidth
-                  name="password"
-                  label="Password"
-                  type="password"
-                  id="password"
-                  autoComplete="current-password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
-                  }}
-                />
+              {loginMode === 'staff' ? (
+                <Stack spacing={3}>
+                  <TextField
+                    required
+                    fullWidth
+                    id="username"
+                    label="Username or Medical ID"
+                    name="username"
+                    autoComplete="username"
+                    autoFocus
+                    value={formData.username}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonIcon color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
+                    }}
+                  />
+                  
+                  <TextField
+                    required
+                    fullWidth
+                    name="password"
+                    label="Password"
+                    type="password"
+                    id="password"
+                    autoComplete="current-password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
+                    }}
+                  />
 
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  disabled={isLoading}
-                  endIcon={!isLoading && <ArrowIcon />}
-                  sx={{
-                    py: 1.8,
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    boxShadow: '0 8px 16px rgba(25, 118, 210, 0.25)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 12px 20px rgba(25, 118, 210, 0.35)',
-                    }
-                  }}
-                >
-                  {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
-                </Button>
-              </Stack>
+                  <Button
+                    type="submit"
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    disabled={isLoading}
+                    endIcon={!isLoading && <ArrowIcon />}
+                    sx={{
+                      py: 1.8,
+                      fontSize: '1rem',
+                      fontWeight: 700,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      boxShadow: '0 8px 16px rgba(25, 118, 210, 0.25)',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 12px 20px rgba(25, 118, 210, 0.35)',
+                      }
+                    }}
+                  >
+                    {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+                  </Button>
+                </Stack>
+              ) : (
+                <Stack spacing={3}>
+                  <TextField
+                    required
+                    fullWidth
+                    id="patient_id"
+                    label="Patient ID"
+                    name="patient_id"
+                    type="number"
+                    autoFocus
+                    value={patientFormData.patient_id || ''}
+                    onChange={handlePatientChange}
+                    disabled={isLoading}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      inputProps: { min: 1 }
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' }
+                    }}
+                  />
+
+                  <Button
+                    type="submit"
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    disabled={isLoading}
+                    endIcon={!isLoading && <ArrowIcon />}
+                    sx={{
+                      py: 1.8,
+                      fontSize: '1rem',
+                      fontWeight: 700,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      boxShadow: '0 8px 16px rgba(25, 118, 210, 0.25)',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 12px 20px rgba(25, 118, 210, 0.35)',
+                      }
+                    }}
+                  >
+                    {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Access Records'}
+                  </Button>
+                </Stack>
+              )}
             </Box>
 
             <Divider sx={{ width: '100%', my: 4 }}>
@@ -202,7 +302,6 @@ const LoginPage: React.FC = () => {
               {[
                 { label: 'Doctor', path: '/register/doctor' },
                 { label: 'Technician', path: '/register/technician' },
-                { label: 'Patient', path: '/register/patient' },
               ].map((role) => (
                 <Button
                   key={role.label}
@@ -228,9 +327,10 @@ const LoginPage: React.FC = () => {
                 </Button>
               ))}
             </Stack>
-          </Box>
-        </Fade>
-      </Grid>
+            </Box>
+          </Fade>
+        </Grid>
+
 
       {/* --- Right Side: Visual Branding (Hidden on Mobile) --- */}
       <Grid 

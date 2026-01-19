@@ -20,6 +20,7 @@ from app.schemas.auth import (
     UserLogin,
     UserRegister,
     PatientRegister,
+    PatientIdLogin,
     Token,
     AuthUserResponse,
     PasswordChange,
@@ -292,6 +293,77 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username, "user_id": user.id},
+        expires_delta=access_token_expires,
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    }
+
+
+@router.post("/patient-login", response_model=Token)
+async def login_patient(
+    patient_credentials: PatientIdLogin, db: Session = Depends(get_db)
+):
+    """Login patient using patient ID and return access token"""
+
+    patient = db.query(User).filter(User.id == patient_credentials.patient_id).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid patient ID",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    auth_user = None
+    if patient.patient_auth_user_id:
+        auth_user = (
+            db.query(AuthUser)
+            .filter(AuthUser.id == patient.patient_auth_user_id)
+            .first()
+        )
+    else:
+        base_username = f"patient-{patient.id}"
+        username = base_username
+        suffix = 1
+        while db.query(AuthUser).filter(AuthUser.username == username).first():
+            username = f"{base_username}-{suffix}"
+            suffix += 1
+
+        email = patient.email
+        if email and db.query(AuthUser).filter(AuthUser.email == email).first():
+            email = None
+
+        if not email:
+            email = f"patient-{patient.id}@placeholder.local"
+
+        auth_user = AuthUser(
+            username=username,
+            email=email,
+            hashed_password=get_password_hash(f"patient-{patient.id}"),
+            user_type=UserType.PATIENT.value,
+            first_name=None,
+            last_name=None,
+        )
+        db.add(auth_user)
+        db.flush()
+        patient.patient_auth_user_id = auth_user.id
+
+    if not auth_user or not auth_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
+        )
+
+    # Update last login
+    auth_user.last_login = datetime.utcnow()
+    db.commit()
+
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": auth_user.username, "user_id": auth_user.id},
         expires_delta=access_token_expires,
     )
 

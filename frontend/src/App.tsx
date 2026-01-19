@@ -7,7 +7,6 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import DoctorRegistrationPage from './pages/DoctorRegistrationPage';
 import TechnicianRegistrationPage from './pages/TechnicianRegistrationPage';
-import PatientRegistrationPage from './pages/PatientRegistrationPage';
 import DashboardPage from './pages/DashboardPage';
 import './App.css';
 
@@ -161,10 +160,6 @@ const AppRoutes: React.FC = () => {
       <Route 
         path="/register/technician" 
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <TechnicianRegistrationPage />} 
-      />
-      <Route 
-        path="/register/patient" 
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <PatientRegistrationPage />} 
       />
       <Route 
         path="/dashboard" 

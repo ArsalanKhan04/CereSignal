@@ -812,6 +812,9 @@ const Patients: React.FC<{
                     {patient.medical_id && (
                       <Chip label={`ID ${patient.medical_id}`} size="small" variant="outlined" />
                     )}
+                    {user?.user_type === 'technician' && (
+                      <Chip label={`Patient ID ${patient.id}`} size="small" variant="outlined" />
+                    )}
                     {patient.referred_by && (
                       <Chip label={`Referred by: ${patient.referred_by}`} size="small" variant="outlined" />
                     )}
@@ -1043,6 +1046,9 @@ const Patients: React.FC<{
                       {detailPatient.gender && <Chip label={`Gender ${detailPatient.gender}`} size="small" />}
                       {detailPatient.blood_type && <Chip label={`Blood ${detailPatient.blood_type}`} size="small" />}
                       {detailPatient.medical_id && <Chip label={`ID ${detailPatient.medical_id}`} size="small" variant="outlined" />}
+                      {user?.user_type === 'technician' && (
+                        <Chip label={`Patient ID ${detailPatient.id}`} size="small" variant="outlined" />
+                      )}
                       {detailPatient.referred_by && (
                         <Chip label={`Referred by: ${detailPatient.referred_by}`} size="small" variant="outlined" />
                       )}

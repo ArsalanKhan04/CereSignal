@@ -18,7 +18,8 @@ import {
   EEGReportUpdate,
   ApiResponse,
   ApiError,
-  NotificationItem
+  NotificationItem,
+  PatientIdLoginRequest
 } from '../types';
 
 class ApiClient {
@@ -76,6 +77,11 @@ class ApiClient {
 
   async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     const response = await this.client.post('/auth/login', data);
+    return { data: response.data, status: response.status };
+  }
+
+  async loginPatient(data: PatientIdLoginRequest): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.client.post('/auth/patient-login', data);
     return { data: response.data, status: response.status };
   }
 

@@ -422,16 +422,21 @@ async def download_report_pdf(
     """Download the PDF for a report"""
 
     # Get the report
-    report = (
+    report_query = (
         db.query(EEGReport)
         .join(SignalFile)
         .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
+        .filter(EEGReport.id == report_id)
     )
+
+    if current_user.user_type == UserType.PATIENT.value:
+        report_query = report_query.filter(User.patient_auth_user_id == current_user.id)
+    else:
+        report_query = report_query.filter(
+            or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
+        )
+
+    report = report_query.first()
 
     if not report:
         raise HTTPException(
@@ -460,16 +465,21 @@ async def get_pdf_status(
     """Check if PDF exists for a report"""
 
     # Get the report
-    report = (
+    report_query = (
         db.query(EEGReport)
         .join(SignalFile)
         .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
+        .filter(EEGReport.id == report_id)
     )
+
+    if current_user.user_type == UserType.PATIENT.value:
+        report_query = report_query.filter(User.patient_auth_user_id == current_user.id)
+    else:
+        report_query = report_query.filter(
+            or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
+        )
+
+    report = report_query.first()
 
     if not report:
         raise HTTPException(
