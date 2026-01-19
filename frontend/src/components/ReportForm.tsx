@@ -59,7 +59,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
     indications: '',
     technique: '',
     factual_report: '',
-    impression: 'normal',
+    impression: '',
     doctor_info: '',
   });
   
@@ -151,6 +151,15 @@ const ReportForm: React.FC<ReportFormProps> = ({
       }));
     }
 
+    // Prefill AI-generated report data if available
+    if (signalFile?.factual_report || signalFile?.impression) {
+      setFormData(prev => ({
+        ...prev,
+        factual_report: signalFile.factual_report || '',
+        impression: signalFile.impression || '',
+      }));
+    }
+
     // Prefill doctor information
     if (doctor) {
       const doctorName = `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() || doctor.username;
@@ -179,14 +188,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
       indications: prev.indications || 'EEG to investigate a seizure disorder.',
       technique: prev.technique || 'This is a multichannel digital EEG recording using the estimated international 10-20 electrode placement system. EEG started with machine calibration the patient was awake and cooperative during the procedure.',
     }));
-
-    // Set impression based on file condition
-    if (signalFile?.condition) {
-      setFormData(prev => ({
-        ...prev,
-        impression: signalFile.condition === 'abnormal' ? 'abnormal' : 'normal',
-      }));
-    }
   };
 
   const handleChange = (field: keyof EEGReportCreate) => (
@@ -361,20 +362,16 @@ const ReportForm: React.FC<ReportFormProps> = ({
                 variant="outlined"
               />
               
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <FormControl sx={{ minWidth: 200 }}>
-                  <InputLabel>Impression</InputLabel>
-                  <Select
-                    value={formData.impression}
-                    onChange={handleChange('impression')}
-                    label="Impression"
-                    required
-                  >
-                    <MenuItem value="normal">Normal</MenuItem>
-                    <MenuItem value="abnormal">Abnormal</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
+              <TextField
+                fullWidth
+                label="Impression"
+                multiline
+                rows={6}
+                value={formData.impression}
+                onChange={handleChange('impression')}
+                placeholder="Clinical impression and interpretation of findings..."
+                variant="outlined"
+              />
             </Box>
           </CardContent>
         </Card>

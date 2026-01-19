@@ -39,15 +39,18 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportFile, setReportFile] = useState<SignalFile | null>(null);
   const [polling, setPolling] = useState(false);
+  const [reportPolling, setReportPolling] = useState(false);
+  const [viewReportDialog, setViewReportDialog] = useState(false);
+  const [viewingReport, setViewingReport] = useState<SignalFile | null>(null);
 
   useEffect(() => {
     loadFiles();
   }, [patientId]);
 
-  // Poll for status updates on files that are processing
+  // Poll for inference status updates on files that are processing
   useEffect(() => {
     const processingFiles = files.filter(file => file.condition === 'processing');
-    
+
     if (processingFiles.length === 0) {
       setPolling(false);
       return;
@@ -84,6 +87,54 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
     };
   }, [files]);
 
+  // Poll for report generation status on files with report_task_id but no report yet
+  useEffect(() => {
+    const reportPendingFiles = files.filter(file =>
+      file.report_task_id &&
+      !file.factual_report &&
+      file.condition !== 'processing'
+    );
+
+    if (reportPendingFiles.length === 0) {
+      setReportPolling(false);
+      return;
+    }
+
+    setReportPolling(true);
+    const pollInterval = setInterval(async () => {
+      for (const file of reportPendingFiles) {
+        try {
+          const response = await apiClient.checkReportStatus(file.id);
+          if (response.status === 200 && response.data) {
+            const reportData = response.data;
+
+            // If report is completed, update the file with report data
+            if (reportData.has_report && reportData.report) {
+              setFiles(prevFiles =>
+                prevFiles.map(f =>
+                  f.id === file.id
+                    ? {
+                        ...f,
+                        factual_report: reportData.report.factual_report,
+                        impression: reportData.report.impression
+                      }
+                    : f
+                )
+              );
+            }
+          }
+        } catch (err) {
+          console.error('Error checking report status:', err);
+        }
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => {
+      clearInterval(pollInterval);
+      setReportPolling(false);
+    };
+  }, [files]);
+
   const loadFiles = async () => {
     try {
       setLoading(true);
@@ -91,13 +142,13 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
         apiClient.getFiles(patientId),
         apiClient.getPatient(patientId)
       ]);
-      
+
       if (filesResponse.status === 200) {
         setFiles(filesResponse.data);
       } else {
         setError('Failed to load files');
       }
-      
+
       if (patientResponse.status === 200) {
         setPatient(patientResponse.data);
       }
@@ -124,6 +175,11 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
   const handleReportSaved = (report: EEGReport) => {
     setShowReportForm(false);
     setReportFile(null);
+  };
+
+  const handleViewReport = (file: SignalFile) => {
+    setViewingReport(file);
+    setViewReportDialog(true);
   };
 
   const handleDeleteFile = async (fileId: number) => {
@@ -205,8 +261,18 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
         <Box display="flex" justifyContent="center" mb={2}>
           <Chip
             icon={<CircularProgress size={16} />}
-            label="Processing files..."
+            label="Analyzing EEG data..."
             color="info"
+            variant="outlined"
+          />
+        </Box>
+      )}
+      {reportPolling && (
+        <Box display="flex" justifyContent="center" mb={2}>
+          <Chip
+            icon={<CircularProgress size={16} />}
+            label="Generating clinical report..."
+            color="secondary"
             variant="outlined"
           />
         </Box>
@@ -220,12 +286,31 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
                 <Typography variant="body2" color="textSecondary">
                   Size: {(file.file_size / (1024*1024)).toFixed(1)} MB | Type: {file.file_type}
                 </Typography>
-                <Box sx={{ mt: 1 }}>
+                <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip
                     label={`${getConditionIcon(file.condition)} ${file.condition.toUpperCase()}`}
                     size="small"
                     color={getConditionColor(file.condition)}
                   />
+                  {file.report_task_id && !file.factual_report && file.condition !== 'processing' && (
+                    <Chip
+                      icon={<CircularProgress size={12} />}
+                      label="Report generating..."
+                      size="small"
+                      color="secondary"
+                      variant="outlined"
+                    />
+                  )}
+                  {file.factual_report && (
+                    <Chip
+                      label="✅ Report Ready"
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                      onClick={() => handleViewReport(file)}
+                      sx={{ cursor: 'pointer' }}
+                    />
+                  )}
                 </Box>
               </Box>
               <Box>
@@ -300,7 +385,7 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
               <Typography variant="h6" gutterBottom>
                 Signal Channels:
               </Typography>
-              
+
               {signalsLoading ? (
                 <Box display="flex" justifyContent="center" py={2}>
                   <CircularProgress />
@@ -355,6 +440,91 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
           isDialog={true}
         />
       )}
+
+      {/* View Generated Report Dialog */}
+      <Dialog
+        open={viewReportDialog}
+        onClose={() => {
+          setViewReportDialog(false);
+          setViewingReport(null);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          AI-Generated EEG Report
+          {viewingReport && (
+            <Typography variant="caption" display="block" color="textSecondary">
+              File: {viewingReport.original_filename}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent dividers>
+          {viewingReport && (
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                FACTUAL REPORT
+              </Typography>
+              <Typography
+                variant="body1"
+                paragraph
+                sx={{
+                  whiteSpace: 'pre-wrap',
+                  backgroundColor: '#f5f5f5',
+                  padding: 2,
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.95rem'
+                }}
+              >
+                {viewingReport.factual_report || 'No factual report available.'}
+              </Typography>
+
+              <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                IMPRESSION
+              </Typography>
+              <Typography
+                variant="body1"
+                paragraph
+                sx={{
+                  whiteSpace: 'pre-wrap',
+                  backgroundColor: '#f5f5f5',
+                  padding: 2,
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.95rem'
+                }}
+              >
+                {viewingReport.impression || 'No impression available.'}
+              </Typography>
+
+              <Alert severity="info" sx={{ mt: 2 }}>
+                This report was automatically generated by AI. It should be reviewed and edited by a qualified physician before being finalized.
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setViewReportDialog(false);
+            setViewingReport(null);
+          }}>
+            Close
+          </Button>
+          {viewingReport && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                setViewReportDialog(false);
+                handleCreateReport(viewingReport);
+              }}
+            >
+              Edit in Report Form
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

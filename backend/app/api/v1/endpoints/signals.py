@@ -69,7 +69,7 @@ async def upload_signal_file(
 ):
     """Upload a signal file for processing"""
 
-    print("patient_id", patient_id)
+    print('patient_id', patient_id)
     # Validate file type
     if not file.filename:
         raise HTTPException(
@@ -123,14 +123,10 @@ async def upload_signal_file(
                 )
         else:
             # If no patient specified, create a default patient for this auth user
-            user = (
-                db.query(User)
-                .filter(
-                    User.auth_user_id == current_user.id,
-                    User.name == f"Default Patient for {current_user.username}",
-                )
-                .first()
-            )
+            user = db.query(User).filter(
+                User.auth_user_id == current_user.id,
+                User.name == f"Default Patient for {current_user.username}"
+            ).first()
 
             if not user:
                 # Create a default patient
@@ -747,19 +743,27 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
     try:
         # Check task status
         task_status = inference_service.get_task_status(file.task_id)
+        report_task_id = None
 
         # If task is completed, update the database
-        if task_status["status"] in ["completed", "failed"]:
-            if task_status["status"] == "completed":
-                result = task_status.get("result", {})
-                if result and "result" in result:
+        report_task_id = None
+        if task_status['status'] in ['completed', 'failed']:
+            if task_status['status'] == 'completed':
+                result = task_status.get('result', {})
+                report_task_id = result.get('report_task_id')
+
+                # Store the report task ID for later polling
+                if report_task_id and not file.report_task_id:
+                    file.report_task_id = report_task_id
+
+                if result and 'result' in result:
                     # Map inference result to condition
                     if result["result"].lower() == "normal":
                         file.condition = "normal"
                     elif result["result"].lower() == "abnormal":
                         file.condition = "abnormal"
                     else:
-                        file.condition = "failed"
+                        file.condition = 'failed'
 
                     # Store events data if available
                     if "events" in result and result["events"]:
@@ -767,16 +771,17 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                 else:
                     file.condition = "failed"
             else:  # failed
-                file.condition = "failed"
+                file.condition = 'failed'
 
             db.commit()
 
         return {
             "file_id": file_id,
             "condition": file.condition,
-            "inference_status": task_status["status"],
-            "message": task_status["message"],
+            "inference_status": task_status['status'],
+            "message": task_status['message'],
             "task_id": file.task_id,
+            "report_task_id": file.report_task_id or report_task_id
         }
 
     except Exception as e:
@@ -786,7 +791,80 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
             "inference_status": "error",
             "message": f"Error checking inference status: {str(e)}",
             "task_id": file.task_id,
+            "report_task_id": report_task_id
         }
+
+@router.get("/files/{file_id}/report-status")
+async def get_file_report_status(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Check the status of the LLM report generation task for a specific file.
+    If completed, stores the report in the database.
+    """
+    try:
+        file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+        if not file:
+            raise HTTPException(status_code=404, detail="Signal file not found")
+
+        # If no report task ID, report generation hasn't started
+        if not file.report_task_id:
+            return {
+                "file_id": file_id,
+                "report_status": "not_started",
+                "message": "Report generation not started",
+                "has_report": bool(file.factual_report)
+            }
+
+        # If already has report data, return it
+        if file.factual_report and file.impression:
+            return {
+                "file_id": file_id,
+                "report_status": "completed",
+                "message": "Report ready",
+                "has_report": True,
+                "report": {
+                    "factual_report": file.factual_report,
+                    "impression": file.impression
+                }
+            }
+
+        # Check task status
+        status_data = inference_service.get_task_status(file.report_task_id)
+
+        if not status_data:
+            raise HTTPException(status_code=404, detail="Report task not found")
+
+        # If task completed, store the report
+        if status_data['status'] == 'completed':
+            result = status_data.get('result', {})
+            if result:
+                file.factual_report = result.get('factual_report', '')
+                file.impression = result.get('impression', '')
+                db.commit()
+
+                return {
+                    "file_id": file_id,
+                    "report_status": "completed",
+                    "message": "Report ready",
+                    "has_report": True,
+                    "report": {
+                        "factual_report": file.factual_report,
+                        "impression": file.impression
+                    }
+                }
+
+        # Task still pending or failed
+        return {
+            "file_id": file_id,
+            "report_status": status_data['status'],
+            "message": status_data.get('message', ''),
+            "has_report": False
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking report status: {str(e)}")
 
 
 @router.delete("/files/{file_id}")

@@ -160,9 +160,10 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  const getImpressionColor = (impression: string) => {
-    if (impression?.toLowerCase().includes('normal')) return 'success';
-    if (impression?.toLowerCase().includes('abnormal')) return 'error';
+  const getImpressionColor = (impression: string | undefined) => {
+    if (!impression) return 'default';
+    if (impression.toLowerCase().includes('normal')) return 'success';
+    if (impression.toLowerCase().includes('abnormal')) return 'error';
     return 'warning';
   };
 
