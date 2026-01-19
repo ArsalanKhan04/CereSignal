@@ -1171,6 +1171,46 @@ const Patients: React.FC<{
                   )}
                 </Stack>
               </Paper>
+
+              {detailReport && (
+                <Paper sx={{ p: 3 }} variant="outlined">
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                    Report Details
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Typography variant="caption" color="textSecondary">Indications</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {detailReport.indications || '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Typography variant="caption" color="textSecondary">Technique</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {detailReport.technique || '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="caption" color="textSecondary">Factual Report</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-line' }}>
+                        {detailReport.factual_report || '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="caption" color="textSecondary">Impression</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {detailReport.impression ? detailReport.impression.toUpperCase() : '—'}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="caption" color="textSecondary">Doctor Notes</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-line' }}>
+                        {detailReport.doctor_info || '—'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              )}
             </Box>
           ) : (
             <Typography color="textSecondary">Patient details unavailable.</Typography>
