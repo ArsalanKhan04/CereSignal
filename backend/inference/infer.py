@@ -90,7 +90,7 @@ def _process_neurogate(mne_data):
 
     return condition, raw_prob
 
-def _process_neurotransformer(mne_data):
+def _process_neurotransformer(mne_data, threshold=0.5):
     all_events = np.array(["normal wave", "spike wave", "slow wave"])
 
     processed_data = _PIPELINES['neurotransformer'].apply(mne_data)
@@ -107,9 +107,15 @@ def _process_neurotransformer(mne_data):
         ch_data = torch.from_numpy(ch_data).float().to(_DEVICE)
         outputs=None
         with torch.no_grad():
-            outputs = model(ch_data)
-        outputs = outputs.cpu().numpy()
-        outputs = outputs.argmax(axis=1)
+            logits = model(ch_data)
+            probs = F.softmax(logits, dim=1)
+            confidence, preds = torch.max(probs, dim=1)
+
+        confidence = confidence.cpu().numpy()
+        preds = preds.cpu().numpy()
+
+        preds[confidence < threshold] = 0
+        outputs = preds
         events = all_events[outputs]
         merged_events = _merge_events(events)
         result_events[ch_name] = merged_events
@@ -256,9 +262,9 @@ def infer(self, mne_file_path):
     mne_data = mne.io.read_raw_edf(mne_file_path, preload=True)
 
     condition, ab_prob = _process_neurogate(mne_data)
-    events, raw_events = _process_neurotransformer(mne_data)
+    events, raw_events = _process_neurotransformer(mne_data, 0.9)
     pdr_text = _compute_pdr(mne_data)
-    region_report = _get_region_report(raw_events, 25)
+    region_report = _get_region_report(raw_events, 0)
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
 
     # Attempt to generate a topomap image for this inference
