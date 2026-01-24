@@ -431,6 +431,8 @@ async def download_report_pdf(
 
     if current_user.user_type == UserType.PATIENT.value:
         report_query = report_query.filter(User.patient_auth_user_id == current_user.id)
+    elif current_user.user_type == UserType.TECHNICIAN.value:
+        report_query = report_query
     else:
         report_query = report_query.filter(
             or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
@@ -474,6 +476,8 @@ async def get_pdf_status(
 
     if current_user.user_type == UserType.PATIENT.value:
         report_query = report_query.filter(User.patient_auth_user_id == current_user.id)
+    elif current_user.user_type == UserType.TECHNICIAN.value:
+        report_query = report_query
     else:
         report_query = report_query.filter(
             or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
