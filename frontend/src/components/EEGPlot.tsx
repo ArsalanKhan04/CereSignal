@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
+import Plotly from 'plotly.js-basic-dist';
 import {
   Box,
   Button,
@@ -16,14 +17,22 @@ import {
   IconButton,
   Chip,
   Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControlLabel,
+  Radio,
+  RadioGroup
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
+  BookmarkAdd as BookmarkIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { EventsData } from '../types';
+import { EventsData, EEGBookmark } from '../types';
 
 const MONTAGE_OPTIONS = [
   { value: 'original', label: 'Original' },
@@ -45,6 +54,13 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [plotData, setPlotData] = useState<any | null>(null);
   const [plotLoading, setPlotLoading] = useState(false);
   const [error, setError] = useState('');
+  const [bookmarks, setBookmarks] = useState<EEGBookmark[]>([]);
+  const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
+  const [bookmarkComment, setBookmarkComment] = useState('');
+  const [bookmarkSaving, setBookmarkSaving] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState('');
+  const [replaceBookmarkId, setReplaceBookmarkId] = useState<number | null>(null);
+  const [plotInstance, setPlotInstance] = useState<HTMLElement | null>(null);
 
   const fetchPlot = useCallback(async () => {
     if (!fileId) return;
@@ -74,6 +90,68 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     }, 300);
     return () => clearTimeout(id);
   }, [fileId, montage, plotStart, plotDuration, fetchPlot]);
+
+  useEffect(() => {
+    if (!fileId) return;
+    const loadBookmarks = async () => {
+      try {
+        const response = await apiClient.getBookmarks(fileId);
+        if (response.status === 200) {
+          setBookmarks(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to load bookmarks:', err);
+      }
+    };
+
+    loadBookmarks();
+  }, [fileId]);
+
+  const openBookmarkDialog = () => {
+    setBookmarkComment('');
+    setBookmarkError('');
+    setReplaceBookmarkId(null);
+    setBookmarkDialogOpen(true);
+  };
+
+  const handleBookmarkSave = async () => {
+    if (!plotInstance) {
+      setBookmarkError('Plot not ready for capture.');
+      return;
+    }
+
+    if (bookmarks.length >= 2 && !replaceBookmarkId) {
+      setBookmarkError('Select a bookmark to replace.');
+      return;
+    }
+
+    setBookmarkSaving(true);
+    setBookmarkError('');
+
+    try {
+      const imageData = await Plotly.toImage(plotInstance, { format: 'png', height: 1000, width: 1600 });
+      const response = await apiClient.createBookmark(fileId, {
+        image_base64: imageData,
+        comment: bookmarkComment.trim() || undefined,
+        replace_id: replaceBookmarkId || undefined,
+      });
+
+      if (response.status === 201) {
+        const refresh = await apiClient.getBookmarks(fileId);
+        if (refresh.status === 200) {
+          setBookmarks(refresh.data);
+        }
+        setBookmarkDialogOpen(false);
+      } else {
+        setBookmarkError('Failed to save bookmark.');
+      }
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to save bookmark.';
+      setBookmarkError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } finally {
+      setBookmarkSaving(false);
+    }
+  };
 
   const computedPlot = useMemo(() => {
     if (!plotData?.channels?.length) return null;
@@ -279,16 +357,28 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
             {plotLoading ? <CircularProgress size={14} /> : 'Load'}
           </Button>
 
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<RefreshIcon fontSize="small" />}
-            onClick={fetchPlot}
-            sx={{ minWidth: 72, height: 28 }}
-          >
-            Refresh
-          </Button>
-        </Box>
+           <Button
+             size="small"
+             variant="outlined"
+             startIcon={<RefreshIcon fontSize="small" />}
+             onClick={fetchPlot}
+             sx={{ minWidth: 72, height: 28 }}
+           >
+             Refresh
+           </Button>
+
+           <Button
+             size="small"
+             variant="outlined"
+             startIcon={<BookmarkIcon fontSize="small" />}
+             onClick={openBookmarkDialog}
+             disabled={!computedPlot}
+             sx={{ minWidth: 120, height: 28 }}
+           >
+             Bookmark View
+           </Button>
+         </Box>
+
 
         {error && (
           <Alert severity="error" sx={{ mb: 1 }}>
@@ -303,9 +393,86 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
               layout={computedPlot.layout}
               useResizeHandler
               style={{ width: '100%', height: '100%' }}
+              onInitialized={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
+              onUpdate={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
             />
           </Box>
         )}
+
+        {bookmarks.length > 0 && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Saved Bookmarks
+            </Typography>
+            <Stack spacing={2}>
+              {bookmarks.map((bookmark) => (
+                <Card key={bookmark.id} variant="outlined">
+                  <CardContent sx={{ p: 2 }}>
+                    <Stack spacing={1.5}>
+                      <Box
+                        component="img"
+                        src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
+                        alt="EEG bookmark"
+                        sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        {bookmark.comment || 'No comment provided.'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(bookmark.created_at).toLocaleString()}
+                      </Typography>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        <Dialog open={bookmarkDialogOpen} onClose={() => setBookmarkDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Bookmark Current View</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              {bookmarkError && <Alert severity="error">{bookmarkError}</Alert>}
+              <TextField
+                label="Comment"
+                value={bookmarkComment}
+                onChange={(e) => setBookmarkComment(e.target.value)}
+                placeholder="Add a note for this snapshot"
+                fullWidth
+                multiline
+                minRows={2}
+              />
+              {bookmarks.length >= 2 && (
+                <RadioGroup
+                  value={replaceBookmarkId ?? ''}
+                  onChange={(e) => setReplaceBookmarkId(Number(e.target.value))}
+                >
+                  {bookmarks.map((bookmark) => (
+                    <FormControlLabel
+                      key={bookmark.id}
+                      value={bookmark.id}
+                      control={<Radio />}
+                      label={`Replace bookmark from ${new Date(bookmark.created_at).toLocaleString()}`}
+                    />
+                  ))}
+                </RadioGroup>
+              )}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setBookmarkDialogOpen(false)} disabled={bookmarkSaving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBookmarkSave}
+              variant="contained"
+              disabled={bookmarkSaving}
+            >
+              {bookmarkSaving ? <CircularProgress size={18} color="inherit" /> : 'Save Bookmark'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </CardContent>
     </Card>
   );

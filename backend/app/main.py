@@ -4,6 +4,7 @@ Main application entry point
 """
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
@@ -17,7 +18,7 @@ from app.models import user, signal, auth  # Import models to ensure they're reg
 
 def create_application() -> FastAPI:
     """Create and configure the FastAPI application"""
-    
+
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
@@ -32,6 +33,9 @@ def create_application() -> FastAPI:
 
     # Include API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # Public uploads (bookmarks)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     # Create database tables
     Base.metadata.create_all(bind=engine)
@@ -48,7 +52,7 @@ async def root():
     return {
         "message": "Welcome to CereSignal API",
         "version": settings.VERSION,
-        "docs": f"{settings.API_V1_STR}/docs"
+        "docs": f"{settings.API_V1_STR}/docs",
     }
 
 
@@ -64,5 +68,5 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="info"
+        log_level="info",
     )

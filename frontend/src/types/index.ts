@@ -152,6 +152,21 @@ export interface SignalFile {
   user_name?: string;
 }
 
+export interface EEGBookmark {
+  id: number;
+  file_id: number;
+  comment?: string | null;
+  image_url: string;
+  created_at: string;
+  created_by?: number | null;
+}
+
+export interface EEGBookmarkCreate {
+  image_base64: string;
+  comment?: string;
+  replace_id?: number;
+}
+
 export interface ReportStatus {
   file_id: number;
   report_status: 'not_started' | 'pending' | 'completed' | 'failed';

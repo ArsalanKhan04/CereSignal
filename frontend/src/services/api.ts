@@ -19,7 +19,9 @@ import {
   ApiResponse,
   ApiError,
   NotificationItem,
-  PatientIdLoginRequest
+  PatientIdLoginRequest,
+  EEGBookmark,
+  EEGBookmarkCreate
 } from '../types';
 
 class ApiClient {
@@ -194,6 +196,16 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async getBookmarks(fileId: number): Promise<ApiResponse<EEGBookmark[]>> {
+    const response = await this.client.get(`/signals/files/${fileId}/bookmarks`);
+    return { data: response.data, status: response.status };
+  }
+
+  async createBookmark(fileId: number, data: EEGBookmarkCreate): Promise<ApiResponse<EEGBookmark>> {
+    const response = await this.client.post(`/signals/files/${fileId}/bookmarks`, data);
+    return { data: response.data, status: response.status };
+  }
+
   async checkInferenceStatus(fileId: number): Promise<ApiResponse<{ file_id: number; condition: string; inference_status: string; message: string; task_id?: string }>> {
     const response = await this.client.get(`/signals/files/${fileId}/inference-status`);
     return { data: response.data, status: response.status };
@@ -269,6 +281,10 @@ class ApiClient {
   }
 
   // Utility methods
+  getPublicBaseUrl(): string {
+    return this.baseURL.replace(/\/api\/v1\/?$/, '');
+  }
+
   setAuthToken(token: string): void {
     localStorage.setItem('auth_token', token);
   }

@@ -33,13 +33,14 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
-import { EEGReport, Patient } from '../types';
+import { EEGReport, Patient, EEGBookmark } from '../types';
 
 const PatientPortal: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
   const [reports, setReports] = useState<EEGReport[]>([]);
   const [patientProfile, setPatientProfile] = useState<Patient | null>(null);
+  const [bookmarks, setBookmarks] = useState<EEGBookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
@@ -47,6 +48,32 @@ const PatientPortal: React.FC = () => {
     loadReports();
     loadPatientProfile();
   }, []);
+
+  useEffect(() => {
+    if (reports.length === 0) {
+      setBookmarks([]);
+      return;
+    }
+
+    const latestFileId = reports[0]?.file_id;
+    if (!latestFileId) {
+      setBookmarks([]);
+      return;
+    }
+
+    const loadBookmarks = async () => {
+      try {
+        const response = await apiClient.getBookmarks(latestFileId);
+        if (response.status === 200) {
+          setBookmarks(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to load bookmarks:', err);
+      }
+    };
+
+    loadBookmarks();
+  }, [reports]);
 
   const loadReports = async () => {
     try {
@@ -354,6 +381,34 @@ const PatientPortal: React.FC = () => {
                       </Stack>
                     </CardContent>
                   </Card>
+
+                  {bookmarks.length > 0 && (
+                    <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                      <CardContent sx={{ p: 3 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                          EEG Bookmarks
+                        </Typography>
+                        <Stack spacing={2}>
+                          {bookmarks.map((bookmark) => (
+                            <Box key={bookmark.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
+                              <Box
+                                component="img"
+                                src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
+                                alt="EEG bookmark"
+                                sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                              />
+                              <Typography variant="body2" sx={{ mt: 1 }}>
+                                {bookmark.comment || 'No comment provided.'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(bookmark.created_at).toLocaleString()}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <Box>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>

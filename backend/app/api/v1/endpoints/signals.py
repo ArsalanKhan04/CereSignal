@@ -10,12 +10,14 @@ import os
 import json
 import uuid
 from datetime import datetime
+import base64
+import pathlib
 
 from sqlalchemy import or_
 
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
-from app.models.signal import SignalFile, Signal
+from app.models.signal import SignalFile, Signal, EEGBookmark
 from app.models.user import User
 from app.models.auth import AuthUser, UserType
 from app.schemas.signal import (
@@ -23,6 +25,8 @@ from app.schemas.signal import (
     SignalResponse,
     FileUploadResponse,
     ProcessingRequest,
+    EEGBookmarkCreate,
+    EEGBookmarkResponse,
 )
 from app.core.config import settings
 from app.utils.file_processing import save_uploaded_file, process_signal_file
@@ -69,7 +73,7 @@ async def upload_signal_file(
 ):
     """Upload a signal file for processing"""
 
-    print('patient_id', patient_id)
+    print("patient_id", patient_id)
     # Validate file type
     if not file.filename:
         raise HTTPException(
@@ -123,10 +127,14 @@ async def upload_signal_file(
                 )
         else:
             # If no patient specified, create a default patient for this auth user
-            user = db.query(User).filter(
-                User.auth_user_id == current_user.id,
-                User.name == f"Default Patient for {current_user.username}"
-            ).first()
+            user = (
+                db.query(User)
+                .filter(
+                    User.auth_user_id == current_user.id,
+                    User.name == f"Default Patient for {current_user.username}",
+                )
+                .first()
+            )
 
             if not user:
                 # Create a default patient
@@ -247,6 +255,183 @@ async def serve_file(file_path: str):
     filename = os.path.basename(file_path)
     return FileResponse(
         path=file_path, filename=filename, media_type="application/octet-stream"
+    )
+
+
+@router.get("/files/{file_id}/bookmarks", response_model=List[EEGBookmarkResponse])
+async def get_file_bookmarks(
+    file_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Get EEG bookmarks for a signal file"""
+
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+        )
+
+    if current_user.user_type == UserType.PATIENT.value:
+        patient_user = (
+            db.query(User).filter(User.patient_auth_user_id == current_user.id).first()
+        )
+        if not patient_user or file.user_id != patient_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own files",
+            )
+    elif current_user.user_type == UserType.DOCTOR.value:
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == file.user_id,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+            .first()
+        )
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files for your patients",
+            )
+
+    bookmarks = (
+        db.query(EEGBookmark)
+        .filter(EEGBookmark.file_id == file_id)
+        .order_by(EEGBookmark.created_at.desc())
+        .all()
+    )
+
+    response = []
+    for bookmark in bookmarks:
+        filename = os.path.basename(bookmark.image_path)
+        response.append(
+            EEGBookmarkResponse(
+                id=bookmark.id,
+                file_id=bookmark.file_id,
+                comment=bookmark.comment,
+                image_url=f"/uploads/bookmarks/{file_id}/{filename}",
+                created_at=bookmark.created_at,
+                created_by=bookmark.created_by,
+            )
+        )
+
+    return response
+
+
+@router.post(
+    "/files/{file_id}/bookmarks",
+    response_model=EEGBookmarkResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_file_bookmark(
+    file_id: int,
+    bookmark_data: EEGBookmarkCreate,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Create EEG bookmark for a signal file"""
+
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+        )
+
+    if current_user.user_type == UserType.PATIENT.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patients cannot create bookmarks",
+        )
+
+    if current_user.user_type == UserType.DOCTOR.value:
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == file.user_id,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+            .first()
+        )
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files for your patients",
+            )
+
+    existing_bookmarks = (
+        db.query(EEGBookmark).filter(EEGBookmark.file_id == file_id).all()
+    )
+
+    if len(existing_bookmarks) >= 2 and not bookmark_data.replace_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum of 2 bookmarks reached. Select a bookmark to replace.",
+        )
+
+    if bookmark_data.replace_id:
+        bookmark_to_replace = (
+            db.query(EEGBookmark)
+            .filter(
+                EEGBookmark.id == bookmark_data.replace_id,
+                EEGBookmark.file_id == file_id,
+            )
+            .first()
+        )
+        if not bookmark_to_replace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Bookmark to replace not found",
+            )
+        if bookmark_to_replace.image_path and os.path.exists(
+            bookmark_to_replace.image_path
+        ):
+            os.remove(bookmark_to_replace.image_path)
+        db.delete(bookmark_to_replace)
+        db.commit()
+
+    image_data = bookmark_data.image_base64
+    if "," in image_data:
+        image_data = image_data.split(",", 1)[1]
+
+    try:
+        image_bytes = base64.b64decode(image_data)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image data",
+        )
+
+    bookmark = EEGBookmark(
+        file_id=file_id,
+        comment=bookmark_data.comment,
+        created_by=current_user.id,
+        image_path="",
+    )
+    db.add(bookmark)
+    db.commit()
+    db.refresh(bookmark)
+
+    bookmark_dir = os.path.join("uploads", "bookmarks", str(file_id))
+    os.makedirs(bookmark_dir, exist_ok=True)
+    filename = f"bookmark_{bookmark.id}.png"
+    image_path = os.path.join(bookmark_dir, filename)
+
+    with open(image_path, "wb") as handle:
+        handle.write(image_bytes)
+
+    bookmark.image_path = image_path
+    db.commit()
+    db.refresh(bookmark)
+
+    return EEGBookmarkResponse(
+        id=bookmark.id,
+        file_id=bookmark.file_id,
+        comment=bookmark.comment,
+        image_url=f"/uploads/bookmarks/{file_id}/{filename}",
+        created_at=bookmark.created_at,
+        created_by=bookmark.created_by,
     )
 
 
@@ -747,23 +932,23 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
 
         # If task is completed, update the database
         report_task_id = None
-        if task_status['status'] in ['completed', 'failed']:
-            if task_status['status'] == 'completed':
-                result = task_status.get('result', {})
-                report_task_id = result.get('report_task_id')
+        if task_status["status"] in ["completed", "failed"]:
+            if task_status["status"] == "completed":
+                result = task_status.get("result", {})
+                report_task_id = result.get("report_task_id")
 
                 # Store the report task ID for later polling
                 if report_task_id and not file.report_task_id:
                     file.report_task_id = report_task_id
 
-                if result and 'result' in result:
+                if result and "result" in result:
                     # Map inference result to condition
                     if result["result"].lower() == "normal":
                         file.condition = "normal"
                     elif result["result"].lower() == "abnormal":
                         file.condition = "abnormal"
                     else:
-                        file.condition = 'failed'
+                        file.condition = "failed"
 
                     # Store events data if available
                     if "events" in result and result["events"]:
@@ -771,17 +956,17 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                 else:
                     file.condition = "failed"
             else:  # failed
-                file.condition = 'failed'
+                file.condition = "failed"
 
             db.commit()
 
         return {
             "file_id": file_id,
             "condition": file.condition,
-            "inference_status": task_status['status'],
-            "message": task_status['message'],
+            "inference_status": task_status["status"],
+            "message": task_status["message"],
             "task_id": file.task_id,
-            "report_task_id": file.report_task_id or report_task_id
+            "report_task_id": file.report_task_id or report_task_id,
         }
 
     except Exception as e:
@@ -791,14 +976,12 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
             "inference_status": "error",
             "message": f"Error checking inference status: {str(e)}",
             "task_id": file.task_id,
-            "report_task_id": report_task_id
+            "report_task_id": report_task_id,
         }
 
+
 @router.get("/files/{file_id}/report-status")
-async def get_file_report_status(
-    file_id: int,
-    db: Session = Depends(get_db)
-):
+async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
     """
     Check the status of the LLM report generation task for a specific file.
     If completed, stores the report in the database.
@@ -814,7 +997,7 @@ async def get_file_report_status(
                 "file_id": file_id,
                 "report_status": "not_started",
                 "message": "Report generation not started",
-                "has_report": bool(file.factual_report)
+                "has_report": bool(file.factual_report),
             }
 
         # If already has report data, return it
@@ -826,8 +1009,8 @@ async def get_file_report_status(
                 "has_report": True,
                 "report": {
                     "factual_report": file.factual_report,
-                    "impression": file.impression
-                }
+                    "impression": file.impression,
+                },
             }
 
         # Check task status
@@ -837,11 +1020,11 @@ async def get_file_report_status(
             raise HTTPException(status_code=404, detail="Report task not found")
 
         # If task completed, store the report
-        if status_data['status'] == 'completed':
-            result = status_data.get('result', {})
+        if status_data["status"] == "completed":
+            result = status_data.get("result", {})
             if result:
-                file.factual_report = result.get('factual_report', '')
-                file.impression = result.get('impression', '')
+                file.factual_report = result.get("factual_report", "")
+                file.impression = result.get("impression", "")
                 db.commit()
 
                 return {
@@ -851,20 +1034,22 @@ async def get_file_report_status(
                     "has_report": True,
                     "report": {
                         "factual_report": file.factual_report,
-                        "impression": file.impression
-                    }
+                        "impression": file.impression,
+                    },
                 }
 
         # Task still pending or failed
         return {
             "file_id": file_id,
-            "report_status": status_data['status'],
-            "message": status_data.get('message', ''),
-            "has_report": False
+            "report_status": status_data["status"],
+            "message": status_data.get("message", ""),
+            "has_report": False,
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error checking report status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error checking report status: {str(e)}"
+        )
 
 
 @router.delete("/files/{file_id}")
