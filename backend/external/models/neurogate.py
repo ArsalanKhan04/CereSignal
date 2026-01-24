@@ -85,15 +85,15 @@ class MFFMBlock(nn.Module):
 class NeuroGate(nn.Module):
     def __init__(self, n_chans=22):
         super(NeuroGate, self).__init__()
-        self.mffm_block1 = MFFMBlock(n_chans * 2)
-        self.wave_block1 = WaveBlock(n_chans * 2, n_chans * 2 + 24, 3, 8)
+        self.mffm_block1 = MFFMBlock(n_chans)
+        self.wave_block1 = WaveBlock(n_chans, n_chans + 24, 3, 8)
         self.mffm_block2 = MFFMBlock(20)
         self.wave_block2 = WaveBlock(20, 20 + 24, 3, 8)
         self.mffm_block3 = MFFMBlock(20)
         self.conv1 = nn.Conv1d(
-            in_channels=n_chans * 2 + 24, out_channels=20, kernel_size=3, padding=1
+            in_channels=n_chans + 24, out_channels=20, kernel_size=3, padding=1
         )
-        self.bn1 = nn.BatchNorm1d(n_chans * 2)
+        self.bn1 = nn.BatchNorm1d(n_chans)
         self.conv2 = nn.Conv1d(
             in_channels=20 + 24, out_channels=20, kernel_size=3, padding=1
         )
@@ -140,10 +140,10 @@ class NeuroGate(nn.Module):
 
         # x = torch.cat((x, gap, gsp, gmp, gmnp,gkp), dim=1)
 
-        x1 = F.avg_pool1d(x, kernel_size=5, stride=5)
-        x2 = F.max_pool1d(x, kernel_size=5, stride=5)
-        x = torch.cat((x1, x2), dim=1)
-        x = self.bn1(x)
+        # x1 = F.avg_pool1d(x, kernel_size=5, stride=5)
+        # x2 = F.max_pool1d(x, kernel_size=5, stride=5)
+        # x = torch.cat((x1, x2), dim=1)
+        # x = self.bn1(x)
         x1 = self.mffm_block1(x)
         x2 = self.wave_block1(x)
         x = x1 + x2

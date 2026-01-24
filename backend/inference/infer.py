@@ -12,7 +12,6 @@ from app.services.brain_viz_service import generate_topomap_from_events
 from celery import Celery
 from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
 from external.CereProcess.datasets.pipeline import (
-    general_pipeline,
     get_nmt_pipeline,
     neurotransformer_pipeline,
     resample,
@@ -33,7 +32,7 @@ _MODEL_WEIGHTS = {
 _MODEL_CACHE = {}
 _DEVICE = torch.device("cpu")
 _PIPELINES = {
-    "neurogate": general_pipeline("NMT"),
+    "neurogate": get_nmt_pipeline(),
     "neurotransformer": neurotransformer_pipeline("NMT"),
     "pdr": resample(),
 }
@@ -52,7 +51,7 @@ def load_model(model_name):
         return _MODEL_CACHE[model_name]
 
     if model_name == "neurogate":
-        model = NeuroGate()
+        model = NeuroGate(21)
     elif model_name == "neurotransformer":
         model = Neurotransformer()
     else:
