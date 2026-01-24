@@ -1,49 +1,59 @@
-import time
+import json
 import os
-from celery import Celery
+import re
+import time
+
+import mne
+import numpy as np
+import ollama
 import torch
 import torch.nn.functional as F
-import numpy as np
-import mne
-import re
-import json
-import ollama
-
-from external.CereProcess.datasets.pipeline import general_pipeline, neurotransformer_pipeline, resample
+from app.services.brain_viz_service import generate_topomap_from_events
+from celery import Celery
 from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
+from external.CereProcess.datasets.pipeline import (
+    general_pipeline,
+    get_nmt_pipeline,
+    neurotransformer_pipeline,
+    resample,
+)
 from external.models.neurogate import NeuroGate
 from external.models.neurotransformer import Neurotransformer
 from external.pdr import PDREstimator
-from app.services.brain_viz_service import generate_topomap_from_events
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 
-app = Celery('tasks', broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
+app = Celery("tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
-_MODEL_WEIGHTS = {'neurogate': 'external/models/neurogate_wgts.pt',
-              'neurotransformer': 'external/models/neurotransformer_wgts.pth'}
+_MODEL_WEIGHTS = {
+    "neurogate": "external/models/neurogate_wgts.pt",
+    "neurotransformer": "external/models/neurotransformer_wgts.pth",
+}
 _MODEL_CACHE = {}
 _DEVICE = torch.device("cpu")
-_PIPELINES = {'neurogate': general_pipeline('NMT'),
-              'neurotransformer': neurotransformer_pipeline('NMT'),
-              'pdr': resample()}
+_PIPELINES = {
+    "neurogate": general_pipeline("NMT"),
+    "neurotransformer": neurotransformer_pipeline("NMT"),
+    "pdr": resample(),
+}
 _CHANNEL_REGIONS = {
     "Frontal": ["FP1", "FP2", "F3", "F4", "FZ"],
     "Left Temporal": ["F7", "T3", "T5"],
     "Right Temporal": ["F8", "T4", "T6"],
     "Central": ["C3", "C4", "CZ"],
     "Parietal": ["P3", "P4", "PZ"],
-    "Occipital": ["O1", "O2"]
+    "Occipital": ["O1", "O2"],
 }
+
 
 def load_model(model_name):
     if model_name in _MODEL_CACHE:
         return _MODEL_CACHE[model_name]
 
-    if model_name == 'neurogate':
+    if model_name == "neurogate":
         model = NeuroGate()
-    elif model_name == 'neurotransformer':
+    elif model_name == "neurotransformer":
         model = Neurotransformer()
     else:
         raise ValueError(f"Model {model_name} not recognized.")
@@ -55,57 +65,68 @@ def load_model(model_name):
     _MODEL_CACHE[model_name] = model
     return model
 
+
 def _merge_events(events):
     prv_event = None
-    merged_events = {'normal wave':[],
-                     'spike wave':[],
-                     'slow wave':[]}
+    merged_events = {"normal wave": [], "spike wave": [], "slow wave": []}
     for i, event in enumerate(events):
         event = str(event)
         if event == prv_event:
             merged_events[event][-1][1] += 2
         else:
-            merged_events[event].append([i*2, i*2+2])
+            merged_events[event].append([i * 2, i * 2 + 2])
         prv_event = event
     return merged_events
 
+
 def _process_neurogate(mne_data):
     ## Starting with processing and inference for neurogate
-    processed_data = _PIPELINES['neurogate'].apply(mne_data)
+    processed_data = _PIPELINES["neurogate"].apply(mne_data)
     data = processed_data.get_data()
     data = data[None, :, :]
     data = torch.from_numpy(data).float().to(_DEVICE)
 
-    model = load_model('neurogate')
+    model = load_model("neurogate")
 
     with torch.no_grad():
         outputs = model(data)
 
-    condition="Normal"
-    if (outputs[0].argmax() == 0):
-        condition = 'Normal'
+    condition = "Normal"
+    if outputs[0].argmax() == 0:
+        condition = "Normal"
     else:
-        condition = 'Abnormal'
-    raw_prob = list(F.softmax(outputs).cpu().numpy().reshape(-1,))[1] * 100
+        condition = "Abnormal"
+    raw_prob = (
+        list(
+            F.softmax(outputs)
+            .cpu()
+            .numpy()
+            .reshape(
+                -1,
+            )
+        )[1]
+        * 100
+    )
 
     return condition, raw_prob
+
 
 def _process_neurotransformer(mne_data, threshold=0.5):
     all_events = np.array(["normal wave", "spike wave", "slow wave"])
 
-    processed_data = _PIPELINES['neurotransformer'].apply(mne_data)
+    processed_data = _PIPELINES["neurotransformer"].apply(mne_data)
     data = processed_data.get_data()
 
-    model = load_model('neurotransformer')
+    model = load_model("neurotransformer")
     # model.eval()
 
     result_events = {}
     raw_events = {}
 
     for i, ch_name in enumerate(NEUROTRANSFORMER_CHANNELS):
-        ch_data = data[:, i:i+1, :]
+        ch_data = data[:, i : i + 1, :]
         ch_data = torch.from_numpy(ch_data).float().to(_DEVICE)
-        outputs=None
+        outputs = None
         with torch.no_grad():
             logits = model(ch_data)
             probs = F.softmax(logits, dim=1)
@@ -123,26 +144,28 @@ def _process_neurotransformer(mne_data, threshold=0.5):
 
     return result_events, raw_events
 
+
 def _compute_pdr(mne_data):
-    o1_idx = NEUROTRANSFORMER_CHANNELS.index('O1')
-    o2_idx = NEUROTRANSFORMER_CHANNELS.index('O2')
+    o1_idx = NEUROTRANSFORMER_CHANNELS.index("O1")
+    o2_idx = NEUROTRANSFORMER_CHANNELS.index("O2")
     estimator = PDREstimator(200, o1_idx, o2_idx, 0)
 
-    processed_data = _PIPELINES['pdr'].apply(mne_data)
+    processed_data = _PIPELINES["pdr"].apply(mne_data)
     data = processed_data.get_data()
     pdr_res = estimator.fit(data)
 
     # Format PDR for the report
-    if pdr_res['pdr_o1'] and pdr_res['pdr_o2']:
-        avg_pdr = (pdr_res['pdr_o1'] + pdr_res['pdr_o2']) / 2
+    if pdr_res["pdr_o1"] and pdr_res["pdr_o2"]:
+        avg_pdr = (pdr_res["pdr_o1"] + pdr_res["pdr_o2"]) / 2
         pdr_text = f"{avg_pdr:.1f} Hz"
-    elif pdr_res['pdr_o1'] or pdr_res['pdr_o2']:
-        val = pdr_res['pdr_o1'] or pdr_res['pdr_o2']
+    elif pdr_res["pdr_o1"] or pdr_res["pdr_o2"]:
+        val = pdr_res["pdr_o1"] or pdr_res["pdr_o2"]
         pdr_text = f"{val:.1f} Hz"
     else:
         pdr_text = "Not well-formed"
 
     return pdr_text
+
 
 def _get_clinical_adjective(percentage, threshold):
     """
@@ -154,11 +177,12 @@ def _get_clinical_adjective(percentage, threshold):
     elif percentage < threshold + 10.0:
         return "Occasional"  # Shifted up (was 1-10%)
     elif percentage < 50.0:
-        return "Frequent"    # (15-49%)
+        return "Frequent"  # (15-49%)
     elif percentage < 90.0:
-        return "Abundant"    # (50-89%)
+        return "Abundant"  # (50-89%)
     else:
         return "Continuous"  # (>= 90%)
+
 
 def _get_region_report(result_events, threshold):
     region_report = {}
@@ -176,7 +200,7 @@ def _get_region_report(result_events, threshold):
         slow_pct = (slow_count / total_windows) * 100
         # Generate Clinical Descriptors
         findings = []
-        if spike_pct >= threshold: # Threshold to report it
+        if spike_pct >= threshold:  # Threshold to report it
             adj = _get_clinical_adjective(spike_pct, threshold)
             findings.append(f"{adj} epileptiform discharges")
         if slow_pct >= threshold:
@@ -188,12 +212,10 @@ def _get_region_report(result_events, threshold):
             description = ", ".join(findings) + "."
         region_report[region_name] = {
             "description": description,
-            "stats": {
-                "spike_pct": spike_pct,
-                "slow_pct": slow_pct
-            }
+            "stats": {"spike_pct": spike_pct, "slow_pct": slow_pct},
         }
     return region_report
+
 
 def _generate_report(ab_prob, region_report, pdr_text):
     prompt_content = f"""
@@ -236,15 +258,19 @@ def _generate_report(ab_prob, region_report, pdr_text):
             """
 
     try:
-        response = ollama.chat(model="qwen3:8b", format="json", messages=[
-                    {'role': 'system', 'content': system_instruction},
-                    {'role': 'user', 'content': prompt_content}
-        ],        )
-        json_str = response['message']['content']
+        response = ollama.chat(
+            model="qwen3:8b",
+            format="json",
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": prompt_content},
+            ],
+        )
+        json_str = response["message"]["content"]
         data = json.loads(json_str)
 
-        factual_report = data.get('factual_report', "invalid")
-        impression = data.get('impression', "invalid")
+        factual_report = data.get("factual_report", "invalid")
+        impression = data.get("impression", "invalid")
     except Exception as e:
         print(f"Ollama Error: {e}")
         factual_report = ""
@@ -252,9 +278,7 @@ def _generate_report(ab_prob, region_report, pdr_text):
     return factual_report, impression
 
 
-
-
-@app.task(name='infer', bind=True)
+@app.task(name="infer", bind=True)
 def infer(self, mne_file_path):
     start_time = time.time()
     if not os.path.exists(mne_file_path):
@@ -271,7 +295,12 @@ def infer(self, mne_file_path):
     try:
         base = os.path.splitext(os.path.basename(mne_file_path))[0]
         title = f"Model Prediction\n({base})"
-        out_path = generate_topomap_from_events(base, {ch: {k: v for k, v in events[ch].items()} for ch in events}, title, vmax=None)
+        out_path = generate_topomap_from_events(
+            base,
+            {ch: {k: v for k, v in events[ch].items()} for ch in events},
+            title,
+            vmax=None,
+        )
         # include path in result for later DB update if needed
     except Exception as e:
         print(f"Warning: failed to generate topomap image: {e}")
@@ -282,12 +311,16 @@ def infer(self, mne_file_path):
 
     end_time = time.time()
 
-    return {'result': condition, 'events': events, 'inference_time': end_time - start_time, 'topomap_path': out_path,
-            'report_task_id': report_task.id}
+    return {
+        "result": condition,
+        "events": events,
+        "inference_time": end_time - start_time,
+        "topomap_path": out_path,
+        "report_task_id": report_task.id,
+    }
 
 
-@app.task(name='generate_report')
+@app.task(name="generate_report")
 def generate_report(ab_prob, region_report, pdr_text):
     factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
-    return {'factual_report': factual_report, 'impression': impression}
-
+    return {"factual_report": factual_report, "impression": impression}
