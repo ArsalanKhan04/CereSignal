@@ -1,7 +1,42 @@
 {
+  "name": "ceresignal-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start:electron": "electron .",
+    "build:frontend": "cross-env REACT_APP_API_BASE_URL=http://127.0.0.1:8000/api/v1 npm --prefix frontend run build",
+    "build:backend": "python -m PyInstaller --noconfirm --clean cere-backend.spec --distpath dist/backend --workpath dist/backend/build",
+    "build:electron": "electron-builder --win portable",
+    "dist": "npm run build:frontend && npm run build:backend && npm run build:electron"
+  },
   "devDependencies": {
     "autoprefixer": "^10.4.23",
+    "cross-env": "^7.0.3",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18"
+  },
+  "build": {
+    "appId": "com.ceresignal.desktop",
+    "productName": "CereSignal",
+    "directories": {
+      "output": "dist/electron"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/build/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/backend/cere-backend.exe",
+        "to": "backend/cere-backend.exe"
+      }
+    ],
+    "win": {
+      "target": "portable"
+    }
   }
 }
