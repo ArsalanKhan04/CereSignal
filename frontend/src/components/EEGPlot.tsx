@@ -120,11 +120,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       return;
     }
 
-    if (bookmarks.length >= 2 && !replaceBookmarkId) {
-      setBookmarkError('Select a bookmark to replace.');
-      return;
-    }
-
     setBookmarkSaving(true);
     setBookmarkError('');
 

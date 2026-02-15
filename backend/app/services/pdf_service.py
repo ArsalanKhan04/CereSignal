@@ -246,7 +246,7 @@ class PDFReportGenerator:
 
         story.append(Paragraph("EEG BOOKMARKS:", self.styles["SectionTitle"]))
 
-        for bookmark in bookmarks[:2]:
+        for bookmark in bookmarks:
             if bookmark.image_path and os.path.exists(bookmark.image_path):
                 story.append(
                     Image(bookmark.image_path, width=6.5 * inch, height=3.2 * inch)
