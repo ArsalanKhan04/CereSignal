@@ -251,8 +251,8 @@ class PDFReportGenerator:
                 story.append(
                     Image(bookmark.image_path, width=6.5 * inch, height=3.2 * inch)
                 )
-            comment_text = bookmark.comment or "No comment provided."
-            story.append(Paragraph(comment_text, self.styles["ClinicalText"]))
+            if bookmark.comment:
+                story.append(Paragraph(bookmark.comment, self.styles["ClinicalText"]))
             story.append(Spacer(1, 8))
 
         return story
