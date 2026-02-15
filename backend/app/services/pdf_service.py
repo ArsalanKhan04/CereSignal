@@ -159,7 +159,10 @@ class PDFReportGenerator:
         # 3. Clinical Sections (Indications, Technique, Findings)
         story.extend(self._create_clinical_body(report))
 
-        # 4. EEG bookmark images
+        # 4. Brain Activity Topomap (if available)
+        story.extend(self._create_topomap_section(signal_file))
+
+        # 5. EEG bookmark images
         story.extend(self._create_bookmark_section(signal_file))
 
         # 5. Footer & Signature
@@ -233,6 +236,36 @@ class PDFReportGenerator:
         )
 
         return [table, Spacer(1, 5)]
+
+    def _create_topomap_section(self, signal_file: SignalFile) -> list:
+        """Create topomap section showing brain activity visualization"""
+        story = []
+
+        # Construct expected path: static/plots/<basename>_topomap.png
+        base = os.path.splitext(signal_file.filename)[0]
+        topomap_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "static",
+            "plots",
+            f"{base}_topomap.png",
+        )
+        topomap_path = os.path.abspath(topomap_path)
+
+        if not os.path.exists(topomap_path):
+            return story
+
+        story.append(Paragraph("BRAIN ACTIVITY TOPOMAP:", self.styles["SectionTitle"]))
+        story.append(Image(topomap_path, width=5 * inch, height=4 * inch))
+        story.append(
+            Paragraph(
+                "Topographic map showing spatial distribution of detected brain activity patterns.",
+                self.styles["ClinicalText"],
+            )
+        )
+        story.append(Spacer(1, 10))
+
+        return story
 
     def _create_bookmark_section(self, signal_file: SignalFile) -> list:
         """Create bookmark section with attached EEG images"""
