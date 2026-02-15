@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import Plotly from 'plotly.js-basic-dist';
 import {
@@ -23,13 +23,16 @@ import {
   DialogActions,
   FormControlLabel,
   Radio,
-  RadioGroup
+  RadioGroup,
+  Tooltip
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
   BookmarkAdd as BookmarkIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { EventsData, EEGBookmark } from '../types';
@@ -61,6 +64,53 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [bookmarkError, setBookmarkError] = useState('');
   const [replaceBookmarkId, setReplaceBookmarkId] = useState<number | null>(null);
   const [plotInstance, setPlotInstance] = useState<HTMLElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard navigation handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle arrow keys when not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setPlotStart((prev) => Math.max(0, prev - plotDuration));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setPlotStart((prev) => prev + plotDuration);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [plotDuration]);
+
+  // Fullscreen change handler
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+    }
+  };
 
   const fetchPlot = useCallback(async () => {
     if (!fileId) return;
@@ -265,7 +315,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   }, [plotData, eventsData, plotStart, plotDuration, montage, sensitivity]);
 
   return (
-    <Card sx={{ mb: 3 }}>
+    <Card ref={containerRef} sx={{ mb: 3, bgcolor: isFullscreen ? '#fff' : undefined }}>
       <CardContent sx={{ pb: 2 }}>
         <Box display="flex" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mr: 1 }}>
@@ -281,9 +331,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
           )}
 
           <Box display="flex" alignItems="center" gap={0.5}>
-            <IconButton size="small" onClick={() => setPlotStart((prev) => Math.max(0, prev - 10))}>
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="Previous window (Left Arrow)">
+              <IconButton size="small" onClick={() => setPlotStart((prev) => Math.max(0, prev - plotDuration))}>
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <TextField
               label="Start"
               type="number"
@@ -293,9 +345,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
               sx={{ width: 80 }}
               inputProps={{ step: 1 }}
             />
-            <IconButton size="small" onClick={() => setPlotStart((prev) => prev + 10)}>
-              <ChevronRightIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="Next window (Right Arrow)">
+              <IconButton size="small" onClick={() => setPlotStart((prev) => prev + plotDuration)}>
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
 
           <FormControl size="small" sx={{ minWidth: 100 }}>
@@ -372,6 +426,16 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
            >
              Bookmark View
            </Button>
+
+           <Tooltip title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen'}>
+             <IconButton size="small" onClick={toggleFullscreen}>
+               {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+             </IconButton>
+           </Tooltip>
+
+           <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+             Use arrow keys to navigate
+           </Typography>
          </Box>
 
 
@@ -382,10 +446,10 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         )}
 
         {computedPlot && (
-          <Box sx={{ height: 1000, minWidth: 0 }}>
+          <Box sx={{ height: isFullscreen ? 'calc(100vh - 120px)' : 1000, minWidth: 0 }}>
             <Plot
               data={computedPlot.traces}
-              layout={computedPlot.layout}
+              layout={{ ...computedPlot.layout, height: isFullscreen ? window.innerHeight - 120 : 1000 }}
               useResizeHandler
               style={{ width: '100%', height: '100%' }}
               onInitialized={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
