@@ -15,6 +15,7 @@ from app.core.auth import (
     get_current_active_user,
     ACCESS_TOKEN_EXPIRE_MINUTES,
 )
+from app.core.logging_config import logger, log_auth
 from app.models.auth import AuthUser
 from app.schemas.auth import (
     UserLogin,
@@ -274,6 +275,7 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
     )
 
     if not user or not verify_password(user_credentials.password, user.hashed_password):
+        log_auth("LOGIN", username=user_credentials.username, success=False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -281,6 +283,9 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
         )
 
     if not user.is_active:
+        log_auth(
+            "LOGIN_INACTIVE", user_id=user.id, username=user.username, success=False
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
@@ -295,6 +300,8 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
         data={"sub": user.username, "user_id": user.id},
         expires_delta=access_token_expires,
     )
+
+    log_auth("LOGIN", user_id=user.id, username=user.username, success=True)
 
     return {
         "access_token": access_token,
