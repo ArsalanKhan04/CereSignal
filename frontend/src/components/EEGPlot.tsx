@@ -415,9 +415,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
                         alt="EEG bookmark"
                         sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
                       />
-                      <Typography variant="body2" color="text.secondary">
-                        {bookmark.comment || 'No comment provided.'}
-                      </Typography>
+                      {bookmark.comment && (
+                        <Typography variant="body2" color="text.secondary">
+                          {bookmark.comment}
+                        </Typography>
+                      )}
                       <Typography variant="caption" color="text.secondary">
                         {new Date(bookmark.created_at).toLocaleString()}
                       </Typography>
