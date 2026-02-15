@@ -360,16 +360,6 @@ async def create_file_bookmark(
                 detail="You can only access files for your patients",
             )
 
-    existing_bookmarks = (
-        db.query(EEGBookmark).filter(EEGBookmark.file_id == file_id).all()
-    )
-
-    if len(existing_bookmarks) >= 2 and not bookmark_data.replace_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum of 2 bookmarks reached. Select a bookmark to replace.",
-        )
-
     if bookmark_data.replace_id:
         bookmark_to_replace = (
             db.query(EEGBookmark)
