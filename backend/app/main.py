@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
+import os
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -34,7 +35,8 @@ def create_application() -> FastAPI:
     # Include API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
-    # Public uploads (bookmarks)
+    # Public uploads (bookmarks) - auto-create directory if missing
+    os.makedirs("uploads", exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     # Create database tables
