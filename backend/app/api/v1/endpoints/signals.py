@@ -12,11 +12,19 @@ import uuid
 from datetime import datetime
 import base64
 import pathlib
+import time
 
 from sqlalchemy import or_
 
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
+from app.core.logging_config import (
+    logger,
+    log_request,
+    log_file_operation,
+    log_db_operation,
+    log_error,
+)
 from app.models.signal import SignalFile, Signal, EEGBookmark
 from app.models.user import User
 from app.models.auth import AuthUser, UserType
@@ -72,6 +80,13 @@ async def upload_signal_file(
     db: Session = Depends(get_db),
 ):
     """Upload a signal file for processing"""
+    start_time = time.time()
+    log_request(
+        "POST",
+        "/signals/upload",
+        current_user.id,
+        {"filename": file.filename, "patient_id": patient_id},
+    )
 
     print("patient_id", patient_id)
     # Validate file type
@@ -223,7 +238,13 @@ async def upload_signal_file(
             # Mark as failed but don't rollback the file record
             db_file.processing_status = "failed"
             db.commit()
-            print(f"Error processing signal file: {e}")
+            logger.warning(f"Error processing signal file {db_file.id}: {e}")
+
+        duration_ms = (time.time() - start_time) * 1000
+        log_file_operation("UPLOAD_SUCCESS", file_path, current_user.id)
+        logger.info(
+            f"File upload completed | file_id={db_file.id} | duration={duration_ms:.2f}ms"
+        )
 
         return FileUploadResponse(
             message="Matlab Script automatically applied"
@@ -237,6 +258,7 @@ async def upload_signal_file(
 
     except Exception as e:
         db.rollback()
+        log_error(e, f"File upload failed for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading file: {str(e)}",
