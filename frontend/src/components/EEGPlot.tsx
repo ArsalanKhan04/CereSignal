@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import Plotly from 'plotly.js-basic-dist';
 import {
@@ -29,8 +29,6 @@ import {
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
   BookmarkAdd as BookmarkIcon,
-  Fullscreen as FullscreenIcon,
-  FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { EventsData, EEGBookmark } from '../types';
@@ -246,6 +244,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       return;
     }
 
+    if (bookmarks.length >= 2 && !replaceBookmarkId) {
+      setBookmarkError('Select a bookmark to replace.');
+      return;
+    }
+
     setBookmarkSaving(true);
     setBookmarkError('');
 
@@ -408,7 +411,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   }, [plotData, eventsData, plotStart, plotDuration, montage, sensitivity]);
 
   return (
-    <Card ref={containerRef} sx={{ mb: 3, bgcolor: isFullscreen ? '#fff' : undefined }}>
+    <Card sx={{ mb: 3 }}>
       <CardContent sx={{ pb: 2 }}>
         <Box display="flex" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mr: 1 }}>
@@ -533,16 +536,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
            >
              Bookmark View
            </Button>
-
-           <Tooltip title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen'}>
-             <IconButton size="small" onClick={toggleFullscreen}>
-               {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
-             </IconButton>
-           </Tooltip>
-
-           <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-             Use arrow keys to navigate
-           </Typography>
          </Box>
 
 
@@ -553,10 +546,10 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         )}
 
         {computedPlot && (
-          <Box sx={{ height: isFullscreen ? 'calc(100vh - 120px)' : 1000, minWidth: 0 }}>
+          <Box sx={{ height: 1000, minWidth: 0 }}>
             <Plot
               data={computedPlot.traces}
-              layout={{ ...computedPlot.layout, height: isFullscreen ? window.innerHeight - 120 : 1000 }}
+              layout={computedPlot.layout}
               useResizeHandler
               style={{ width: '100%', height: '100%' }}
               onInitialized={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
