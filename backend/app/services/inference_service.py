@@ -7,6 +7,7 @@ import sys
 from typing import Optional, Dict, Any
 from celery import Celery
 from celery.result import AsyncResult
+from app.core.logging_config import logger
 
 # Add the project root to Python path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -43,7 +44,7 @@ class InferenceService:
             
             return task.id
         except Exception as e:
-            print(f"Error starting inference task: {e}")
+            logger.error("Error starting inference task", exc_info=True)
             raise
     
     def get_task_status(self, task_id: str) -> Dict[str, Any]:

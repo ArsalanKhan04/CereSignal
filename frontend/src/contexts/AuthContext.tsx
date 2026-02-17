@@ -30,9 +30,24 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
 
   useEffect(() => {
     const initAuth = async () => {
+      if (isDesktopApp) {
+        setUser({
+          id: 0,
+          username: 'desktop',
+          email: 'desktop@local',
+          user_type: 'doctor',
+          first_name: 'Desktop',
+          last_name: 'Doctor',
+          is_active: true,
+          created_at: new Date().toISOString(),
+        });
+        setIsLoading(false);
+        return;
+      }
       const token = apiClient.getAuthToken();
       if (token) {
         try {
@@ -131,6 +146,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    if (isDesktopApp) {
+      return;
+    }
     apiClient.clearAuth();
     setUser(null);
   };

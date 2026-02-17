@@ -1,11 +1,15 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const fs = require('fs');
 
 let mainWindow;
 let backendProcess;
 let workerProcess;
 let redisProcess;
+let desktopLogPath;
+
+const isDesktopMode = process.env.DESKTOP_MODE === 'true' || process.env.REACT_APP_DESKTOP === 'true';
 
 function getBinaryPath(binaryName) {
     // Helper to find files in both Dev (local) and Prod (installed) modes
@@ -18,8 +22,16 @@ function getBinaryPath(binaryName) {
 }
 
 function startRedis() {
+    if (isDesktopMode) {
+        return;
+    }
     const redisPath = getBinaryPath('redis-server.exe');
-    console.log("Starting Redis from:", redisPath);
+    writeDesktopLog({
+        level: 'info',
+        message: 'Starting Redis',
+        context: 'BOOT',
+        data: { path: redisPath }
+    });
     redisProcess = spawn(redisPath, [], { stdio: 'ignore', windowsHide: true });
 }
 
@@ -37,17 +49,40 @@ function startBackend() {
         backendExe = path.join(backendDir, 'cere-engine.exe');
     }
 
-    console.log("Starting Backend API from:", backendExe);
+    writeDesktopLog({
+        level: 'info',
+        message: 'Starting Backend API',
+        context: 'BOOT',
+        data: { path: backendExe }
+    });
     
     // CRITICAL: cwd must be set so Python finds its internal files
+    const backendLogDir = path.join(app.getPath('userData'), 'backend-logs');
     backendProcess = spawn(backendExe, [], { 
         cwd: backendDir,
         stdio: 'ignore', // Change to 'inherit' to see logs in terminal
-        windowsHide: true 
+        windowsHide: true,
+        env: {
+            ...process.env,
+            DESKTOP_MODE: isDesktopMode ? 'true' : 'false',
+            CERE_LOG_DIR: backendLogDir,
+            CERE_LOG_KEEP_FOREVER: '1'
+        }
+    });
+    backendProcess.on('exit', (code, signal) => {
+        writeDesktopLog({
+            level: 'error',
+            message: 'Backend process exited',
+            context: 'BOOT',
+            data: { code, signal }
+        });
     });
 }
 
 function startWorker() {
+    if (isDesktopMode) {
+        return;
+    }
     let workerExe;
     let workerDir;
 
@@ -60,13 +95,32 @@ function startWorker() {
         workerExe = path.join(workerDir, 'cere-engine.exe');
     }
 
-    console.log("Starting Celery Worker from:", workerExe);
+    writeDesktopLog({
+        level: 'info',
+        message: 'Starting Celery Worker',
+        context: 'BOOT',
+        data: { path: workerExe }
+    });
 
     // CRITICAL: Pass "worker" arg so entry_point.py knows to run Celery instead of Uvicorn
+    const backendLogDir = path.join(app.getPath('userData'), 'backend-logs');
     workerProcess = spawn(workerExe, ["worker"], { 
         cwd: workerDir,
         stdio: 'ignore', 
-        windowsHide: true 
+        windowsHide: true,
+        env: {
+            ...process.env,
+            CERE_LOG_DIR: backendLogDir,
+            CERE_LOG_KEEP_FOREVER: '1'
+        }
+    });
+    workerProcess.on('exit', (code, signal) => {
+        writeDesktopLog({
+            level: 'error',
+            message: 'Worker process exited',
+            context: 'BOOT',
+            data: { code, signal }
+        });
     });
 }
 
@@ -82,7 +136,8 @@ function createWindow() {
         height: 800,
         webPreferences: { 
             nodeIntegration: false,
-            contextIsolation: true 
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
         }
     });
 
@@ -97,6 +152,58 @@ function createWindow() {
 }
 
 app.whenReady().then(createWindow);
+
+function ensureDesktopLogFile() {
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    try {
+        fs.mkdirSync(logDir, { recursive: true });
+    } catch (err) {
+        console.error('Failed to create log directory:', err);
+    }
+    desktopLogPath = path.join(logDir, 'cere-signal.log');
+}
+
+function writeDesktopLog(entry) {
+    if (!desktopLogPath) {
+        ensureDesktopLogFile();
+    }
+    const safeEntry = sanitizeLogEntry(entry);
+    if (!safeEntry) {
+        return;
+    }
+    try {
+        const line = `${JSON.stringify(safeEntry)}\n`;
+        fs.appendFile(desktopLogPath, line, (err) => {
+            if (err) {
+                console.error('Failed to write desktop log:', err);
+            }
+        });
+    } catch (err) {
+        console.error('Failed to serialize desktop log entry:', err);
+    }
+}
+
+function sanitizeLogEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+        return null;
+    }
+    const safeEntry = {
+        timestamp: entry.timestamp || new Date().toISOString(),
+        level: entry.level || 'info',
+        message: typeof entry.message === 'string' ? entry.message : String(entry.message),
+        context: entry.context || undefined,
+        data: entry.data || undefined
+    };
+    return safeEntry;
+}
+
+app.whenReady().then(() => {
+    ensureDesktopLogFile();
+});
+
+ipcMain.on('desktop-log', (_event, entry) => {
+    writeDesktopLog(entry);
+});
 
 // CLEANUP: Kill ALL processes when app closes
 app.on('will-quit', () => {

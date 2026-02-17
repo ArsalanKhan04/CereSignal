@@ -13,6 +13,7 @@ import json
 from fastapi import UploadFile
 
 from app.core.config import settings
+from app.core.logging_config import logger
 
 
 async def save_uploaded_file(file: UploadFile, filename: str) -> str:
@@ -96,7 +97,7 @@ def process_eeg_file_with_mne(file_path: str) -> dict:
         }
         
     except Exception as e:
-        print(f"Error processing EEG file with MNE: {e}")
+        logger.error("Error processing EEG file with MNE", exc_info=True)
         raise ValueError(f"Failed to process EEG file: {str(e)}")
 
 

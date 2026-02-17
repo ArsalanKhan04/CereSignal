@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import logger from './logger';
 import {
   User,
   LoginRequest,
@@ -27,9 +28,11 @@ import {
 class ApiClient {
   private client: AxiosInstance;
   private baseURL: string;
+  private isDesktopApp: boolean;
 
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
+    this.isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
@@ -40,22 +43,54 @@ class ApiClient {
     // Add request interceptor to include auth token
     this.client.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const requestId = Math.random().toString(36).slice(2);
+        (config as any).metadata = { startTime: Date.now(), requestId };
+        (config.headers as any)['X-Request-ID'] = requestId;
+        logger.apiRequest(config.method?.toUpperCase() || 'GET', config.url || '', {
+          requestId,
+          params: config.params,
+        });
+        if (!this.isDesktopApp) {
+          const token = localStorage.getItem('auth_token');
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
         }
         return config;
       },
       (error) => {
+        logger.apiError('REQUEST', error.config?.url || '', error);
         return Promise.reject(error);
       }
     );
 
     // Add response interceptor to handle errors
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        const metadata = (response.config as any).metadata || {};
+        const durationMs = metadata.startTime ? Date.now() - metadata.startTime : undefined;
+        logger.apiResponse(
+          response.config.method?.toUpperCase() || 'GET',
+          response.config.url || '',
+          response.status,
+          durationMs
+        );
+        return response;
+      },
       (error) => {
-        if (error.response?.status === 401) {
+        const metadata = (error.config as any)?.metadata || {};
+        const durationMs = metadata.startTime ? Date.now() - metadata.startTime : undefined;
+        logger.apiError(
+          error.config?.method?.toUpperCase() || 'GET',
+          error.config?.url || '',
+          {
+            status: error.response?.status,
+            durationMs,
+            message: error.message,
+            detail: error.response?.data?.detail,
+          }
+        );
+        if (!this.isDesktopApp && error.response?.status === 401) {
           // Token expired or invalid, redirect to login
           localStorage.removeItem('auth_token');
           localStorage.removeItem('current_user');
@@ -144,11 +179,14 @@ class ApiClient {
   }
 
   // Signal file methods
-  async uploadFile(file: File, patientId?: number): Promise<ApiResponse<FileUploadResponse>> {
+  async uploadFile(file: File, patientId?: number, options?: { skipInference?: boolean }): Promise<ApiResponse<FileUploadResponse>> {
     const formData = new FormData();
     formData.append('file', file);
     if (patientId) {
       formData.append('patient_id', patientId.toString());
+    }
+    if (options?.skipInference) {
+      formData.append('skip_inference', 'true');
     }
 
     const response = await this.client.post('/signals/upload', formData, {
@@ -203,6 +241,11 @@ class ApiClient {
 
   async createBookmark(fileId: number, data: EEGBookmarkCreate): Promise<ApiResponse<EEGBookmark>> {
     const response = await this.client.post(`/signals/files/${fileId}/bookmarks`, data);
+    return { data: response.data, status: response.status };
+  }
+
+  async deleteBookmark(fileId: number, bookmarkId: number): Promise<ApiResponse<{ message: string }>> {
+    const response = await this.client.delete(`/signals/files/${fileId}/bookmarks/${bookmarkId}`);
     return { data: response.data, status: response.status };
   }
 

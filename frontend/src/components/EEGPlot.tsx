@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import Plotly from 'plotly.js-basic-dist';
 import {
@@ -21,15 +21,16 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  FormControlLabel,
-  Radio,
-  RadioGroup
+  Tooltip,
+  Divider
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
   BookmarkAdd as BookmarkIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { EventsData, EEGBookmark } from '../types';
@@ -52,6 +53,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [montage, setMontage] = useState<string>('original');
   const [sensitivity, setSensitivity] = useState<number>(2.5);
   const [plotData, setPlotData] = useState<any | null>(null);
+  const [totalDuration, setTotalDuration] = useState<number | null>(null);
   const [plotLoading, setPlotLoading] = useState(false);
   const [error, setError] = useState('');
   const [bookmarks, setBookmarks] = useState<EEGBookmark[]>([]);
@@ -59,37 +61,197 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [bookmarkComment, setBookmarkComment] = useState('');
   const [bookmarkSaving, setBookmarkSaving] = useState(false);
   const [bookmarkError, setBookmarkError] = useState('');
-  const [replaceBookmarkId, setReplaceBookmarkId] = useState<number | null>(null);
+  const [bookmarkDeletingId, setBookmarkDeletingId] = useState<number | null>(null);
   const [plotInstance, setPlotInstance] = useState<HTMLElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [endReached, setEndReached] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const plotCacheRef = useRef<Map<string, any>>(new Map());
+  const inflightRef = useRef<Set<string>>(new Set());
+  const MAX_CACHE_ENTRIES = 8;
 
-  const fetchPlot = useCallback(async () => {
-    if (!fileId) return;
-    setPlotLoading(true);
-    setError('');
+  // Fullscreen change handler
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
     try {
-      const resp = await apiClient.getPlotData(fileId, plotStart, plotDuration, undefined, montage);
-      if (resp.status === 200) {
-        setPlotData(resp.data.plot_data);
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
       } else {
-        setError('Failed to load plot data');
+        await document.exitFullscreen();
       }
     } catch (err) {
-      const errorMessage = err && typeof err === 'object'
-        ? ((err as any).response?.data?.detail || (err as any).message)
-        : undefined;
-      setError(typeof errorMessage === 'string' ? errorMessage : 'Error loading plot data');
-    } finally {
-      setPlotLoading(false);
+      console.error('Fullscreen error:', err);
     }
-  }, [fileId, plotStart, plotDuration, montage, sensitivity]);
+  };
+
+  const buildCacheKey = useCallback(
+    (start: number, duration: number, montageName: string) => `${fileId}-${start}-${duration}-${montageName}`,
+    [fileId]
+  );
+
+  const setCache = (key: string, value: any) => {
+    const cache = plotCacheRef.current;
+    if (cache.has(key)) {
+      cache.delete(key);
+    }
+    cache.set(key, value);
+    if (cache.size > MAX_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey) {
+        cache.delete(oldestKey);
+      }
+    }
+  };
+
+  const fetchPlot = useCallback(async (options?: { startOverride?: number; force?: boolean; background?: boolean }) => {
+    if (!fileId) return;
+    const start = options?.startOverride ?? plotStart;
+    const cacheKey = buildCacheKey(start, plotDuration, montage);
+    if (!options?.force) {
+      const cached = plotCacheRef.current.get(cacheKey);
+      if (cached) {
+        setPlotData(cached);
+        return;
+      }
+    }
+    if (inflightRef.current.has(cacheKey)) {
+      return;
+    }
+    inflightRef.current.add(cacheKey);
+    if (!options?.background) {
+      setPlotLoading(true);
+      setError('');
+    }
+    try {
+      const resp = await apiClient.getPlotData(fileId, start, plotDuration, undefined, montage);
+      if (resp.status === 200) {
+        const plotPayload = resp.data.plot_data;
+        setCache(cacheKey, plotPayload);
+        setPlotData(plotPayload);
+        if (typeof plotPayload?.total_duration === 'number') {
+          setTotalDuration(plotPayload.total_duration);
+        }
+      } else {
+        if (!options?.background) {
+          setError('Failed to load plot data');
+        }
+      }
+    } catch (err) {
+      if (!options?.background) {
+        const errorMessage = err && typeof err === 'object'
+          ? ((err as any).response?.data?.detail || (err as any).message)
+          : undefined;
+        setError(typeof errorMessage === 'string' ? errorMessage : 'Error loading plot data');
+      }
+    } finally {
+      inflightRef.current.delete(cacheKey);
+      if (!options?.background) {
+        setPlotLoading(false);
+      }
+    }
+  }, [fileId, plotStart, plotDuration, montage, buildCacheKey]);
 
   useEffect(() => {
     if (!fileId) return;
-    const id = setTimeout(() => {
-      fetchPlot();
-    }, 300);
-    return () => clearTimeout(id);
+    fetchPlot();
   }, [fileId, montage, plotStart, plotDuration, fetchPlot]);
+
+  useEffect(() => {
+    if (!fileId || totalDuration !== null) return;
+    let isActive = true;
+    const loadTotalDuration = async () => {
+      try {
+        const response = await apiClient.getSignalData(fileId, 0, 1);
+        if (response.status === 200) {
+          const duration = response.data?.file_info?.total_duration;
+          if (isActive && typeof duration === 'number') {
+            setTotalDuration(duration);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load total duration:', err);
+      }
+    };
+
+    loadTotalDuration();
+    return () => {
+      isActive = false;
+    };
+  }, [fileId, totalDuration]);
+
+  const goToStart = useCallback((nextStart: number) => {
+    const durationLimit = totalDuration ?? Infinity;
+    const rawMaxStart = Math.max(0, durationLimit - plotDuration);
+    const maxStart = Number.isFinite(rawMaxStart)
+      ? Math.floor(rawMaxStart / plotDuration) * plotDuration
+      : rawMaxStart;
+    if (Number.isFinite(maxStart) && nextStart > maxStart) {
+      setEndReached(true);
+    } else {
+      setEndReached(false);
+    }
+    const clampedStart = Math.max(0, Math.min(nextStart, maxStart));
+    const snappedStart = Math.floor(clampedStart / plotDuration) * plotDuration;
+    const cacheKey = buildCacheKey(snappedStart, plotDuration, montage);
+    const cached = plotCacheRef.current.get(cacheKey);
+    if (cached) {
+      setPlotData(cached);
+    }
+    setPlotStart(snappedStart);
+  }, [buildCacheKey, plotDuration, montage, totalDuration]);
+
+  useEffect(() => {
+    if (totalDuration === null) return;
+    const durationLimit = totalDuration ?? Infinity;
+    const rawMaxStart = Math.max(0, durationLimit - plotDuration);
+    const maxStart = Number.isFinite(rawMaxStart)
+      ? Math.floor(rawMaxStart / plotDuration) * plotDuration
+      : rawMaxStart;
+    if (plotStart > maxStart) {
+      goToStart(maxStart);
+    }
+  }, [totalDuration, plotDuration, plotStart, goToStart]);
+
+  // Keyboard navigation handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle arrow keys when not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToStart(Math.max(0, plotStart - plotDuration));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToStart(plotStart + plotDuration);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [plotDuration, plotStart, goToStart]);
+
+  useEffect(() => {
+    if (!fileId) return;
+    if (totalDuration !== null && plotStart + plotDuration >= totalDuration) return;
+    const nextStart = plotStart + plotDuration;
+    const nextKey = buildCacheKey(nextStart, plotDuration, montage);
+    if (!plotCacheRef.current.has(nextKey) && !inflightRef.current.has(nextKey)) {
+      fetchPlot({ startOverride: nextStart, background: true });
+    }
+  }, [fileId, plotStart, plotDuration, montage, buildCacheKey, fetchPlot, totalDuration]);
 
   useEffect(() => {
     if (!fileId) return;
@@ -110,18 +272,12 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const openBookmarkDialog = () => {
     setBookmarkComment('');
     setBookmarkError('');
-    setReplaceBookmarkId(null);
     setBookmarkDialogOpen(true);
   };
 
   const handleBookmarkSave = async () => {
     if (!plotInstance) {
       setBookmarkError('Plot not ready for capture.');
-      return;
-    }
-
-    if (bookmarks.length >= 2 && !replaceBookmarkId) {
-      setBookmarkError('Select a bookmark to replace.');
       return;
     }
 
@@ -133,7 +289,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       const response = await apiClient.createBookmark(fileId, {
         image_base64: imageData,
         comment: bookmarkComment.trim() || undefined,
-        replace_id: replaceBookmarkId || undefined,
       });
 
       if (response.status === 201) {
@@ -150,6 +305,24 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       setBookmarkError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     } finally {
       setBookmarkSaving(false);
+    }
+  };
+
+  const handleBookmarkDelete = async (bookmarkId: number) => {
+    setBookmarkDeletingId(bookmarkId);
+    setBookmarkError('');
+    try {
+      const response = await apiClient.deleteBookmark(fileId, bookmarkId);
+      if (response.status === 200) {
+        setBookmarks((prev) => prev.filter((bookmark) => bookmark.id !== bookmarkId));
+      } else {
+        setBookmarkError('Failed to delete bookmark.');
+      }
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to delete bookmark.';
+      setBookmarkError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } finally {
+      setBookmarkDeletingId(null);
     }
   };
 
@@ -244,7 +417,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         y: offset,
         text: ch.channel_name,
         showarrow: false,
-        font: { size: 10, color: '#37474f' },
+        font: { size: 16, color: '#1f2937', family: 'Arial Black, Arial, sans-serif' },
         xanchor: 'left',
       });
     });
@@ -270,7 +443,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   }, [plotData, eventsData, plotStart, plotDuration, montage, sensitivity]);
 
   return (
-    <Card sx={{ mb: 3 }}>
+    <Card ref={containerRef} sx={{ mb: 3, bgcolor: isFullscreen ? '#fff' : undefined }}>
       <CardContent sx={{ pb: 2 }}>
         <Box display="flex" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mr: 1 }}>
@@ -286,22 +459,40 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
           )}
 
           <Box display="flex" alignItems="center" gap={0.5}>
-            <IconButton size="small" onClick={() => setPlotStart((prev) => Math.max(0, prev - 10))}>
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="Previous window (Left Arrow)">
+              <IconButton size="small" onClick={() => goToStart(Math.max(0, plotStart - plotDuration))}>
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <TextField
               label="Start"
               type="number"
               value={plotStart}
-              onChange={(e) => setPlotStart(Number(e.target.value))}
+              onChange={(e) => goToStart(Number(e.target.value))}
+              onBlur={(e) => goToStart(Number(e.target.value))}
               size="small"
-              sx={{ width: 80 }}
-              inputProps={{ step: 1 }}
+              sx={{ width: 100 }}
+              inputProps={{
+                step: 1,
+                min: 0,
+                max: totalDuration ? Math.max(0, totalDuration - plotDuration) : undefined,
+              }}
             />
-            <IconButton size="small" onClick={() => setPlotStart((prev) => prev + 10)}>
-              <ChevronRightIcon fontSize="small" />
-            </IconButton>
+            <Tooltip title="Next window (Right Arrow)">
+              <IconButton
+                size="small"
+                onClick={() => goToStart(plotStart + plotDuration)}
+                disabled={totalDuration !== null && plotStart + plotDuration >= totalDuration}
+              >
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
+          {totalDuration !== null && (
+            <Typography variant="caption" color="text.secondary">
+              / {Math.max(0, totalDuration - plotDuration).toFixed(0)}s
+            </Typography>
+          )}
 
           <FormControl size="small" sx={{ minWidth: 100 }}>
             <InputLabel>Window</InputLabel>
@@ -347,23 +538,23 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
             </Select>
           </FormControl>
 
-          <Button
-            size="small"
-            variant="contained"
-            onClick={fetchPlot}
-            disabled={plotLoading}
-            sx={{ minWidth: 64, height: 28 }}
-          >
-            {plotLoading ? <CircularProgress size={14} /> : 'Load'}
-          </Button>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => fetchPlot({ force: true })}
+              disabled={plotLoading}
+              sx={{ minWidth: 64, height: 28 }}
+            >
+              {plotLoading ? <CircularProgress size={14} /> : 'Load'}
+            </Button>
 
-           <Button
-             size="small"
-             variant="outlined"
-             startIcon={<RefreshIcon fontSize="small" />}
-             onClick={fetchPlot}
-             sx={{ minWidth: 72, height: 28 }}
-           >
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<RefreshIcon fontSize="small" />}
+              onClick={() => fetchPlot({ force: true })}
+              sx={{ minWidth: 72, height: 28 }}
+            >
              Refresh
            </Button>
 
@@ -377,6 +568,16 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
            >
              Bookmark View
            </Button>
+
+           <Tooltip title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen'}>
+             <IconButton size="small" onClick={toggleFullscreen}>
+               {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+             </IconButton>
+           </Tooltip>
+
+           <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+             Use arrow keys to navigate
+           </Typography>
          </Box>
 
 
@@ -387,49 +588,40 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         )}
 
         {computedPlot && (
-          <Box sx={{ height: 1000, minWidth: 0 }}>
+          <Box sx={{ height: isFullscreen ? 'calc(100vh - 120px)' : 1000, minWidth: 0 }}>
             <Plot
               data={computedPlot.traces}
-              layout={computedPlot.layout}
+              layout={{ ...computedPlot.layout, height: isFullscreen ? window.innerHeight - 120 : 1000 }}
               useResizeHandler
               style={{ width: '100%', height: '100%' }}
               onInitialized={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
               onUpdate={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
             />
+            {endReached && (
+              <Divider sx={{ mt: 2 }} textAlign="center">
+                <Typography variant="caption" color="text.secondary">
+                  End of recording
+                </Typography>
+              </Divider>
+            )}
           </Box>
         )}
 
-        {bookmarks.length > 0 && (
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              Saved Bookmarks
-            </Typography>
-            <Stack spacing={2}>
-              {bookmarks.map((bookmark) => (
-                <Card key={bookmark.id} variant="outlined">
-                  <CardContent sx={{ p: 2 }}>
-                    <Stack spacing={1.5}>
-                      <Box
-                        component="img"
-                        src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
-                        alt="EEG bookmark"
-                        sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
-                      />
-                      <Typography variant="body2" color="text.secondary">
-                        {bookmark.comment || 'No comment provided.'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(bookmark.created_at).toLocaleString()}
-                      </Typography>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        <Dialog open={bookmarkDialogOpen} onClose={() => setBookmarkDialogOpen(false)} maxWidth="sm" fullWidth>
+        <Dialog
+          open={bookmarkDialogOpen}
+          onClose={() => setBookmarkDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          fullScreen={false}
+          disablePortal={isFullscreen}
+          container={isFullscreen ? containerRef.current : undefined}
+          PaperProps={{
+            sx: {
+              maxHeight: isFullscreen ? '80vh' : undefined,
+              width: isFullscreen ? 'min(720px, 92vw)' : undefined,
+            },
+          }}
+        >
           <DialogTitle>Bookmark Current View</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
@@ -443,21 +635,53 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
                 multiline
                 minRows={2}
               />
-              {bookmarks.length >= 2 && (
-                <RadioGroup
-                  value={replaceBookmarkId ?? ''}
-                  onChange={(e) => setReplaceBookmarkId(Number(e.target.value))}
-                >
-                  {bookmarks.map((bookmark) => (
-                    <FormControlLabel
-                      key={bookmark.id}
-                      value={bookmark.id}
-                      control={<Radio />}
-                      label={`Replace bookmark from ${new Date(bookmark.created_at).toLocaleString()}`}
-                    />
-                  ))}
-                </RadioGroup>
-              )}
+              <Box sx={{ pt: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Saved Bookmarks
+                </Typography>
+                {bookmarks.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No bookmarks saved yet.
+                  </Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    {bookmarks.map((bookmark) => (
+                      <Card key={bookmark.id} variant="outlined">
+                        <CardContent sx={{ p: 2 }}>
+                          <Stack spacing={1.5}>
+                            <Box
+                              component="img"
+                              src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
+                              alt="EEG bookmark"
+                              sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                            />
+                            {bookmark.comment && (
+                              <Typography variant="body2" color="text.secondary">
+                                {bookmark.comment}
+                              </Typography>
+                            )}
+                            <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(bookmark.created_at).toLocaleString()}
+                              </Typography>
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => handleBookmarkDelete(bookmark.id)}
+                                disabled={bookmarkDeletingId === bookmark.id}
+                                sx={{ minWidth: 96 }}
+                              >
+                                {bookmarkDeletingId === bookmark.id ? 'Deleting...' : 'Remove'}
+                              </Button>
+                            </Box>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
             </Stack>
           </DialogContent>
           <DialogActions>

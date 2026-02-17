@@ -445,11 +445,39 @@ async def download_report_pdf(
             status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
         )
 
+    needs_regen = False
     if not report.pdf_file_path or not os.path.exists(report.pdf_file_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="PDF file not found. Please generate the PDF first.",
-        )
+        needs_regen = True
+    elif report.updated_at:
+        try:
+            pdf_mtime = os.path.getmtime(report.pdf_file_path)
+            if pdf_mtime < report.updated_at.timestamp():
+                needs_regen = True
+        except Exception:
+            needs_regen = True
+
+    if needs_regen:
+        try:
+            signal_file = report.signal_file
+            doctor = db.query(AuthUser).filter(AuthUser.id == report.auth_user_id).first()
+
+            if not signal_file or not doctor:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Missing report data",
+                )
+
+            pdf_path = pdf_generator.generate_report_pdf(report, signal_file, doctor)
+            report.pdf_file_path = pdf_path
+            db.commit()
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error generating PDF: {str(e)}",
+            )
 
     # Return the PDF file
     filename = os.path.basename(report.pdf_file_path)

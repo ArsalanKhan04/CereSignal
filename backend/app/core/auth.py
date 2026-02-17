@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.auth import AuthUser
+from app.models.auth import AuthUser, UserType
 from app.schemas.auth import TokenData
 
 # Password hashing
@@ -24,7 +24,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Security scheme
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -60,8 +60,8 @@ def verify_token(token: str) -> TokenData:
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        user_id: int = payload.get("user_id")
+        username = payload.get("sub")
+        user_id = payload.get("user_id")
         
         if username is None or user_id is None:
             raise credentials_exception
@@ -74,15 +74,36 @@ def verify_token(token: str) -> TokenData:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
-) -> AuthUser:
+) -> Optional[AuthUser]:
     """Get the current authenticated user"""
+    if settings.DESKTOP_MODE:
+        desktop_user = db.query(AuthUser).filter(AuthUser.username == "desktop").first()
+        if desktop_user:
+            return desktop_user
+        desktop_user = AuthUser(
+            username="desktop",
+            email="desktop@local",
+            hashed_password=get_password_hash("desktop"),
+            user_type=UserType.TECHNICIAN.value,
+            is_active=True,
+            is_superuser=False,
+        )
+        db.add(desktop_user)
+        db.commit()
+        db.refresh(desktop_user)
+        return desktop_user
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if not credentials:
+        if settings.DESKTOP_MODE:
+            return None
+        raise credentials_exception
     
     try:
         token = credentials.credentials
@@ -104,9 +125,12 @@ def get_current_user(
         raise credentials_exception
 
 
-def get_current_active_user(current_user: AuthUser = Depends(get_current_user)) -> AuthUser:
+def get_current_active_user(current_user: Optional[AuthUser] = Depends(get_current_user)) -> Optional[AuthUser]:
     """Get the current active user"""
-    if not current_user.is_active:
+    if settings.DESKTOP_MODE and current_user is None:
+        return None
+
+    if not current_user or not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"

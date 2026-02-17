@@ -300,7 +300,7 @@ def infer(self, mne_file_path):
     # Attempt to generate a topomap image for this inference
     try:
         base = os.path.splitext(os.path.basename(mne_file_path))[0]
-        title = f"Model Prediction\n({base})"
+        title = ""
         out_path = generate_topomap_from_events(
             base,
             {ch: {k: v for k, v in events[ch].items()} for ch in events},

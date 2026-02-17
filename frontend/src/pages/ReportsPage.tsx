@@ -36,7 +36,7 @@ import {
   Drafts as DraftIcon
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { EEGReport, SignalFile, Patient } from '../types';
+import { EEGReport, SignalFile } from '../types';
 import ReportForm from '../components/ReportForm';
 
 // Ensure this file is treated as a module
@@ -48,7 +48,6 @@ const ReportsPage: React.FC = () => {
   // State
   const [reports, setReports] = useState<EEGReport[]>([]);
   const [signalFiles, setSignalFiles] = useState<SignalFile[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
@@ -66,15 +65,13 @@ const ReportsPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reportsResponse, filesResponse, patientsResponse] = await Promise.all([
+      const [reportsResponse, filesResponse] = await Promise.all([
         apiClient.getReports(),
-        apiClient.getFiles(),
-        apiClient.getPatients(false)
+        apiClient.getFiles()
       ]);
 
       if (reportsResponse.status === 200) setReports(reportsResponse.data);
       if (filesResponse.status === 200) setSignalFiles(filesResponse.data);
-      if (patientsResponse.status === 200) setPatients(patientsResponse.data);
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Error loading data';
       setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
@@ -337,27 +334,19 @@ const ReportsPage: React.FC = () => {
               >
                 <CardContent sx={{ flexGrow: 1, p: 3 }}>
                   
-                  {/* Status Badges */}
-                  <Box display="flex" justifyContent="space-between" mb={2}>
-                    <Chip 
-                      label={report.is_finalized ? "Finalized" : "Draft"} 
-                      size="small" 
-                      color={report.is_finalized ? "success" : "default"}
-                      icon={report.is_finalized ? <FinalizedIcon /> : <DraftIcon />}
-                      variant={report.is_finalized ? "filled" : "outlined"}
-                    />
+                  <Box display="flex" justifyContent="flex-end" mb={2}>
                     <Stack direction="row" spacing={1}>
-                        <Chip 
-                          label={report.impression || "Pending Analysis"} 
-                          size="small" 
-                          color={getImpressionColor(report.impression)}
-                          sx={{ fontWeight: 600 }}
-                        />
-                        {report.pdf_file_path && (
-                          <Tooltip title="PDF Available">
-                            <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id)} />
-                          </Tooltip>
-                        )}
+                      <Chip 
+                        label={report.impression || "Pending Analysis"} 
+                        size="small" 
+                        color={getImpressionColor(report.impression)}
+                        sx={{ fontWeight: 600 }}
+                      />
+                      {report.pdf_file_path && (
+                        <Tooltip title="PDF Available">
+                          <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id)} />
+                        </Tooltip>
+                      )}
                     </Stack>
                   </Box>
 
@@ -416,17 +405,15 @@ const ReportsPage: React.FC = () => {
                       </span>
                     </Tooltip>
 
-                    {report.pdf_file_path && (
-                      <Tooltip title="Download PDF">
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleDownloadPDF(report.id)}
-                          sx={{ bgcolor: 'action.hover', color: 'success.main' }}
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    <Tooltip title="Download PDF">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleDownloadPDF(report.id)}
+                        sx={{ bgcolor: 'action.hover', color: 'success.main' }}
+                      >
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
 
                     <Tooltip title="Delete Report">
                       <IconButton 
@@ -451,7 +438,7 @@ const ReportsPage: React.FC = () => {
         <ReportForm
           fileId={selectedFileId || editingReport?.file_id}
           signalFile={signalFiles.find(f => f.id === (selectedFileId || editingReport?.file_id))}
-          patient={patients.find(p => p.id === signalFiles.find(f => f.id === (selectedFileId || editingReport?.file_id))?.user_id) || undefined}
+          patient={undefined}
           existingReport={editingReport}
           onSave={handleReportSaved}
           onCancel={() => {

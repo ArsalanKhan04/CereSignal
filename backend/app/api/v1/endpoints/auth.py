@@ -2,31 +2,32 @@
 Authentication endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from datetime import datetime, timedelta, date as date_type
+from datetime import date as date_type
+from datetime import datetime, timedelta
 from typing import List
 
-from app.core.database import get_db
 from app.core.auth import (
-    verify_password,
-    get_password_hash,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
     create_access_token,
     get_current_active_user,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
+    get_password_hash,
+    verify_password,
 )
-from app.models.auth import AuthUser
+from app.core.database import get_db
+from app.core.logging_config import log_auth, logger
+from app.models.auth import AuthUser, UserType
+from app.models.user import User
 from app.schemas.auth import (
-    UserLogin,
-    UserRegister,
-    PatientRegister,
-    PatientIdLogin,
-    Token,
     AuthUserResponse,
     PasswordChange,
+    PatientIdLogin,
+    PatientRegister,
+    Token,
+    UserLogin,
+    UserRegister,
 )
-from app.models.user import User
-from app.models.auth import UserType
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -97,20 +98,22 @@ async def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
             first_name=user_data.first_name,
             last_name=user_data.last_name,
             title=user_data.title if user_data.title else None,
-            specialization=user_data.specialization
-            if user_data.specialization
-            else None,
-            license_number=user_data.license_number
-            if user_data.license_number
-            else None,
+            specialization=(
+                user_data.specialization if user_data.specialization else None
+            ),
+            license_number=(
+                user_data.license_number if user_data.license_number else None
+            ),
             phone=user_data.phone if user_data.phone else None,
             about=user_data.about if user_data.about else None,
-            hospital_affiliation=user_data.hospital_affiliation
-            if user_data.hospital_affiliation
-            else None,
-            years_experience=user_data.years_experience
-            if user_data.years_experience
-            else None,
+            hospital_affiliation=(
+                user_data.hospital_affiliation
+                if user_data.hospital_affiliation
+                else None
+            ),
+            years_experience=(
+                user_data.years_experience if user_data.years_experience else None
+            ),
         )
 
         db.add(db_user)
@@ -274,6 +277,7 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
     )
 
     if not user or not verify_password(user_credentials.password, user.hashed_password):
+        log_auth("LOGIN", username=user_credentials.username, success=False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -281,6 +285,9 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
         )
 
     if not user.is_active:
+        log_auth(
+            "LOGIN_INACTIVE", user_id=user.id, username=user.username, success=False
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
@@ -295,6 +302,8 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
         data={"sub": user.username, "user_id": user.id},
         expires_delta=access_token_expires,
     )
+
+    log_auth("LOGIN", user_id=user.id, username=user.username, success=True)
 
     return {
         "access_token": access_token,

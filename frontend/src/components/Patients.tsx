@@ -67,7 +67,10 @@ const Patients: React.FC<{
   onPatientDetailsClose,
 }) => {
   const { user } = useAuth();
-  const isReadOnly = user?.user_type === 'doctor'; // Doctors have read-only access
+  const isReadOnly = user?.user_type === 'doctor';
+  const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
+  const allowDoctorFileOps = isDesktopApp && user?.user_type === 'doctor';
+  const allowDesktopCreate = isDesktopApp && user?.user_type === 'doctor';
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -84,6 +87,7 @@ const Patients: React.FC<{
     report?: EEGReport | null;
   } | null>(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [labelSubmittingId, setLabelSubmittingId] = useState<number | null>(null);
   const [activeEEGEvents, setActiveEEGEvents] = useState<EventsData | null>(null);
   const [fileStatuses, setFileStatuses] = useState<Record<number, { condition: string; inference_status: string }>>({});
   const [localStatusFilter, setLocalStatusFilter] = useState<'pending' | 'examined' | 'all'>(initialStatusFilter);
@@ -124,8 +128,8 @@ const Patients: React.FC<{
 
   useEffect(() => {
     loadPatients();
-    // Load doctors when technician is viewing so they can assign one on create
-    if (user?.user_type === 'technician') {
+    // Load doctors when technician or desktop doctor is viewing so they can assign one on create
+    if (user?.user_type === 'technician' || allowDesktopCreate) {
       loadDoctors();
     }
   }, [user, doctorViewMode, searchQuery]);
@@ -302,6 +306,35 @@ const Patients: React.FC<{
 
     setFileError('');
     setSelectedFile(file);
+    if (allowDesktopCreate && !openDialog) {
+      handleOpenDialog();
+    }
+  };
+
+  const handleDesktopCreate = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      medical_id: '',
+      gender: 'M',
+      date_of_birth: '',
+      address: '',
+      emergency_contact_name: '',
+      emergency_contact_phone: '',
+      blood_type: 'A+',
+      allergies: '',
+      medical_conditions: '',
+      current_medications: '',
+      notes: '',
+      referred_by: '',
+      doctor_id: undefined,
+      age: undefined,
+    });
+    setEditingPatient(null);
+    setSelectedFile(null);
+    setFileError('');
+    setOpenDialog(true);
   };
 
   const handleOpenDialog = (patient?: Patient) => {
@@ -479,7 +512,7 @@ const Patients: React.FC<{
         };
         const createdPatient = await apiClient.createPatient(createData);
         if (selectedFile) {
-          const uploadResponse = await apiClient.uploadFile(selectedFile, createdPatient.data.id);
+          const uploadResponse = await apiClient.uploadFile(selectedFile, createdPatient.data.id, { skipInference: allowDesktopCreate });
           if (uploadResponse.data.message === 'Matlab Script automatically applied') {
             setSuccess('Matlab Script automatically applied');
           } else {
@@ -635,18 +668,41 @@ const Patients: React.FC<{
 
   const shouldShowPatient = (report: EEGReport | null) => {
     if (activeStatusFilter === 'all') return true;
-    if (activeStatusFilter === 'examined') return Boolean(report);
-    return !report;
+    if (activeStatusFilter === 'examined') return Boolean(report && report.impression);
+    return !report || !report.impression;
   };
 
   const filteredPatients = patients.filter((patient) => {
-    if (isReadOnly && doctorViewMode === 'assigned' && patient.auth_user_id !== user?.id) {
-      return false;
+    if (!allowDesktopCreate) {
+      if (isReadOnly && doctorViewMode === 'assigned' && patient.auth_user_id !== user?.id) {
+        return false;
+      }
     }
     const file = getPatientFile(patient);
     const report = getPatientReport(patient, file);
     return shouldShowPatient(report);
   });
+
+  const handleAssignLabel = async (patient: Patient, file: SignalFile, label: 'normal' | 'abnormal') => {
+    setLabelSubmittingId(file.id);
+    setError('');
+    setSuccess('');
+    try {
+      const existingReport = patientReports[patient.id]?.find((item) => item.file_id === file.id) || null;
+      if (!existingReport) {
+        setError('Create a report before assigning a label.');
+        return;
+      }
+      await apiClient.updateReport(existingReport.id, { impression: label });
+      setSuccess(`Assigned ${label === 'normal' ? 'Normal' : 'Abnormal'} label.`);
+      await loadPatients();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to assign label');
+    } finally {
+      setLabelSubmittingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -665,31 +721,40 @@ const Patients: React.FC<{
               Patient Registry
             </Typography>
           )}
-          <TextField
-            size="small"
-            label="Search patients"
-            value={searchInput}
-            onChange={(event) => {
-              const value = event.target.value;
-              setSearchInput(value);
-              if (searchTimeoutRef.current) {
-                window.clearTimeout(searchTimeoutRef.current);
-              }
-              searchTimeoutRef.current = window.setTimeout(() => {
-                setSearchQuery(value.trim());
-              }, 350);
-            }}
-            sx={{ width: 240 }}
-          />
-          {!isReadOnly && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenDialog()}
-            >
-              Add Patient
-            </Button>
-          )}
+            <TextField
+              size="small"
+              label="Search patients"
+              value={searchInput}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSearchInput(value);
+                if (searchTimeoutRef.current) {
+                  window.clearTimeout(searchTimeoutRef.current);
+                }
+                searchTimeoutRef.current = window.setTimeout(() => {
+                  setSearchQuery(value.trim());
+                }, 350);
+              }}
+              sx={{ width: 240 }}
+            />
+            {!isReadOnly && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenDialog()}
+              >
+                Add Patient
+              </Button>
+            )}
+            {allowDesktopCreate && (
+              <Button
+                variant="contained"
+                startIcon={<UploadIcon />}
+                onClick={handleDesktopCreate}
+              >
+                Upload EEG File
+              </Button>
+            )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 'auto', flexWrap: 'wrap' }}>
           {showStatusToggle && (isReadOnly || user?.user_type === 'technician') && (
@@ -750,9 +815,9 @@ const Patients: React.FC<{
           {filteredPatients.map((patient) => {
             const file = getPatientFile(patient);
             const report = getPatientReport(patient, file);
-            const hasPdf = Boolean(report?.pdf_file_path);
-            const reportStatusLabel = report ? 'Examined' : 'Pending Review';
-            const statusColor = report ? getReportStatusColor(report.impression) : 'default';
+                    const hasPdf = Boolean(report?.pdf_file_path);
+            const reportStatusLabel = report?.impression ? 'Examined' : 'Pending Review';
+            const statusColor = report?.impression ? getReportStatusColor(report.impression) : 'default';
             const isNewPatient = Boolean(
               isReadOnly &&
               activeStatusFilter === 'pending' &&
@@ -839,30 +904,49 @@ const Patients: React.FC<{
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                     {file ? (
                       (() => {
+                        if (allowDesktopCreate) {
+                          const assignedImpression = report?.impression?.toLowerCase();
+                          const label = !report
+                            ? 'No Report'
+                            : assignedImpression === 'normal'
+                              ? 'Normal'
+                              : assignedImpression === 'abnormal'
+                                ? 'Abnormal'
+                                : 'Unassigned';
+                          const color = assignedImpression === 'normal'
+                            ? 'success'
+                            : assignedImpression === 'abnormal'
+                              ? 'error'
+                              : 'default';
+                          return (
+                            <Chip
+                              label={label}
+                              size="small"
+                              color={color as any}
+                            />
+                          );
+                        }
                         const status = fileStatuses[file.id];
                         const condition = status?.condition || file.condition;
-                        const inferenceStatus = status?.inference_status || file.processing_status;
                         const normalizedCondition = condition === 'processing' ? 'processing' : condition;
                         return (
-                          <>
-                            <Chip
-                              label={normalizedCondition === 'normal'
-                                ? 'Normal'
-                                : normalizedCondition === 'abnormal'
-                                  ? 'Abnormal'
-                                  : normalizedCondition === 'failed'
-                                    ? 'Failed'
-                                    : 'Processing'}
-                              size="small"
-                              color={normalizedCondition === 'normal'
-                                ? 'success'
-                                : normalizedCondition === 'abnormal'
-                                  ? 'error'
-                                  : normalizedCondition === 'failed'
-                                    ? 'warning'
-                                    : 'info'}
-                            />
-                          </>
+                          <Chip
+                            label={normalizedCondition === 'normal'
+                              ? 'Normal'
+                              : normalizedCondition === 'abnormal'
+                                ? 'Abnormal'
+                                : normalizedCondition === 'failed'
+                                  ? 'Failed'
+                                  : 'Processing'}
+                            size="small"
+                            color={normalizedCondition === 'normal'
+                              ? 'success'
+                              : normalizedCondition === 'abnormal'
+                                ? 'error'
+                                : normalizedCondition === 'failed'
+                                  ? 'warning'
+                                  : 'info'}
+                          />
                         );
                       })()
                     ) : (
@@ -904,6 +988,57 @@ const Patients: React.FC<{
                       </IconButton>
                     </>
                   )}
+                  {allowDoctorFileOps && file && report && !report.impression && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleAssignLabel(patient, file, 'normal');
+                        }}
+                        disabled={labelSubmittingId === file.id}
+                        sx={{ minWidth: 80, height: 28, fontSize: '0.75rem', px: 1 }}
+                      >
+                        Normal
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleAssignLabel(patient, file, 'abnormal');
+                        }}
+                        disabled={labelSubmittingId === file.id}
+                        sx={{ minWidth: 90, height: 28, fontSize: '0.75rem', px: 1 }}
+                      >
+                        Abnormal
+                      </Button>
+                    </Stack>
+                  )}
+                  {allowDoctorFileOps && file && (
+                    <IconButton
+                      color="error"
+                      size="small"
+                      onClick={async (event) => {
+                        event.stopPropagation();
+                        if (!file) return;
+                        if (!window.confirm('Are you sure you want to delete this EEG file?')) return;
+                        try {
+                          await apiClient.deleteFile(file.id);
+                          await apiClient.deletePatient(patient.id);
+                          setSuccess('EEG file and patient deleted successfully');
+                          await loadPatients();
+                          setTimeout(() => setSuccess(''), 3000);
+                        } catch (err) {
+                          setError('Failed to delete EEG file');
+                        }
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
                   {isReadOnly && (
                     <Button
                       variant={report ? 'outlined' : 'contained'}
@@ -923,7 +1058,7 @@ const Patients: React.FC<{
                       {report ? 'Edit Report' : 'Create Report'}
                     </Button>
                   )}
-                  {(isReadOnly || user?.user_type === 'technician') && report && (
+                  {(isReadOnly || user?.user_type === 'technician') && report?.impression && (
                     <Button
                       variant="outlined"
                       size="small"
@@ -932,24 +1067,11 @@ const Patients: React.FC<{
                         event.stopPropagation();
                         handleDownloadReport(report.id);
                       }}
-                      disabled={!hasPdf}
                       sx={{ minWidth: 140, height: 28, fontSize: '0.75rem', px: 1 }}
                     >
                       Download Report
                     </Button>
                   )}
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setActiveTopomapFileId(file?.id || null);
-                    }}
-                    disabled={!file}
-                    sx={{ minWidth: 78, height: 28, fontSize: '0.75rem', px: 1 }}
-                  >
-                    Topomap
-                  </Button>
                   <Button
                     variant="outlined"
                     size="small"
@@ -1063,7 +1185,7 @@ const Patients: React.FC<{
                     ) : (
                       <Chip label="No EEG" size="small" variant="outlined" />
                     )}
-                    {detailReport && (
+                    {detailReport?.impression && (
                       <Chip
                         label="Examined"
                         size="small"
@@ -1136,38 +1258,75 @@ const Patients: React.FC<{
                       View EEG
                     </Button>
                   )}
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setActiveTopomapFileId(detailFile?.id || null)}
-                    disabled={!detailFile}
-                  >
-                    Topomap
-                  </Button>
-                  {isReadOnly && detailFile && (
-                    <Button
-                      variant={detailReport ? 'outlined' : 'contained'}
-                      size="small"
-                      startIcon={detailReport ? <EditIcon fontSize="small" /> : <ReportIcon fontSize="small" />}
-                      onClick={() =>
-                        detailReport
-                          ? handleEditReport(detailPatient, detailReport)
-                          : handleCreateReport(detailPatient)
-                      }
+                    {(isReadOnly || allowDoctorFileOps) && detailFile && (
+                      <Button
+                        variant={detailReport ? 'outlined' : 'contained'}
+                        size="small"
+                        startIcon={detailReport ? <EditIcon fontSize="small" /> : <ReportIcon fontSize="small" />}
+                        onClick={() =>
+                          detailReport
+                            ? handleEditReport(detailPatient, detailReport)
+                            : handleCreateReport(detailPatient)
+                        }
+                      >
+                        {detailReport ? 'Edit Report' : 'Create Report'}
+                      </Button>
+                    )}
+                    {(isReadOnly || user?.user_type === 'technician') && detailReport?.impression && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<DownloadIcon fontSize="small" />}
+                        onClick={() => handleDownloadReport(detailReport.id)}
+                        disabled={!detailHasPdf}
+                      >
+                        Download Report
+                      </Button>
+                    )}
+                  {allowDoctorFileOps && detailFile && detailReport && !detailReport.impression && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Button
+                        variant="outlined"
+                          size="small"
+                          onClick={() => handleAssignLabel(detailPatient, detailFile, 'normal')}
+                          disabled={labelSubmittingId === detailFile.id}
+                        >
+                          Normal
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="error"
+                          onClick={() => handleAssignLabel(detailPatient, detailFile, 'abnormal')}
+                          disabled={labelSubmittingId === detailFile.id}
+                        >
+                          Abnormal
+                        </Button>
+                      </Stack>
+                    )}
+                    {allowDoctorFileOps && detailFile && (
+                      <IconButton
+                        color="error"
+                        size="small"
+                      onClick={async () => {
+                        if (!detailFile || !detailPatient) return;
+                        if (!window.confirm('Are you sure you want to delete this EEG file?')) return;
+                        try {
+                          await apiClient.deleteFile(detailFile.id);
+                          await apiClient.deletePatient(detailPatient.id);
+                          setSuccess('EEG file and patient deleted successfully');
+                          await loadPatients();
+                          setActiveEEGFileId(null);
+                          setActiveTopomapFileId(null);
+                          setDetailPatient(null);
+                          setTimeout(() => setSuccess(''), 3000);
+                        } catch (err) {
+                          setError('Failed to delete EEG file');
+                        }
+                      }}
                     >
-                      {detailReport ? 'Edit Report' : 'Create Report'}
-                    </Button>
-                  )}
-                  {(isReadOnly || user?.user_type === 'technician') && detailReport && (
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<DownloadIcon fontSize="small" />}
-                      onClick={() => handleDownloadReport(detailReport.id)}
-                      disabled={!detailHasPdf}
-                    >
-                      Download Report
-                    </Button>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
                   )}
                 </Stack>
               </Paper>
@@ -1260,7 +1419,7 @@ const Patients: React.FC<{
                 {error}
               </Alert>
             )}
-            {!editingPatient && (
+            {(!editingPatient || allowDesktopCreate) && (
               <Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                   EEG File
