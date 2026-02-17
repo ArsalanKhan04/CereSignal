@@ -783,6 +783,7 @@ async def get_plot_data(
                 }
 
             montage_channels = []
+            total_duration = seg.get("total_duration", 0)
             if montage == "bipolar_longitudinal":
                 pairs = [
                     ("FP1", "F7"),
@@ -857,6 +858,7 @@ async def get_plot_data(
                 "start_time": seg.get("start_time", 0),
                 "end_time": seg.get("end_time", 0),
                 "n_samples": seg.get("n_samples", 0),
+                "total_duration": total_duration,
             }
 
         if montage == "original" and seg.get("channels"):

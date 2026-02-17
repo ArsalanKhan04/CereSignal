@@ -21,7 +21,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Tooltip
+  Tooltip,
+  Divider
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
@@ -52,6 +53,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [montage, setMontage] = useState<string>('original');
   const [sensitivity, setSensitivity] = useState<number>(2.5);
   const [plotData, setPlotData] = useState<any | null>(null);
+  const [totalDuration, setTotalDuration] = useState<number | null>(null);
   const [plotLoading, setPlotLoading] = useState(false);
   const [error, setError] = useState('');
   const [bookmarks, setBookmarks] = useState<EEGBookmark[]>([]);
@@ -62,28 +64,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [bookmarkDeletingId, setBookmarkDeletingId] = useState<number | null>(null);
   const [plotInstance, setPlotInstance] = useState<HTMLElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [endReached, setEndReached] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Keyboard navigation handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle arrow keys when not typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        setPlotStart((prev) => Math.max(0, prev - plotDuration));
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        setPlotStart((prev) => prev + plotDuration);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [plotDuration]);
+  const plotCacheRef = useRef<Map<string, any>>(new Map());
+  const inflightRef = useRef<Set<string>>(new Set());
+  const MAX_CACHE_ENTRIES = 8;
 
   // Fullscreen change handler
   useEffect(() => {
@@ -109,34 +94,129 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     }
   };
 
-  const fetchPlot = useCallback(async () => {
+  const buildCacheKey = useCallback(
+    (start: number, duration: number, montageName: string) => `${fileId}-${start}-${duration}-${montageName}`,
+    [fileId]
+  );
+
+  const setCache = (key: string, value: any) => {
+    const cache = plotCacheRef.current;
+    if (cache.has(key)) {
+      cache.delete(key);
+    }
+    cache.set(key, value);
+    if (cache.size > MAX_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey) {
+        cache.delete(oldestKey);
+      }
+    }
+  };
+
+  const fetchPlot = useCallback(async (options?: { startOverride?: number; force?: boolean; background?: boolean }) => {
     if (!fileId) return;
-    setPlotLoading(true);
-    setError('');
+    const start = options?.startOverride ?? plotStart;
+    const cacheKey = buildCacheKey(start, plotDuration, montage);
+    if (!options?.force) {
+      const cached = plotCacheRef.current.get(cacheKey);
+      if (cached) {
+        setPlotData(cached);
+        return;
+      }
+    }
+    if (inflightRef.current.has(cacheKey)) {
+      return;
+    }
+    inflightRef.current.add(cacheKey);
+    if (!options?.background) {
+      setPlotLoading(true);
+      setError('');
+    }
     try {
-      const resp = await apiClient.getPlotData(fileId, plotStart, plotDuration, undefined, montage);
+      const resp = await apiClient.getPlotData(fileId, start, plotDuration, undefined, montage);
       if (resp.status === 200) {
-        setPlotData(resp.data.plot_data);
+        const plotPayload = resp.data.plot_data;
+        setCache(cacheKey, plotPayload);
+        setPlotData(plotPayload);
+        if (typeof plotPayload?.total_duration === 'number') {
+          setTotalDuration(plotPayload.total_duration);
+        }
       } else {
-        setError('Failed to load plot data');
+        if (!options?.background) {
+          setError('Failed to load plot data');
+        }
       }
     } catch (err) {
-      const errorMessage = err && typeof err === 'object'
-        ? ((err as any).response?.data?.detail || (err as any).message)
-        : undefined;
-      setError(typeof errorMessage === 'string' ? errorMessage : 'Error loading plot data');
+      if (!options?.background) {
+        const errorMessage = err && typeof err === 'object'
+          ? ((err as any).response?.data?.detail || (err as any).message)
+          : undefined;
+        setError(typeof errorMessage === 'string' ? errorMessage : 'Error loading plot data');
+      }
     } finally {
-      setPlotLoading(false);
+      inflightRef.current.delete(cacheKey);
+      if (!options?.background) {
+        setPlotLoading(false);
+      }
     }
-  }, [fileId, plotStart, plotDuration, montage, sensitivity]);
+  }, [fileId, plotStart, plotDuration, montage, buildCacheKey]);
 
   useEffect(() => {
     if (!fileId) return;
-    const id = setTimeout(() => {
-      fetchPlot();
-    }, 300);
-    return () => clearTimeout(id);
+    fetchPlot();
   }, [fileId, montage, plotStart, plotDuration, fetchPlot]);
+
+  const goToStart = useCallback((nextStart: number) => {
+    const durationLimit = totalDuration ?? Infinity;
+    const rawMaxStart = Math.max(0, durationLimit - plotDuration);
+    const maxStart = Number.isFinite(rawMaxStart)
+      ? Math.floor(rawMaxStart / plotDuration) * plotDuration
+      : rawMaxStart;
+    if (Number.isFinite(maxStart) && nextStart > maxStart) {
+      setEndReached(true);
+    } else {
+      setEndReached(false);
+    }
+    const clampedStart = Math.max(0, Math.min(nextStart, maxStart));
+    const snappedStart = Math.floor(clampedStart / plotDuration) * plotDuration;
+    const cacheKey = buildCacheKey(snappedStart, plotDuration, montage);
+    const cached = plotCacheRef.current.get(cacheKey);
+    if (cached) {
+      setPlotData(cached);
+    }
+    setPlotStart(snappedStart);
+  }, [buildCacheKey, plotDuration, montage, totalDuration]);
+
+  // Keyboard navigation handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle arrow keys when not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToStart(Math.max(0, plotStart - plotDuration));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToStart(plotStart + plotDuration);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [plotDuration, plotStart, goToStart]);
+
+  useEffect(() => {
+    if (!fileId) return;
+    if (totalDuration !== null && plotStart + plotDuration >= totalDuration) return;
+    const nextStart = plotStart + plotDuration;
+    const nextKey = buildCacheKey(nextStart, plotDuration, montage);
+    if (!plotCacheRef.current.has(nextKey) && !inflightRef.current.has(nextKey)) {
+      fetchPlot({ startOverride: nextStart, background: true });
+    }
+  }, [fileId, plotStart, plotDuration, montage, buildCacheKey, fetchPlot, totalDuration]);
 
   useEffect(() => {
     if (!fileId) return;
@@ -345,7 +425,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
 
           <Box display="flex" alignItems="center" gap={0.5}>
             <Tooltip title="Previous window (Left Arrow)">
-              <IconButton size="small" onClick={() => setPlotStart((prev) => Math.max(0, prev - plotDuration))}>
+              <IconButton size="small" onClick={() => goToStart(Math.max(0, plotStart - plotDuration))}>
                 <ChevronLeftIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -353,17 +433,31 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
               label="Start"
               type="number"
               value={plotStart}
-              onChange={(e) => setPlotStart(Number(e.target.value))}
+              onChange={(e) => goToStart(Number(e.target.value))}
+              onBlur={(e) => goToStart(Number(e.target.value))}
               size="small"
-              sx={{ width: 80 }}
-              inputProps={{ step: 1 }}
+              sx={{ width: 100 }}
+              inputProps={{
+                step: 1,
+                min: 0,
+                max: totalDuration ? Math.max(0, totalDuration - plotDuration) : undefined,
+              }}
             />
             <Tooltip title="Next window (Right Arrow)">
-              <IconButton size="small" onClick={() => setPlotStart((prev) => prev + plotDuration)}>
+              <IconButton
+                size="small"
+                onClick={() => goToStart(plotStart + plotDuration)}
+                disabled={totalDuration !== null && plotStart + plotDuration >= totalDuration}
+              >
                 <ChevronRightIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
+          {totalDuration !== null && (
+            <Typography variant="caption" color="text.secondary">
+              / {Math.max(0, totalDuration - plotDuration).toFixed(0)}s
+            </Typography>
+          )}
 
           <FormControl size="small" sx={{ minWidth: 100 }}>
             <InputLabel>Window</InputLabel>
@@ -409,23 +503,23 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
             </Select>
           </FormControl>
 
-          <Button
-            size="small"
-            variant="contained"
-            onClick={fetchPlot}
-            disabled={plotLoading}
-            sx={{ minWidth: 64, height: 28 }}
-          >
-            {plotLoading ? <CircularProgress size={14} /> : 'Load'}
-          </Button>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => fetchPlot({ force: true })}
+              disabled={plotLoading}
+              sx={{ minWidth: 64, height: 28 }}
+            >
+              {plotLoading ? <CircularProgress size={14} /> : 'Load'}
+            </Button>
 
-           <Button
-             size="small"
-             variant="outlined"
-             startIcon={<RefreshIcon fontSize="small" />}
-             onClick={fetchPlot}
-             sx={{ minWidth: 72, height: 28 }}
-           >
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<RefreshIcon fontSize="small" />}
+              onClick={() => fetchPlot({ force: true })}
+              sx={{ minWidth: 72, height: 28 }}
+            >
              Refresh
            </Button>
 
@@ -468,6 +562,13 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
               onInitialized={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
               onUpdate={(_: any, graphDiv: HTMLElement) => setPlotInstance(graphDiv)}
             />
+            {endReached && (
+              <Divider sx={{ mt: 2 }} textAlign="center">
+                <Typography variant="caption" color="text.secondary">
+                  End of recording
+                </Typography>
+              </Divider>
+            )}
           </Box>
         )}
 
