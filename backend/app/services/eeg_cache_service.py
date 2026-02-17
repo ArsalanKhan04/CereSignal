@@ -68,13 +68,18 @@ class EEGCacheService:
         raw = meta["raw"]
         sfreq = meta["sfreq"]
         ch_names = meta["ch_names"]
+        total_duration = (raw.n_times / sfreq) if sfreq else 0.0
 
         # compute start/end samples
         if start_time < 0:
             start_time = 0.0
         if duration <= 0:
             duration = 10.0
+        if total_duration and start_time > total_duration:
+            start_time = max(0.0, total_duration - duration)
         end_time = start_time + duration
+        if total_duration and end_time > total_duration:
+            end_time = total_duration
 
         start_sample = int(start_time * sfreq)
         end_sample = int(end_time * sfreq)
@@ -113,6 +118,7 @@ class EEGCacheService:
             "start_time": start_time,
             "end_time": end_time,
             "n_samples": data.shape[1] if data is not None else 0,
+            "total_duration": total_duration,
         }
 
 
