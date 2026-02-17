@@ -15,31 +15,22 @@ import mne
 from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.logging_config import (
-    log_db_operation,
-    log_error,
-    log_file_operation,
-    log_request,
-    logger,
-)
+from app.core.logging_config import (log_db_operation, log_error,
+                                     log_file_operation, log_request, logger)
 from app.models.auth import AuthUser, UserType
-from app.models.signal import EEGBookmark, Signal, SignalFile
 from app.models.report import EEGReport
+from app.models.signal import EEGBookmark, Signal, SignalFile
 from app.models.user import User
-from app.schemas.signal import (
-    EEGBookmarkCreate,
-    EEGBookmarkResponse,
-    FileUploadResponse,
-    ProcessingRequest,
-    SignalFileResponse,
-    SignalResponse,
-)
+from app.schemas.signal import (EEGBookmarkCreate, EEGBookmarkResponse,
+                                FileUploadResponse, ProcessingRequest,
+                                SignalFileResponse, SignalResponse)
 from app.services.eeg_cache_service import eeg_cache
 from app.services.inference_service import inference_service
 from app.services.pdf_service import pdf_generator
 from app.utils.file_processing import process_signal_file, save_uploaded_file
 from external.edf_preprocess import process_edf
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
+                     status)
 from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -796,6 +787,7 @@ async def get_plot_data(
                 }
 
             montage_channels = []
+            total_duration = seg.get("total_duration", 0)
             if montage == "bipolar_longitudinal":
                 pairs = [
                     ("FP1", "F7"),
@@ -870,6 +862,7 @@ async def get_plot_data(
                 "start_time": seg.get("start_time", 0),
                 "end_time": seg.get("end_time", 0),
                 "n_samples": seg.get("n_samples", 0),
+                "total_duration": total_duration,
             }
 
         if montage == "original" and seg.get("channels"):

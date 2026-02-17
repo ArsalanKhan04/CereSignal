@@ -166,6 +166,58 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     fetchPlot();
   }, [fileId, montage, plotStart, plotDuration, fetchPlot]);
 
+  const goToStart = useCallback((nextStart: number) => {
+    const durationLimit = totalDuration ?? Infinity;
+    const rawMaxStart = Math.max(0, durationLimit - plotDuration);
+    const maxStart = Number.isFinite(rawMaxStart)
+      ? Math.floor(rawMaxStart / plotDuration) * plotDuration
+      : rawMaxStart;
+    if (Number.isFinite(maxStart) && nextStart > maxStart) {
+      setEndReached(true);
+    } else {
+      setEndReached(false);
+    }
+    const clampedStart = Math.max(0, Math.min(nextStart, maxStart));
+    const snappedStart = Math.floor(clampedStart / plotDuration) * plotDuration;
+    const cacheKey = buildCacheKey(snappedStart, plotDuration, montage);
+    const cached = plotCacheRef.current.get(cacheKey);
+    if (cached) {
+      setPlotData(cached);
+    }
+    setPlotStart(snappedStart);
+  }, [buildCacheKey, plotDuration, montage, totalDuration]);
+
+  // Keyboard navigation handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle arrow keys when not typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToStart(Math.max(0, plotStart - plotDuration));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToStart(plotStart + plotDuration);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [plotDuration, plotStart, goToStart]);
+
+  useEffect(() => {
+    if (!fileId) return;
+    if (totalDuration !== null && plotStart + plotDuration >= totalDuration) return;
+    const nextStart = plotStart + plotDuration;
+    const nextKey = buildCacheKey(nextStart, plotDuration, montage);
+    if (!plotCacheRef.current.has(nextKey) && !inflightRef.current.has(nextKey)) {
+      fetchPlot({ startOverride: nextStart, background: true });
+    }
+  }, [fileId, plotStart, plotDuration, montage, buildCacheKey, fetchPlot, totalDuration]);
+
   useEffect(() => {
     if (!fileId || totalDuration !== null) return;
     let isActive = true;
