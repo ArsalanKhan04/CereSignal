@@ -21,9 +21,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
   Tooltip
 } from '@mui/material';
 import {
@@ -62,7 +59,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [bookmarkComment, setBookmarkComment] = useState('');
   const [bookmarkSaving, setBookmarkSaving] = useState(false);
   const [bookmarkError, setBookmarkError] = useState('');
-  const [replaceBookmarkId, setReplaceBookmarkId] = useState<number | null>(null);
+  const [bookmarkDeletingId, setBookmarkDeletingId] = useState<number | null>(null);
   const [plotInstance, setPlotInstance] = useState<HTMLElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,7 +157,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const openBookmarkDialog = () => {
     setBookmarkComment('');
     setBookmarkError('');
-    setReplaceBookmarkId(null);
     setBookmarkDialogOpen(true);
   };
 
@@ -178,7 +174,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       const response = await apiClient.createBookmark(fileId, {
         image_base64: imageData,
         comment: bookmarkComment.trim() || undefined,
-        replace_id: replaceBookmarkId || undefined,
       });
 
       if (response.status === 201) {
@@ -195,6 +190,24 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       setBookmarkError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     } finally {
       setBookmarkSaving(false);
+    }
+  };
+
+  const handleBookmarkDelete = async (bookmarkId: number) => {
+    setBookmarkDeletingId(bookmarkId);
+    setBookmarkError('');
+    try {
+      const response = await apiClient.deleteBookmark(fileId, bookmarkId);
+      if (response.status === 200) {
+        setBookmarks((prev) => prev.filter((bookmark) => bookmark.id !== bookmarkId));
+      } else {
+        setBookmarkError('Failed to delete bookmark.');
+      }
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.detail || err?.message || 'Failed to delete bookmark.';
+      setBookmarkError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+    } finally {
+      setBookmarkDeletingId(null);
     }
   };
 
@@ -458,39 +471,15 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
           </Box>
         )}
 
-        {bookmarks.length > 0 && (
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              Saved Bookmarks
-            </Typography>
-            <Stack spacing={2}>
-              {bookmarks.map((bookmark) => (
-                <Card key={bookmark.id} variant="outlined">
-                  <CardContent sx={{ p: 2 }}>
-                    <Stack spacing={1.5}>
-                      <Box
-                        component="img"
-                        src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
-                        alt="EEG bookmark"
-                        sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
-                      />
-                      {bookmark.comment && (
-                        <Typography variant="body2" color="text.secondary">
-                          {bookmark.comment}
-                        </Typography>
-                      )}
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(bookmark.created_at).toLocaleString()}
-                      </Typography>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        <Dialog open={bookmarkDialogOpen} onClose={() => setBookmarkDialogOpen(false)} maxWidth="sm" fullWidth>
+        <Dialog
+          open={bookmarkDialogOpen}
+          onClose={() => setBookmarkDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          fullScreen={isFullscreen}
+          disablePortal={isFullscreen}
+          container={isFullscreen ? containerRef.current : undefined}
+        >
           <DialogTitle>Bookmark Current View</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
@@ -504,21 +493,53 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
                 multiline
                 minRows={2}
               />
-              {bookmarks.length >= 2 && (
-                <RadioGroup
-                  value={replaceBookmarkId ?? ''}
-                  onChange={(e) => setReplaceBookmarkId(Number(e.target.value))}
-                >
-                  {bookmarks.map((bookmark) => (
-                    <FormControlLabel
-                      key={bookmark.id}
-                      value={bookmark.id}
-                      control={<Radio />}
-                      label={`Replace bookmark from ${new Date(bookmark.created_at).toLocaleString()}`}
-                    />
-                  ))}
-                </RadioGroup>
-              )}
+              <Box sx={{ pt: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Saved Bookmarks
+                </Typography>
+                {bookmarks.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No bookmarks saved yet.
+                  </Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    {bookmarks.map((bookmark) => (
+                      <Card key={bookmark.id} variant="outlined">
+                        <CardContent sx={{ p: 2 }}>
+                          <Stack spacing={1.5}>
+                            <Box
+                              component="img"
+                              src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
+                              alt="EEG bookmark"
+                              sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                            />
+                            {bookmark.comment && (
+                              <Typography variant="body2" color="text.secondary">
+                                {bookmark.comment}
+                              </Typography>
+                            )}
+                            <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(bookmark.created_at).toLocaleString()}
+                              </Typography>
+                              <Button
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                onClick={() => handleBookmarkDelete(bookmark.id)}
+                                disabled={bookmarkDeletingId === bookmark.id}
+                                sx={{ minWidth: 96 }}
+                              >
+                                {bookmarkDeletingId === bookmark.id ? 'Deleting...' : 'Remove'}
+                              </Button>
+                            </Box>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
             </Stack>
           </DialogContent>
           <DialogActions>

@@ -26,6 +26,7 @@ from app.core.logging_config import (
     log_error,
 )
 from app.models.signal import SignalFile, Signal, EEGBookmark
+from app.models.report import EEGReport
 from app.models.user import User
 from app.models.auth import AuthUser, UserType
 from app.schemas.signal import (
@@ -39,6 +40,7 @@ from app.schemas.signal import (
 from app.core.config import settings
 from app.utils.file_processing import save_uploaded_file, process_signal_file
 from app.services.inference_service import inference_service
+from app.services.pdf_service import pdf_generator
 from app.services.eeg_cache_service import eeg_cache
 from external.edf_preprocess import process_edf
 import mne
@@ -437,6 +439,20 @@ async def create_file_bookmark(
     db.commit()
     db.refresh(bookmark)
 
+    try:
+        report = db.query(EEGReport).filter(EEGReport.file_id == file_id).first()
+        if report:
+            if report.pdf_file_path and os.path.exists(report.pdf_file_path):
+                os.remove(report.pdf_file_path)
+            doctor = db.query(AuthUser).filter(AuthUser.id == report.auth_user_id).first()
+            if doctor:
+                pdf_path = pdf_generator.generate_report_pdf(report, file, doctor)
+                report.pdf_file_path = pdf_path
+                db.commit()
+    except Exception as e:
+        db.rollback()
+        log_error(e, f"Failed to regenerate PDF after bookmark for file {file_id}")
+
     return EEGBookmarkResponse(
         id=bookmark.id,
         file_id=bookmark.file_id,
@@ -445,6 +461,77 @@ async def create_file_bookmark(
         created_at=bookmark.created_at,
         created_by=bookmark.created_by,
     )
+
+
+@router.delete("/files/{file_id}/bookmarks/{bookmark_id}")
+async def delete_file_bookmark(
+    file_id: int,
+    bookmark_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Delete an EEG bookmark for a signal file"""
+
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+        )
+
+    if current_user.user_type == UserType.PATIENT.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patients cannot delete bookmarks",
+        )
+
+    if current_user.user_type == UserType.DOCTOR.value:
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == file.user_id,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+            .first()
+        )
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files for your patients",
+            )
+
+    bookmark = (
+        db.query(EEGBookmark)
+        .filter(EEGBookmark.id == bookmark_id, EEGBookmark.file_id == file_id)
+        .first()
+    )
+    if not bookmark:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Bookmark not found"
+        )
+
+    try:
+        if bookmark.image_path and os.path.exists(bookmark.image_path):
+            os.remove(bookmark.image_path)
+        db.delete(bookmark)
+        db.commit()
+
+        report = db.query(EEGReport).filter(EEGReport.file_id == file_id).first()
+        if report:
+            if report.pdf_file_path and os.path.exists(report.pdf_file_path):
+                os.remove(report.pdf_file_path)
+            doctor = db.query(AuthUser).filter(AuthUser.id == report.auth_user_id).first()
+            if doctor:
+                pdf_path = pdf_generator.generate_report_pdf(report, file, doctor)
+                report.pdf_file_path = pdf_path
+                db.commit()
+
+        return {"message": "Bookmark deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting bookmark: {str(e)}",
+        )
 
 
 @router.get("/files", response_model=List[SignalFileResponse])

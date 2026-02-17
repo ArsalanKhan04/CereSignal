@@ -206,6 +206,11 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async deleteBookmark(fileId: number, bookmarkId: number): Promise<ApiResponse<{ message: string }>> {
+    const response = await this.client.delete(`/signals/files/${fileId}/bookmarks/${bookmarkId}`);
+    return { data: response.data, status: response.status };
+  }
+
   async checkInferenceStatus(fileId: number): Promise<ApiResponse<{ file_id: number; condition: string; inference_status: string; message: string; task_id?: string }>> {
     const response = await this.client.get(`/signals/files/${fileId}/inference-status`);
     return { data: response.data, status: response.status };
