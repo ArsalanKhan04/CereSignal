@@ -24,7 +24,6 @@
     "axios": "^1.12.2",
     "ceresignal-desktop": "file:..",
     "dayjs": "^1.11.18",
-    "package.json": "^2.0.1",
     "plotly.js-basic-dist": "^2.22.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
