@@ -18,10 +18,6 @@
     ],
     "extraResources": [
       {
-        "from": "resources/redis-server.exe",
-        "to": "redis-server.exe"
-      },
-      {
         "from": "backend/dist/cere-engine",
         "to": "backend"
       }

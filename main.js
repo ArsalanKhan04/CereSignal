@@ -6,7 +6,6 @@ const fs = require('fs');
 let mainWindow;
 let backendProcess;
 let workerProcess;
-let redisProcess;
 let desktopLogPath;
 
 const isDesktopMode = process.env.DESKTOP_MODE === 'true' || process.env.REACT_APP_DESKTOP === 'true';
@@ -21,19 +20,6 @@ function getBinaryPath(binaryName) {
     return path.join(__dirname, 'resources', binaryName);
 }
 
-function startRedis() {
-    if (isDesktopMode) {
-        return;
-    }
-    const redisPath = getBinaryPath('redis-server.exe');
-    writeDesktopLog({
-        level: 'info',
-        message: 'Starting Redis',
-        context: 'BOOT',
-        data: { path: redisPath }
-    });
-    redisProcess = spawn(redisPath, [], { stdio: 'ignore', windowsHide: true });
-}
 
 function startBackend() {
     let backendExe;
@@ -126,7 +112,6 @@ function startWorker() {
 
 function createWindow() {
     // 1. Start Background Services
-    startRedis();
     startBackend();
     startWorker();
 
@@ -207,7 +192,6 @@ ipcMain.on('desktop-log', (_event, entry) => {
 
 // CLEANUP: Kill ALL processes when app closes
 app.on('will-quit', () => {
-    if (redisProcess) redisProcess.kill();
     if (backendProcess) backendProcess.kill();
     if (workerProcess) workerProcess.kill();
 });

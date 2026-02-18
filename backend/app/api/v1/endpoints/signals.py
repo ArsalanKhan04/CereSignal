@@ -1014,6 +1014,19 @@ async def get_signal_stats(
 async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
     """Check the status of inference for a specific file"""
 
+    if settings.DESKTOP_MODE:
+        file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+        if not file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+            )
+        return {
+            "file_id": file_id,
+            "condition": file.condition,
+            "inference_status": "not_started",
+            "message": "Inference is disabled in desktop mode",
+        }
+
     report_task_id = None
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
@@ -1092,6 +1105,17 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
     If completed, stores the report in the database.
     """
     try:
+        if settings.DESKTOP_MODE:
+            file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+            if not file:
+                raise HTTPException(status_code=404, detail="Signal file not found")
+            return {
+                "file_id": file_id,
+                "report_status": "not_started",
+                "message": "Report generation is disabled in desktop mode",
+                "has_report": bool(file.factual_report),
+            }
+
         file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
         if not file:
             raise HTTPException(status_code=404, detail="Signal file not found")
