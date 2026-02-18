@@ -8,10 +8,15 @@ block_cipher = None
 project_root = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = []
+# This forces PyInstaller to grab the missing .pyi files for mne
+datas += collect_data_files('mne')
+datas += collect_data_files('celery') # Added just in case Celery needs data files too
+
 datas += collect_data_files("app")
 datas.append((os.path.join(project_root, "app", "static"), "app/static"))
 
 hiddenimports = [
+    # --- Core App ---
     "app",
     "app.main",
     "app.api",
@@ -26,6 +31,66 @@ hiddenimports = [
     "app.services",
     "external.edf_preprocess",
     "passlib.handlers.bcrypt",
+
+    # --- CELERY ---
+    "celery",
+    "celery.fixups",
+    "celery.fixups.django", 
+    "celery.loaders.app",
+    "celery.worker.components",
+    "celery.concurrency.prefork",
+    "celery.app.amqp",
+    "celery.app.control",
+    "celery.app.events",
+    "celery.app.log",
+    "celery.app.routes",
+    "celery.app.task",
+    "celery.app.trace",
+    
+    # --- MNE CORE & UTILS ---
+    "mne",
+    "mne.utils",
+    "mne.utils._logging",
+    "mne.utils.dataframe",
+    "mne.utils.check",
+    "mne.utils.config",
+    "mne.utils.linalg",
+    "mne.utils.numerics",
+    "mne.utils.docs", 
+    "mne.utils.misc",
+    "mne.fixes",
+    "mne.utils.progressbar",
+    "mne.viz",
+    "mne.viz.utils",
+    "mne.utils._testing",
+    "mne.utils.fetching",
+    "mne.utils.mixin",       
+    "mne.utils.deprecated", 
+    "mne.utils.doc",         
+    
+    # --- MNE IO INTERNALS ---
+    "mne.io",
+    "mne.io.fiff",        
+    "mne.io.fiff.raw",
+    "mne.io.array",
+    "mne.io.meas_info",
+    "mne.io.proj",
+    "mne.io.tag",
+    "mne.io.tree",
+    "mne.io.write",
+    "mne.io.pick",
+    "mne.io.constants",
+    "mne.io.open",
+    
+    # --- MNE EXTRAS ---
+    "mne.html_templates",
+    "mne.html_templates._templates",
+    "mne.defaults",
+    "mne.event",
+    "mne.epochs",
+    "mne.rank",
+    "mne.filter",
+    "mne.preprocessing",
 ]
 
 excluded_modules = [
@@ -39,7 +104,6 @@ excluded_modules = [
     "external.models.neurogate",
     "external.models.neurotransformer",
     "inference",
-    "app.services.inference_service",
 ]
 
 a = Analysis(

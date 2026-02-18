@@ -27,3 +27,4 @@ itsdangerous
 httptools
 python-json-logger
 pyinstaller
+celery
