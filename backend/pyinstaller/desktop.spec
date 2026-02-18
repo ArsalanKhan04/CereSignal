@@ -5,11 +5,10 @@ from PyInstaller.utils.hooks import collect_data_files
 
 block_cipher = None
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+project_root = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = []
 datas += collect_data_files("app")
-datas.append((os.path.join(project_root, "uploads"), "uploads"))
 datas.append((os.path.join(project_root, "app", "static"), "app/static"))
 
 hiddenimports = [
@@ -26,6 +25,7 @@ hiddenimports = [
     "app.schemas",
     "app.services",
     "external.edf_preprocess",
+    "passlib.handlers.bcrypt",
 ]
 
 excluded_modules = [

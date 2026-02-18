@@ -12,8 +12,8 @@ if (-Not (Test-Path "requirements-desktop.txt")) {
   throw "requirements-desktop.txt not found"
 }
 
-python -m pip install --upgrade pip
-python -m pip install -r requirements-desktop.txt
+pip install --upgrade pip
+pip install -r requirements-desktop.txt
 
 pyinstaller --clean --noconfirm "pyinstaller/desktop.spec"
 

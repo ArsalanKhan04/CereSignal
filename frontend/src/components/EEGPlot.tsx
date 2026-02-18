@@ -241,27 +241,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     };
   }, [fileId, totalDuration]);
 
-  const goToStart = useCallback((nextStart: number) => {
-    const durationLimit = totalDuration ?? Infinity;
-    const rawMaxStart = Math.max(0, durationLimit - plotDuration);
-    const maxStart = Number.isFinite(rawMaxStart)
-      ? Math.floor(rawMaxStart / plotDuration) * plotDuration
-      : rawMaxStart;
-    if (Number.isFinite(maxStart) && nextStart > maxStart) {
-      setEndReached(true);
-    } else {
-      setEndReached(false);
-    }
-    const clampedStart = Math.max(0, Math.min(nextStart, maxStart));
-    const snappedStart = Math.floor(clampedStart / plotDuration) * plotDuration;
-    const cacheKey = buildCacheKey(snappedStart, plotDuration, montage);
-    const cached = plotCacheRef.current.get(cacheKey);
-    if (cached) {
-      setPlotData(cached);
-    }
-    setPlotStart(snappedStart);
-  }, [buildCacheKey, plotDuration, montage, totalDuration]);
-
   useEffect(() => {
     if (totalDuration === null) return;
     const durationLimit = totalDuration ?? Infinity;

@@ -25,5 +25,5 @@ PyJWT
 email-validator
 itsdangerous
 httptools
-uvloop
 python-json-logger
+pyinstaller

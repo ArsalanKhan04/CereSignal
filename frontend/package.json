@@ -36,13 +36,14 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.16",
+    "cross-env": "^10.1.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.1"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "build:desktop": "REACT_APP_DESKTOP=true react-scripts build",
+    "build:desktop": "cross-env REACT_APP_DESKTOP=true react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

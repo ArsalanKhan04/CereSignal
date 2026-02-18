@@ -3,18 +3,18 @@
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "start:desktop": "REACT_APP_DESKTOP=true electron .",
-    "build": "npm --prefix frontend run build && electron-builder --win nsis",
-    "build:desktop": "powershell -ExecutionPolicy Bypass -File backend/build-desktop.ps1 && npm --prefix frontend run build:desktop && REACT_APP_DESKTOP=true electron-builder --win nsis"
-  },
+      "start": "electron .",
+      "start:desktop": "cross-env REACT_APP_DESKTOP=true electron .",
+      "build": "npm --prefix frontend run build && electron-builder --win nsis",
+      "build:desktop": "powershell -ExecutionPolicy Bypass -File backend/build-desktop.ps1 && npm --prefix frontend run build:desktop && cross-env REACT_APP_DESKTOP=true electron-builder --win nsis"
+    },
   "build": {
     "appId": "com.ceresignal.app",
     "productName": "CereSignal",
     "files": [
       "main.js",
       "preload.js",
-      "frontend/build/**/*" 
+      "frontend/build/**/*"
     ],
     "extraResources": [
       {
@@ -36,6 +36,7 @@
     }
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1"
   }
