@@ -25,7 +25,6 @@ from app.schemas.signal import (EEGBookmarkCreate, EEGBookmarkResponse,
                                 FileUploadResponse, ProcessingRequest,
                                 SignalFileResponse, SignalResponse)
 from app.services.eeg_cache_service import eeg_cache
-from app.services.inference_service import inference_service
 from app.services.pdf_service import pdf_generator
 from app.utils.file_processing import process_signal_file, save_uploaded_file
 from external.edf_preprocess import process_edf
@@ -60,6 +59,33 @@ EEG_CHANNEL_ORDER = [
 ]
 
 router = APIRouter()
+
+
+class _DesktopInferenceService:
+    def start_inference(self, file_path: str) -> str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inference is disabled in desktop mode",
+        )
+
+    def get_task_status(self, task_id: str):
+        return {
+            "status": "not_started",
+            "message": "Inference is disabled in desktop mode",
+        }
+
+
+_desktop_inference_service = _DesktopInferenceService()
+
+
+def _get_inference_service():
+    if settings.DESKTOP_MODE:
+        return _desktop_inference_service
+
+    from importlib import import_module
+
+    module = import_module("app.services.inference_service")
+    return module.inference_service
 
 
 def _regenerate_report_pdf(db: Session, file: SignalFile) -> None:
@@ -248,7 +274,7 @@ async def upload_signal_file(
             else:
                 # Start inference task
                 try:
-                    task_id = inference_service.start_inference(file_path)
+                    task_id = _get_inference_service().start_inference(file_path)
                     db_file.task_id = task_id
                     db.commit()
                     logger.info(
@@ -1045,7 +1071,7 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
 
     try:
         # Check task status
-        task_status = inference_service.get_task_status(file.task_id)
+        task_status = _get_inference_service().get_task_status(file.task_id)
         report_task_id = None
 
         # If task is completed, update the database
@@ -1143,7 +1169,7 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
             }
 
         # Check task status
-        status_data = inference_service.get_task_status(file.report_task_id)
+        status_data = _get_inference_service().get_task_status(file.report_task_id)
 
         if not status_data:
             raise HTTPException(status_code=404, detail="Report task not found")

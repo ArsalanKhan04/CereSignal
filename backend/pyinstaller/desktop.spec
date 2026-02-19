@@ -35,7 +35,7 @@ hiddenimports = [
     # --- CELERY ---
     "celery",
     "celery.fixups",
-    "celery.fixups.django", 
+    "celery.fixups.django",
     "celery.loaders.app",
     "celery.worker.components",
     "celery.concurrency.prefork",
@@ -46,7 +46,7 @@ hiddenimports = [
     "celery.app.routes",
     "celery.app.task",
     "celery.app.trace",
-    
+
     # --- MNE CORE & UTILS ---
     "mne",
     "mne.utils",
@@ -56,7 +56,7 @@ hiddenimports = [
     "mne.utils.config",
     "mne.utils.linalg",
     "mne.utils.numerics",
-    "mne.utils.docs", 
+    "mne.utils.docs",
     "mne.utils.misc",
     "mne.fixes",
     "mne.utils.progressbar",
@@ -64,13 +64,13 @@ hiddenimports = [
     "mne.viz.utils",
     "mne.utils._testing",
     "mne.utils.fetching",
-    "mne.utils.mixin",       
-    "mne.utils.deprecated", 
-    "mne.utils.doc",         
-    
+    "mne.utils.mixin",
+    "mne.utils.deprecated",
+    "mne.utils.doc",
+
     # --- MNE IO INTERNALS ---
     "mne.io",
-    "mne.io.fiff",        
+    "mne.io.fiff",
     "mne.io.fiff.raw",
     "mne.io.array",
     "mne.io.meas_info",
@@ -81,7 +81,7 @@ hiddenimports = [
     "mne.io.pick",
     "mne.io.constants",
     "mne.io.open",
-    
+
     # --- MNE EXTRAS ---
     "mne.html_templates",
     "mne.html_templates._templates",
@@ -104,6 +104,7 @@ excluded_modules = [
     "external.models.neurogate",
     "external.models.neurotransformer",
     "inference",
+    "app.services.inference_service",
 ]
 
 a = Analysis(
