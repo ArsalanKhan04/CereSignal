@@ -8,7 +8,8 @@ let backendProcess;
 let workerProcess;
 let desktopLogPath;
 
-const isDesktopMode = process.env.DESKTOP_MODE === 'true' || process.env.REACT_APP_DESKTOP === 'true';
+const isWindowsPackaged = process.platform === 'win32' && app.isPackaged;
+const isDesktopMode = isWindowsPackaged || process.env.DESKTOP_MODE === 'true' || process.env.REACT_APP_DESKTOP === 'true';
 
 function getBinaryPath(binaryName) {
     // Helper to find files in both Dev (local) and Prod (installed) modes
