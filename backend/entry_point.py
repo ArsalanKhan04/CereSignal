@@ -28,22 +28,6 @@ IS_DESKTOP_MODE = os.getenv("DESKTOP_MODE", "false").lower() == "true"
 if __name__ == "__main__":
     multiprocessing.freeze_support()  # Mandatory for Windows
 
-    # Check if "worker" was passed as a command-line argument
-    if len(sys.argv) > 1 and sys.argv[1] == "worker":
-        if IS_DESKTOP_MODE:
-            print("--- Desktop mode: Celery worker disabled ---")
-            sys.exit(0)
-
-        print("--- Starting Celery Worker ---")
-
-        # Import Celery app lazily to avoid AI deps in desktop mode
-        from inference.infer import app as celery_app
-
-        celery_app.worker_main(
-            argv=["worker", "--loglevel=info", "--pool=solo"]
-        )
-
-    else:
-        # Normal mode: Start the API server
-        print("--- Starting CereSignal Engine API ---")
-        uvicorn.run(fastapi_app, host="127.0.0.1", port=8000, workers=1)
+    # Normal mode: Start the API server
+    print("--- Starting CereSignal Engine API ---")
+    uvicorn.run(fastapi_app, host="127.0.0.1", port=8000, workers=1)

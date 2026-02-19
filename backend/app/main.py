@@ -8,13 +8,31 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pathlib import Path
+from contextlib import asynccontextmanager
 import uvicorn
+from sqlalchemy.exc import OperationalError
 
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1.api import api_router
 from app.core.middleware import setup_middleware
-from app.models import user, signal, auth  # Import models to ensure they're registered
+from app.models import user, signal, auth
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifecycle manager for FastAPI. 
+    Code before 'yield' runs on startup. Code after runs on shutdown.
+    """
+    # Create database tables safely
+    try:
+        Base.metadata.create_all(bind=engine)
+    except OperationalError as e:
+        # Ignore the exact race condition error if multiple workers start at once
+        if "already exists" not in str(e).lower():
+            raise
+    yield
 
 
 def create_application() -> FastAPI:
@@ -27,6 +45,7 @@ def create_application() -> FastAPI:
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
         docs_url=f"{settings.API_V1_STR}/docs",
         redoc_url=f"{settings.API_V1_STR}/redoc",
+        lifespan=lifespan,
     )
 
     # Setup middleware
@@ -38,9 +57,6 @@ def create_application() -> FastAPI:
     # Public uploads (bookmarks)
     Path("uploads").mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
-    # Create database tables
-    Base.metadata.create_all(bind=engine)
 
     return app
 
