@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError  # <-- Added import to catch race condition
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -82,18 +83,30 @@ def get_current_user(
         desktop_user = db.query(AuthUser).filter(AuthUser.username == "desktop").first()
         if desktop_user:
             return desktop_user
-        desktop_user = AuthUser(
-            username="desktop",
-            email="desktop@local",
-            hashed_password=get_password_hash("desktop"),
-            user_type=UserType.TECHNICIAN.value,
-            is_active=True,
-            is_superuser=False,
-        )
-        db.add(desktop_user)
-        db.commit()
-        db.refresh(desktop_user)
-        return desktop_user
+            
+        # --- FIX: Added try/except to handle race condition ---
+        try:
+            desktop_user = AuthUser(
+                username="desktop",
+                email="desktop@local",
+                hashed_password=get_password_hash("desktop"),
+                user_type=UserType.TECHNICIAN.value,
+                is_active=True,
+                is_superuser=False,
+            )
+            db.add(desktop_user)
+            db.commit()
+            db.refresh(desktop_user)
+            return desktop_user
+        except IntegrityError:
+            # Another concurrent request already created the user!
+            db.rollback() # Clear the failed transaction
+            # Fetch the newly created user instead
+            desktop_user = db.query(AuthUser).filter(AuthUser.username == "desktop").first()
+            if desktop_user:
+                return desktop_user
+        # ------------------------------------------------------
+        
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",

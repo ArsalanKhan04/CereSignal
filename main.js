@@ -11,27 +11,25 @@ let desktopLogPath;
 const isWindowsPackaged = process.platform === 'win32' && app.isPackaged;
 const isDesktopMode = isWindowsPackaged || process.env.DESKTOP_MODE === 'true' || process.env.REACT_APP_DESKTOP === 'true';
 
+// We assume your FastAPI server runs on port 8000 by default.
+// If your .env changes this, update this URL accordingly!
+const BACKEND_HEALTH_URL = 'http://127.0.0.1:8000/health';
+
 function getBinaryPath(binaryName) {
-    // Helper to find files in both Dev (local) and Prod (installed) modes
     if (app.isPackaged) {
-        // Installed App: resources/binaryName
         return path.join(process.resourcesPath, binaryName);
     }
-    // Dev Mode: resources/binaryName
     return path.join(__dirname, 'resources', binaryName);
 }
-
 
 function startBackend() {
     let backendExe;
     let backendDir;
 
     if (app.isPackaged) {
-        // PROD: resources/backend/cere-engine.exe
         backendDir = path.join(process.resourcesPath, 'backend');
         backendExe = path.join(backendDir, 'cere-engine.exe');
     } else {
-        // DEV: backend/dist/cere-engine/cere-engine.exe
         backendDir = path.join(__dirname, 'backend', 'dist', 'cere-engine');
         backendExe = path.join(backendDir, 'cere-engine.exe');
     }
@@ -43,11 +41,10 @@ function startBackend() {
         data: { path: backendExe }
     });
     
-    // CRITICAL: cwd must be set so Python finds its internal files
     const backendLogDir = path.join(app.getPath('userData'), 'backend-logs');
     backendProcess = spawn(backendExe, [], { 
         cwd: backendDir,
-        stdio: 'ignore', // Change to 'inherit' to see logs in terminal
+        stdio: 'ignore', // Change to 'inherit' to see logs in terminal during dev
         windowsHide: true,
         env: {
             ...process.env,
@@ -56,6 +53,7 @@ function startBackend() {
             CERE_LOG_KEEP_FOREVER: '1'
         }
     });
+    
     backendProcess.on('exit', (code, signal) => {
         writeDesktopLog({
             level: 'error',
@@ -73,7 +71,6 @@ function startWorker() {
     let workerExe;
     let workerDir;
 
-    // Reuse the same path logic as the backend, since it's the same EXE file
     if (app.isPackaged) {
         workerDir = path.join(process.resourcesPath, 'backend');
         workerExe = path.join(workerDir, 'cere-engine.exe');
@@ -89,7 +86,6 @@ function startWorker() {
         data: { path: workerExe }
     });
 
-    // CRITICAL: Pass "worker" arg so entry_point.py knows to run Celery instead of Uvicorn
     const backendLogDir = path.join(app.getPath('userData'), 'backend-logs');
     workerProcess = spawn(workerExe, ["worker"], { 
         cwd: workerDir,
@@ -101,6 +97,7 @@ function startWorker() {
             CERE_LOG_KEEP_FOREVER: '1'
         }
     });
+    
     workerProcess.on('exit', (code, signal) => {
         writeDesktopLog({
             level: 'error',
@@ -111,12 +108,35 @@ function startWorker() {
     });
 }
 
-function createWindow() {
+/**
+ * Pings the backend health endpoint until it responds with a 200 OK.
+ */
+async function waitForServer(url, maxRetries = 30, retryDelayMs = 500) {
+    let attempts = 0;
+    while (attempts < maxRetries) {
+        try {
+            const response = await fetch(url);
+            if (response.status === 200) {
+                writeDesktopLog({ level: 'info', message: 'Backend server is healthy and ready.', context: 'BOOT' });
+                return true;
+            }
+        } catch (error) {
+            // Fetch failed, server is not fully booted yet
+        }
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+    }
+    
+    writeDesktopLog({ level: 'error', message: 'Timeout waiting for backend to start', context: 'BOOT' });
+    throw new Error('Backend server did not start in time.');
+}
+
+async function createWindow() {
     // 1. Start Background Services
     startBackend();
     startWorker();
 
-    // 2. Create the Window
+    // 2. Create the Window immediately (but don't load the UI yet)
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
@@ -127,17 +147,27 @@ function createWindow() {
         }
     });
 
-    // 3. Load the Frontend
-    // Wait 3 seconds for Python services to boot up before loading the page
-    setTimeout(() => {
+    // Optional: You could load a simple HTML "Loading Splash Screen" here while waiting
+    // mainWindow.loadFile('splash.html');
+
+    // 3. Wait for the Python server to fully boot up
+    try {
+        writeDesktopLog({ level: 'info', message: 'Waiting for backend server...', context: 'BOOT' });
+        await waitForServer(BACKEND_HEALTH_URL);
+        
+        // 4. Load the actual Frontend once the green light is given
         const startUrl = path.join(__dirname, 'frontend', 'build', 'index.html');
         mainWindow.loadFile(startUrl);
-    }, 3000);
+        
+    } catch (err) {
+        console.error("Failed to connect to backend:", err);
+        // Fallback: If it completely fails, still try loading or show an error
+        const startUrl = path.join(__dirname, 'frontend', 'build', 'index.html');
+        mainWindow.loadFile(startUrl); 
+    }
 
     mainWindow.on('closed', () => mainWindow = null);
 }
-
-app.whenReady().then(createWindow);
 
 function ensureDesktopLogFile() {
     const logDir = path.join(app.getPath('userData'), 'logs');
@@ -183,8 +213,10 @@ function sanitizeLogEntry(entry) {
     return safeEntry;
 }
 
+// Single initialization point
 app.whenReady().then(() => {
     ensureDesktopLogFile();
+    createWindow();
 });
 
 ipcMain.on('desktop-log', (_event, entry) => {
