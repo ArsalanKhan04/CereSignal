@@ -90,6 +90,11 @@ async def create_report(
                 message=f"Patient named {signal_file.user.name} has been assigned to you for EEG review",
             )
 
+        if db_report.impression:
+            normalized_impression = db_report.impression.strip().lower()
+            if normalized_impression in {"normal", "abnormal"}:
+                signal_file.condition = normalized_impression
+
         db.add(db_report)
 
         if notification:
@@ -255,6 +260,11 @@ async def update_report(
         update_data = report_data.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(report, field, value)
+
+        if "impression" in update_data and update_data["impression"] is not None:
+            normalized_impression = update_data["impression"].strip().lower()
+            if normalized_impression in {"normal", "abnormal"}:
+                report.signal_file.condition = normalized_impression
 
         db.commit()
         db.refresh(report)

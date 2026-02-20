@@ -131,6 +131,12 @@ class FileUploadResponse(BaseModel):
     processing_status: str
 
 
+class SignalLabelUpdate(BaseModel):
+    """Schema for updating signal file label"""
+
+    condition: str = Field(..., description="Label for file condition: normal or abnormal")
+
+
 class ProcessingRequest(BaseModel):
     """Schema for processing request"""
 

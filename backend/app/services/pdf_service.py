@@ -125,9 +125,11 @@ class PDFReportGenerator:
     ) -> str:
         """Generate a PDF report for the given EEG report"""
 
-        # Create filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"EEG_Report_{report.id}_{timestamp}.pdf"
+        # Create filename based on source EDF name
+        source_name = signal_file.original_filename or signal_file.filename
+        base_name = Path(source_name).name
+        stem = Path(base_name).stem or f"EEG_Report_{report.id}"
+        filename = f"{stem}.pdf"
         filepath = self.reports_dir / filename
 
         # Create PDF document

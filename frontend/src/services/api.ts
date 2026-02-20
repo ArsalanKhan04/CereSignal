@@ -264,6 +264,11 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async updateFileLabel(fileId: number, condition: 'normal' | 'abnormal'): Promise<ApiResponse<SignalFile>> {
+    const response = await this.client.patch(`/signals/files/${fileId}/label`, { condition });
+    return { data: response.data, status: response.status };
+  }
+
   async getStats(): Promise<ApiResponse<DashboardStats>> {
     const response = await this.client.get('/signals/stats');
     return { data: response.data, status: response.status };

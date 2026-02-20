@@ -21,9 +21,15 @@ from app.models.auth import AuthUser, UserType
 from app.models.report import EEGReport
 from app.models.signal import EEGBookmark, Signal, SignalFile
 from app.models.user import User
-from app.schemas.signal import (EEGBookmarkCreate, EEGBookmarkResponse,
-                                FileUploadResponse, ProcessingRequest,
-                                SignalFileResponse, SignalResponse)
+from app.schemas.signal import (
+    EEGBookmarkCreate,
+    EEGBookmarkResponse,
+    FileUploadResponse,
+    ProcessingRequest,
+    SignalFileResponse,
+    SignalResponse,
+    SignalLabelUpdate,
+)
 from app.services.eeg_cache_service import eeg_cache
 from app.services.pdf_service import pdf_generator
 from app.utils.file_processing import process_signal_file, save_uploaded_file
@@ -1256,3 +1262,72 @@ async def download_file(file_id: int, db: Session = Depends(get_db)):
         filename=file.original_filename,
         media_type="application/octet-stream",
     )
+
+
+@router.patch("/files/{file_id}/label", response_model=SignalFileResponse)
+async def update_file_label(
+    file_id: int,
+    label_data: SignalLabelUpdate,
+    current_user: Optional[AuthUser] = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Update label for a signal file"""
+
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+        )
+
+    if settings.DESKTOP_MODE and current_user is None:
+        pass
+    elif current_user.user_type == UserType.PATIENT.value:
+        patient_user = (
+            db.query(User)
+            .filter(User.patient_auth_user_id == current_user.id)
+            .first()
+        )
+        if not patient_user or file.user_id != patient_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own files",
+            )
+    elif current_user.user_type == UserType.DOCTOR.value:
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == file.user_id,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+            .first()
+        )
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files for your patients",
+            )
+
+    elif current_user.user_type != UserType.TECHNICIAN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update labels",
+        )
+
+    condition = label_data.condition.strip().lower()
+    if condition not in {"normal", "abnormal"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="condition must be 'normal' or 'abnormal'",
+        )
+
+    file.condition = condition
+    file.processing_status = "completed"
+
+    report = db.query(EEGReport).filter(EEGReport.file_id == file.id).first()
+    if report:
+        report.impression = condition
+
+    db.commit()
+    db.refresh(file)
+
+    return file

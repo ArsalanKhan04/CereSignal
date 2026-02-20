@@ -71,6 +71,7 @@ const Patients: React.FC<{
   const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
   const allowDoctorFileOps = isDesktopApp && user?.user_type === 'doctor';
   const allowDesktopCreate = isDesktopApp && user?.user_type === 'doctor';
+  const allowLabelChange = user?.user_type === 'doctor';
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -666,10 +667,13 @@ const Patients: React.FC<{
   const detailReport = detailPatient ? getPatientReport(detailPatient, detailFile) : null;
   const detailHasPdf = Boolean(detailReport?.pdf_file_path);
 
-  const shouldShowPatient = (report: EEGReport | null) => {
+  const shouldShowPatient = (report: EEGReport | null, file: SignalFile | null) => {
+    const fileLabel = file?.condition?.toLowerCase();
+    const hasLabel = fileLabel === 'normal' || fileLabel === 'abnormal' || Boolean(report?.impression);
+    const hasReportAndLabel = Boolean(report) && hasLabel;
     if (activeStatusFilter === 'all') return true;
-    if (activeStatusFilter === 'examined') return Boolean(report && report.impression);
-    return !report || !report.impression;
+    if (activeStatusFilter === 'examined') return hasReportAndLabel;
+    return !hasReportAndLabel;
   };
 
   const filteredPatients = patients.filter((patient) => {
@@ -680,7 +684,7 @@ const Patients: React.FC<{
     }
     const file = getPatientFile(patient);
     const report = getPatientReport(patient, file);
-    return shouldShowPatient(report);
+    return shouldShowPatient(report, file);
   });
 
   const handleAssignLabel = async (patient: Patient, file: SignalFile, label: 'normal' | 'abnormal') => {
@@ -688,12 +692,32 @@ const Patients: React.FC<{
     setError('');
     setSuccess('');
     try {
-      const existingReport = patientReports[patient.id]?.find((item) => item.file_id === file.id) || null;
-      if (!existingReport) {
-        setError('Create a report before assigning a label.');
-        return;
-      }
-      await apiClient.updateReport(existingReport.id, { impression: label });
+      const response = await apiClient.updateFileLabel(file.id, label);
+      const updatedFile = response.data;
+      setPatientFiles((prev) => ({
+        ...prev,
+        [patient.id]: (prev[patient.id] || []).map((item) =>
+          item.id === file.id
+            ? { ...item, condition: updatedFile.condition, processing_status: updatedFile.processing_status }
+            : item
+        ),
+      }));
+      setPatientReports((prev) => {
+        const reports = prev[patient.id] || [];
+        const reportIndex = reports.findIndex((item) => item.file_id === file.id);
+        if (reportIndex === -1) return prev;
+        const updatedReports = reports.map((item, index) =>
+          index === reportIndex ? { ...item, impression: label } : item
+        );
+        return { ...prev, [patient.id]: updatedReports };
+      });
+      setFileStatuses((prev) => ({
+        ...prev,
+        [file.id]: {
+          condition: updatedFile.condition,
+          inference_status: prev[file.id]?.inference_status || 'completed',
+        },
+      }));
       setSuccess(`Assigned ${label === 'normal' ? 'Normal' : 'Abnormal'} label.`);
       await loadPatients();
       setTimeout(() => setSuccess(''), 3000);
@@ -816,7 +840,10 @@ const Patients: React.FC<{
             const file = getPatientFile(patient);
             const report = getPatientReport(patient, file);
                     const hasPdf = Boolean(report?.pdf_file_path);
-            const reportStatusLabel = report?.impression ? 'Examined' : 'Pending Review';
+            const normalizedCondition = file?.condition?.toLowerCase();
+            const hasLabel = normalizedCondition === 'normal' || normalizedCondition === 'abnormal' || Boolean(report?.impression);
+            const hasReportAndLabel = Boolean(report) && hasLabel;
+            const reportStatusLabel = hasReportAndLabel ? 'Examined' : 'Pending Review';
             const statusColor = report?.impression ? getReportStatusColor(report.impression) : 'default';
             const isNewPatient = Boolean(
               isReadOnly &&
@@ -904,20 +931,26 @@ const Patients: React.FC<{
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                     {file ? (
                       (() => {
-                        if (allowDesktopCreate) {
-                          const assignedImpression = report?.impression?.toLowerCase();
-                          const label = !report
-                            ? 'No Report'
-                            : assignedImpression === 'normal'
-                              ? 'Normal'
-                              : assignedImpression === 'abnormal'
-                                ? 'Abnormal'
-                                : 'Unassigned';
-                          const color = assignedImpression === 'normal'
-                            ? 'success'
-                            : assignedImpression === 'abnormal'
-                              ? 'error'
-                              : 'default';
+                          if (allowDesktopCreate) {
+                           const assignedImpression = report?.impression?.toLowerCase();
+                           const assignedCondition = file.condition?.toLowerCase();
+                           const effectiveLabel = (assignedCondition === 'normal' || assignedCondition === 'abnormal'
+                             ? assignedCondition
+                             : assignedImpression === 'normal' || assignedImpression === 'abnormal'
+                               ? assignedImpression
+                               : undefined);
+                            const label = !report && !effectiveLabel
+                              ? 'No Report'
+                              : effectiveLabel === 'normal'
+                                ? 'Normal'
+                                : effectiveLabel === 'abnormal'
+                                  ? 'Abnormal'
+                                  : 'Unassigned';
+                           const color = effectiveLabel === 'normal'
+                             ? 'success'
+                             : effectiveLabel === 'abnormal'
+                               ? 'error'
+                               : 'default';
                           return (
                             <Chip
                               label={label}
@@ -988,7 +1021,7 @@ const Patients: React.FC<{
                       </IconButton>
                     </>
                   )}
-                  {allowDoctorFileOps && file && report && !report.impression && (
+                  {allowLabelChange && file && (
                     <Stack direction="row" spacing={1} alignItems="center">
                       <Button
                         variant="outlined"
@@ -998,6 +1031,7 @@ const Patients: React.FC<{
                           handleAssignLabel(patient, file, 'normal');
                         }}
                         disabled={labelSubmittingId === file.id}
+                        color={(file.condition || '').toLowerCase() === 'normal' ? 'success' : 'primary'}
                         sx={{ minWidth: 80, height: 28, fontSize: '0.75rem', px: 1 }}
                       >
                         Normal
@@ -1011,7 +1045,7 @@ const Patients: React.FC<{
                           handleAssignLabel(patient, file, 'abnormal');
                         }}
                         disabled={labelSubmittingId === file.id}
-                        sx={{ minWidth: 90, height: 28, fontSize: '0.75rem', px: 1 }}
+                        sx={{ minWidth: 90, height: 28, fontSize: '0.75rem', px: 1, borderWidth: (file.condition || '').toLowerCase() === 'abnormal' ? 2 : 1 }}
                       >
                         Abnormal
                       </Button>
@@ -1185,13 +1219,19 @@ const Patients: React.FC<{
                     ) : (
                       <Chip label="No EEG" size="small" variant="outlined" />
                     )}
-                    {detailReport?.impression && (
-                      <Chip
-                        label="Examined"
-                        size="small"
-                        color={getReportStatusColor(detailReport.impression) as any}
-                      />
-                    )}
+                    {(() => {
+                      const detailCondition = detailFile?.condition?.toLowerCase();
+                      const detailHasLabel = detailCondition === 'normal' || detailCondition === 'abnormal' || Boolean(detailReport?.impression);
+                      const detailHasReportAndLabel = Boolean(detailReport) && detailHasLabel;
+                      if (!detailHasReportAndLabel) return null;
+                      return (
+                        <Chip
+                          label="Examined"
+                          size="small"
+                          color={getReportStatusColor(detailReport?.impression) as any}
+                        />
+                      );
+                    })()}
                   </Stack>
                 </Box>
               </Paper>
@@ -1283,13 +1323,14 @@ const Patients: React.FC<{
                         Download Report
                       </Button>
                     )}
-                  {allowDoctorFileOps && detailFile && detailReport && !detailReport.impression && (
+                  {allowLabelChange && detailFile && (
                     <Stack direction="row" spacing={1} alignItems="center">
                       <Button
                         variant="outlined"
-                          size="small"
-                          onClick={() => handleAssignLabel(detailPatient, detailFile, 'normal')}
-                          disabled={labelSubmittingId === detailFile.id}
+                        size="small"
+                        onClick={() => handleAssignLabel(detailPatient, detailFile, 'normal')}
+                        disabled={labelSubmittingId === detailFile.id}
+                        color={(detailFile.condition || '').toLowerCase() === 'normal' ? 'success' : 'primary'}
                         >
                           Normal
                         </Button>
@@ -1299,6 +1340,7 @@ const Patients: React.FC<{
                           color="error"
                           onClick={() => handleAssignLabel(detailPatient, detailFile, 'abnormal')}
                           disabled={labelSubmittingId === detailFile.id}
+                          sx={{ borderWidth: (detailFile.condition || '').toLowerCase() === 'abnormal' ? 2 : 1 }}
                         >
                           Abnormal
                         </Button>
