@@ -95,15 +95,13 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   useEffect(() => {
     const initializeForm = async () => {
-      if (isDesktopApp) {
-        try {
-          const stored = localStorage.getItem(DOCTOR_PROFILES_KEY);
-          if (stored) {
-            setDoctorProfiles(JSON.parse(stored));
-          }
-        } catch {
-          setDoctorProfiles([]);
+      try {
+        const stored = localStorage.getItem(DOCTOR_PROFILES_KEY);
+        if (stored) {
+          setDoctorProfiles(JSON.parse(stored));
         }
+      } catch {
+        setDoctorProfiles([]);
       }
       if (propExistingReport) {
         // Editing existing report - no need to check for LLM report
@@ -122,9 +120,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
           doctor_info: propExistingReport.doctor_info || '',
         });
         setIsEditing(true);
-        if (isDesktopApp) {
-          parseDoctorInfo(propExistingReport.doctor_info);
-        }
+        parseDoctorInfo(propExistingReport.doctor_info);
       } else if (fileId) {
         // First check if existing report exists
         try {
@@ -146,9 +142,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
               doctor_info: response.data.doctor_info || '',
             });
             setIsEditing(true);
-            if (isDesktopApp) {
-              parseDoctorInfo(response.data.doctor_info);
-            }
+            parseDoctorInfo(response.data.doctor_info);
           } else {
             // No existing report - create new and check for LLM report
             prefillFormData();
@@ -425,21 +419,21 @@ const ReportForm: React.FC<ReportFormProps> = ({
       let response;
       if (isEditing && existingReport) {
         const updateData: EEGReportUpdate = {
-            patient_name: formData.patient_name,
-            patient_age: formData.patient_age,
-            patient_gender: formData.patient_gender,
-            ref_physician: formData.ref_physician,
-            indications: formData.indications,
-            technique: formData.technique,
-            factual_report: formData.factual_report,
-            impression: formData.impression,
-          doctor_info: isDesktopApp ? buildDoctorInfo() : (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
+          patient_name: formData.patient_name,
+          patient_age: formData.patient_age,
+          patient_gender: formData.patient_gender,
+          ref_physician: formData.ref_physician,
+          indications: formData.indications,
+          technique: formData.technique,
+          factual_report: formData.factual_report,
+          impression: formData.impression,
+          doctor_info: buildDoctorInfo() || (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
         };
         response = await apiClient.updateReport(existingReport.id, updateData);
       } else {
         const createData: EEGReportCreate = {
           ...formData,
-          doctor_info: isDesktopApp ? buildDoctorInfo() : (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
+          doctor_info: buildDoctorInfo() || (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
         };
         response = await apiClient.createReport(createData);
       }
@@ -597,8 +591,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
             <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
               Doctor Information
             </Typography>
-            {isDesktopApp && (
-              <Stack spacing={2}>
+            <Stack spacing={2}>
                 <FormControl fullWidth>
                   <InputLabel>Doctor Profile</InputLabel>
                   <Select
@@ -661,19 +654,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
                   </Button>
                 </Stack>
               </Stack>
-            )}
-            {!isDesktopApp && (
-              <TextField
-                fullWidth
-                label="Doctor Info"
-                multiline
-                rows={4}
-                value={formData.doctor_info}
-                onChange={handleChange('doctor_info')}
-                placeholder="Doctor name, title, specialization, and affiliation..."
-                variant="outlined"
-              />
-            )}
           </CardContent>
         </Card>
       </Box>
