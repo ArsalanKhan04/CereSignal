@@ -33,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
+import { pdfNameFromEdf } from '../utils/fileNames';
 import { EEGReport, Patient, EEGBookmark } from '../types';
 
 const PatientPortal: React.FC = () => {
@@ -105,13 +106,13 @@ const PatientPortal: React.FC = () => {
     }
   };
 
-  const handleDownloadPDF = async (reportId: number) => {
+  const handleDownloadPDF = async (reportId: number, fileName?: string) => {
     try {
       const blob = await apiClient.downloadReportPDF(reportId);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `CereSignal_Report_${reportId}.pdf`;
+      a.download = pdfNameFromEdf(fileName, `CereSignal_Report_${reportId}`);
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -371,7 +372,7 @@ const PatientPortal: React.FC = () => {
                         <Button
                           variant="contained"
                           startIcon={<DownloadIcon />}
-                          onClick={() => handleDownloadPDF(latestReport.id)}
+                            onClick={() => handleDownloadPDF(latestReport.id, latestReport.file_name)}
                           sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, alignSelf: 'flex-start' }}
                         >
                           Download PDF
@@ -488,7 +489,7 @@ const PatientPortal: React.FC = () => {
                                     <Button
                                       variant="contained"
                                       startIcon={<DownloadIcon />}
-                                      onClick={() => handleDownloadPDF(report.id)}
+                                      onClick={() => handleDownloadPDF(report.id, report.file_name)}
                                       sx={{ 
                                         borderRadius: 2, 
                                         textTransform: 'none', 

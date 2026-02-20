@@ -36,6 +36,7 @@ import {
   Drafts as DraftIcon
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
+import { pdfNameFromEdf } from '../utils/fileNames';
 import { EEGReport, SignalFile } from '../types';
 import ReportForm from '../components/ReportForm';
 
@@ -139,13 +140,13 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadPDF = async (reportId: number) => {
+  const handleDownloadPDF = async (reportId: number, fileName?: string) => {
     try {
       const blob = await apiClient.downloadReportPDF(reportId);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `EEG_Report_${reportId}.pdf`;
+      link.download = pdfNameFromEdf(fileName, `EEG_Report_${reportId}`);
       document.body.appendChild(link);
       link.click();
       setTimeout(() => {
@@ -344,7 +345,7 @@ const ReportsPage: React.FC = () => {
                       />
                       {report.pdf_file_path && (
                         <Tooltip title="PDF Available">
-                          <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id)} />
+                          <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id, report.file_name)} />
                         </Tooltip>
                       )}
                     </Stack>
@@ -408,7 +409,7 @@ const ReportsPage: React.FC = () => {
                     <Tooltip title="Download PDF">
                       <IconButton 
                         size="small" 
-                        onClick={() => handleDownloadPDF(report.id)}
+                        onClick={() => handleDownloadPDF(report.id, report.file_name)}
                         sx={{ bgcolor: 'action.hover', color: 'success.main' }}
                       >
                         <DownloadIcon fontSize="small" />
