@@ -2,18 +2,29 @@
 
 import os
 from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
 
 project_root = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = []
+binaries = []
 # This forces PyInstaller to grab the missing .pyi files for mne
 datas += collect_data_files('mne')
 datas += collect_data_files('celery') # Added just in case Celery needs data files too
 
+# Collect edfio data files and binaries
+datas_edf, binaries_edf, hiddenimports_edfio = collect_all('edfio')
+datas += datas_edf
+binaries += binaries_edf
+
 datas += collect_data_files("app")
 datas.append((os.path.join(project_root, "app", "static"), "app/static"))
+
+# Add edfio hidden imports to main list
+_extra_hiddenimports = list(hiddenimports_edfio) if hiddenimports_edfio else []
+_extra_hiddenimports.append("edfio")
 
 hiddenimports = [
     # --- Core App ---
@@ -91,6 +102,11 @@ hiddenimports = [
     "mne.rank",
     "mne.filter",
     "mne.preprocessing",
+    "mne.export",
+    "mne.export._export",
+    "mne.viz.montage",
+    "edfio",
+    *_extra_hiddenimports,
 ]
 
 excluded_modules = [
@@ -110,7 +126,7 @@ excluded_modules = [
 a = Analysis(
     [os.path.join(project_root, "entry_point.py")],
     pathex=[project_root],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -135,7 +151,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
