@@ -12,7 +12,7 @@ asttokens
 async-lru
 attrs
 babel
-bcrypt
+bcrypt<4.0.0
 beautifulsoup4
 bidict
 billiard
@@ -38,6 +38,7 @@ discid
 dnspython
 docutils
 ecdsa
+edfio
 email-validator
 executing
 fastapi

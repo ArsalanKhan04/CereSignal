@@ -9,6 +9,7 @@ pydantic
 pydantic-settings
 python-dotenv
 requests
+plotly
 python-dateutil
 pytz
 numpy
@@ -23,6 +24,7 @@ typing_extensions
 cryptography
 PyJWT
 email-validator
+edfio
 itsdangerous
 httptools
 python-json-logger
