@@ -17,6 +17,7 @@ import {
   EEGReport,
   EEGReportCreate,
   EEGReportUpdate,
+  EEGReportVersion,
   ApiResponse,
   ApiError,
   NotificationItem,
@@ -325,6 +326,22 @@ class ApiClient {
 
   async getPDFStatus(reportId: number): Promise<ApiResponse<{ report_id: number; pdf_exists: boolean; pdf_path?: string }>> {
     const response = await this.client.get(`/reports/${reportId}/pdf-status`);
+    return { data: response.data, status: response.status };
+  }
+
+  // Version history methods
+  async getReportVersions(reportId: number): Promise<ApiResponse<EEGReportVersion[]>> {
+    const response = await this.client.get(`/reports/${reportId}/versions`);
+    return { data: response.data, status: response.status };
+  }
+
+  async getReportVersion(reportId: number, versionId: number): Promise<ApiResponse<EEGReportVersion>> {
+    const response = await this.client.get(`/reports/${reportId}/versions/${versionId}`);
+    return { data: response.data, status: response.status };
+  }
+
+  async restoreReportVersion(reportId: number, versionId: number): Promise<ApiResponse<EEGReport>> {
+    const response = await this.client.post(`/reports/${reportId}/versions/${versionId}/restore`);
     return { data: response.data, status: response.status };
   }
 

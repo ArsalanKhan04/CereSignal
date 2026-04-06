@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.sql import func
 from typing import List, Optional
 from datetime import datetime
 import os
 
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
-from app.models.report import EEGReport
+from app.models.report import EEGReport, EEGReportVersion
 from app.models.signal import SignalFile
 from app.models.auth import AuthUser, UserType
 from app.models.user import User
@@ -22,8 +23,39 @@ from app.schemas.report import (
     EEGReportUpdate,
     EEGReportResponse,
     EEGReportListResponse,
+    EEGReportVersionResponse,
 )
 from app.services.pdf_service import pdf_generator
+
+
+def _snapshot_report(
+    db: Session, report: EEGReport, saved_by_auth_user_id: int
+) -> EEGReportVersion:
+    """Capture the current state of a report as a new version row. Does NOT commit."""
+    next_version = (
+        db.query(func.count(EEGReportVersion.id))
+        .filter(EEGReportVersion.report_id == report.id)
+        .scalar()
+        or 0
+    ) + 1
+    version = EEGReportVersion(
+        report_id=report.id,
+        version_number=next_version,
+        saved_by_auth_user_id=saved_by_auth_user_id,
+        patient_name=report.patient_name,
+        patient_age=report.patient_age,
+        patient_gender=report.patient_gender,
+        ref_physician=report.ref_physician,
+        indications=report.indications,
+        technique=report.technique,
+        factual_report=report.factual_report,
+        impression=report.impression,
+        doctor_info=report.doctor_info,
+        is_finalized=report.is_finalized,
+    )
+    db.add(version)
+    return version
+
 
 router = APIRouter()
 
@@ -99,6 +131,9 @@ async def create_report(
 
         if notification:
             db.add(notification)
+
+        db.flush()  # assigns db_report.id without committing
+        _snapshot_report(db, db_report, current_user.id)  # version 1
 
         db.commit()
         db.refresh(db_report)
@@ -256,6 +291,9 @@ async def update_report(
         )
 
     try:
+        # Snapshot current state before mutating (so it's recoverable)
+        _snapshot_report(db, report, current_user.id)
+
         # Update report fields
         update_data = report_data.dict(exclude_unset=True)
         for field, value in update_data.items():
@@ -322,6 +360,164 @@ async def delete_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting report: {str(e)}",
+        )
+
+
+@router.get("/{report_id}/versions", response_model=List[EEGReportVersionResponse])
+async def list_report_versions(
+    report_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """List all version snapshots for a report, ordered by version number"""
+
+    report = (
+        db.query(EEGReport)
+        .join(SignalFile)
+        .join(User)
+        .filter(
+            EEGReport.id == report_id,
+            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+        )
+        .first()
+    )
+
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    versions = (
+        db.query(EEGReportVersion)
+        .filter(EEGReportVersion.report_id == report_id)
+        .order_by(EEGReportVersion.version_number)
+        .all()
+    )
+
+    result = []
+    for v in versions:
+        d = {c.key: getattr(v, c.key) for c in v.__table__.columns}
+        if v.saved_by:
+            d["saved_by_name"] = (
+                f"{v.saved_by.first_name or ''} {v.saved_by.last_name or ''}".strip()
+                or v.saved_by.username
+            )
+        result.append(EEGReportVersionResponse(**d))
+    return result
+
+
+@router.get("/{report_id}/versions/{version_id}", response_model=EEGReportVersionResponse)
+async def get_report_version(
+    report_id: int,
+    version_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Get a single version snapshot"""
+
+    report = (
+        db.query(EEGReport)
+        .join(SignalFile)
+        .join(User)
+        .filter(
+            EEGReport.id == report_id,
+            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+        )
+        .first()
+    )
+
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    version = (
+        db.query(EEGReportVersion)
+        .filter(
+            EEGReportVersion.id == version_id,
+            EEGReportVersion.report_id == report_id,
+        )
+        .first()
+    )
+
+    if not version:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+
+    d = {c.key: getattr(version, c.key) for c in version.__table__.columns}
+    if version.saved_by:
+        d["saved_by_name"] = (
+            f"{version.saved_by.first_name or ''} {version.saved_by.last_name or ''}".strip()
+            or version.saved_by.username
+        )
+    return EEGReportVersionResponse(**d)
+
+
+@router.post("/{report_id}/versions/{version_id}/restore", response_model=EEGReportResponse)
+async def restore_report_version(
+    report_id: int,
+    version_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Restore a report to a historical snapshot. Saves a new version to track the rollback."""
+
+    report = (
+        db.query(EEGReport)
+        .join(SignalFile)
+        .join(User)
+        .filter(
+            EEGReport.id == report_id,
+            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+        )
+        .first()
+    )
+
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    version = (
+        db.query(EEGReportVersion)
+        .filter(
+            EEGReportVersion.id == version_id,
+            EEGReportVersion.report_id == report_id,
+        )
+        .first()
+    )
+
+    if not version:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+
+    try:
+        # Snapshot the current state before overwriting (tracks the rollback event)
+        _snapshot_report(db, report, current_user.id)
+
+        # Copy all editable fields from the chosen version back to the live report
+        editable_fields = [
+            "patient_name", "patient_age", "patient_gender", "ref_physician",
+            "indications", "technique", "factual_report", "impression",
+            "doctor_info", "is_finalized",
+        ]
+        for field in editable_fields:
+            setattr(report, field, getattr(version, field))
+
+        # Sync signal_file.condition if impression changed
+        if report.impression:
+            normalized = report.impression.strip().lower()
+            if normalized in {"normal", "abnormal"}:
+                report.signal_file.condition = normalized
+
+        db.commit()
+        db.refresh(report)
+
+        response_data = report.__dict__.copy()
+        response_data["file_name"] = report.signal_file.original_filename
+        response_data["doctor_name"] = (
+            f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+            or current_user.username
+        )
+        return EEGReportResponse(**response_data)
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error restoring version: {str(e)}",
         )
 
 

@@ -280,6 +280,25 @@ export interface EEGReportUpdate {
   pdf_file_path?: string;
 }
 
+export interface EEGReportVersion {
+  id: number;
+  report_id: number;
+  version_number: number;
+  saved_by_auth_user_id: number;
+  saved_at: string;
+  saved_by_name?: string;
+  patient_name: string;
+  patient_age?: number;
+  patient_gender?: 'M' | 'F' | 'Other';
+  ref_physician?: string;
+  indications?: string;
+  technique?: string;
+  factual_report?: string;
+  impression?: string;
+  doctor_info?: string;
+  is_finalized: boolean;
+}
+
 // API Response types
 export interface ApiResponse<T> {
   data: T;

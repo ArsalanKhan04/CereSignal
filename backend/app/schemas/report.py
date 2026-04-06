@@ -57,6 +57,29 @@ class EEGReportResponse(EEGReportBase):
         from_attributes = True
 
 
+class EEGReportVersionResponse(BaseModel):
+    """Schema for a versioned snapshot of an EEG report"""
+    id: int
+    report_id: int
+    version_number: int
+    saved_by_auth_user_id: int
+    saved_at: datetime
+    saved_by_name: Optional[str] = None
+    patient_name: str
+    patient_age: Optional[int] = None
+    patient_gender: Optional[str] = None
+    ref_physician: Optional[str] = None
+    indications: Optional[str] = None
+    technique: Optional[str] = None
+    factual_report: Optional[str] = None
+    impression: Optional[str] = None
+    doctor_info: Optional[str] = None
+    is_finalized: bool
+
+    class Config:
+        from_attributes = True
+
+
 class EEGReportListResponse(EEGReportBase):
     """Schema for EEG report list response"""
     id: int

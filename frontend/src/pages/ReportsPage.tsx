@@ -33,12 +33,14 @@ import {
   Person as PersonIcon,
   InsertDriveFile as FileIcon,
   CheckCircle as FinalizedIcon,
-  Drafts as DraftIcon
+  Drafts as DraftIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { EEGReport, SignalFile } from '../types';
 import ReportForm from '../components/ReportForm';
+import ReportVersionHistory from '../components/ReportVersionHistory';
 
 // Ensure this file is treated as a module
 export {};
@@ -58,6 +60,7 @@ const ReportsPage: React.FC = () => {
   const [showReportForm, setShowReportForm] = useState(false);
   const [editingReport, setEditingReport] = useState<EEGReport | null>(null);
   const [pdfGenerating, setPdfGenerating] = useState<Set<number>>(new Set());
+  const [historyReport, setHistoryReport] = useState<EEGReport | null>(null);
 
   useEffect(() => {
     loadData();
@@ -118,6 +121,20 @@ const ReportsPage: React.FC = () => {
     loadData();
     setSuccess(editingReport ? 'Report updated successfully' : 'Report created successfully');
     setTimeout(() => setSuccess(''), 3000);
+  };
+
+  const handleOpenHistory = (report: EEGReport) => {
+    setHistoryReport(report);
+  };
+
+  const handleHistoryClose = () => {
+    setHistoryReport(null);
+  };
+
+  const handleVersionRestored = () => {
+    loadData();
+    setSuccess('Report restored to selected version.');
+    setTimeout(() => setSuccess(''), 4000);
   };
 
   const handleGeneratePDF = async (reportId: number) => {
@@ -393,6 +410,16 @@ const ReportsPage: React.FC = () => {
                       </IconButton>
                     </Tooltip>
 
+                    <Tooltip title="Version History">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleOpenHistory(report)}
+                        sx={{ bgcolor: 'action.hover', color: 'info.main' }}
+                      >
+                        <HistoryIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+
                     <Tooltip title={report.pdf_file_path ? "Regenerate PDF" : "Generate PDF"}>
                       <span>
                         <IconButton 
@@ -448,6 +475,17 @@ const ReportsPage: React.FC = () => {
             setEditingReport(null);
           }}
           isDialog={true}
+        />
+      )}
+
+      {/* --- Version History Dialog --- */}
+      {historyReport && (
+        <ReportVersionHistory
+          reportId={historyReport.id}
+          reportPatientName={historyReport.patient_name}
+          open={Boolean(historyReport)}
+          onClose={handleHistoryClose}
+          onRestored={handleVersionRestored}
         />
       )}
     </Box>
