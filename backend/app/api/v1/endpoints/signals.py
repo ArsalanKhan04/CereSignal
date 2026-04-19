@@ -2,38 +2,43 @@
 Signal management endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
-from typing import List, Optional
-import os
+import base64
 import json
+import os
+import pathlib
+import time
 import uuid
 from datetime import datetime
-import base64
-import pathlib
+from typing import List, Optional
 
-from sqlalchemy import or_
-
-from app.core.database import get_db
+import mne
 from app.core.auth import get_current_active_user
-from app.models.signal import SignalFile, Signal, EEGBookmark
-from app.models.user import User
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.logging_config import (log_db_operation, log_error,
+                                     log_file_operation, log_request, logger)
 from app.models.auth import AuthUser, UserType
+from app.models.report import EEGReport
+from app.models.signal import EEGBookmark, Signal, SignalFile
+from app.models.user import User
 from app.schemas.signal import (
-    SignalFileResponse,
-    SignalResponse,
-    FileUploadResponse,
-    ProcessingRequest,
     EEGBookmarkCreate,
     EEGBookmarkResponse,
+    FileUploadResponse,
+    ProcessingRequest,
+    SignalFileResponse,
+    SignalResponse,
+    SignalLabelUpdate,
 )
-from app.core.config import settings
-from app.utils.file_processing import save_uploaded_file, process_signal_file
-from app.services.inference_service import inference_service
 from app.services.eeg_cache_service import eeg_cache
+from app.services.pdf_service import pdf_generator
+from app.utils.file_processing import process_signal_file, save_uploaded_file
 from external.edf_preprocess import process_edf
-import mne
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
+                     status)
+from fastapi.responses import FileResponse
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 EEG_CHANNEL_ORDER = [
     "FP1",
@@ -62,18 +67,70 @@ EEG_CHANNEL_ORDER = [
 router = APIRouter()
 
 
+class _DesktopInferenceService:
+    def start_inference(self, file_path: str) -> str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inference is disabled in desktop mode",
+        )
+
+    def get_task_status(self, task_id: str):
+        return {
+            "status": "not_started",
+            "message": "Inference is disabled in desktop mode",
+        }
+
+
+_desktop_inference_service = _DesktopInferenceService()
+
+
+def _get_inference_service():
+    if settings.DESKTOP_MODE:
+        return _desktop_inference_service
+
+    from importlib import import_module
+
+    module = import_module("app.services.inference_service")
+    return module.inference_service
+
+
+def _regenerate_report_pdf(db: Session, file: SignalFile) -> None:
+    report = db.query(EEGReport).filter(EEGReport.file_id == file.id).first()
+    if not report:
+        return
+    doctor = db.query(AuthUser).filter(AuthUser.id == report.auth_user_id).first()
+    if not doctor:
+        return
+    pdf_path = pdf_generator.generate_report_pdf(report, file, doctor)
+    report.pdf_file_path = pdf_path
+    db.commit()
+
+
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_signal_file(
     file: UploadFile = File(...),
     patient_id: int = Form(
         None
     ),  # Optional: specify which patient this file belongs to
+    skip_inference: bool = Form(False),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Upload a signal file for processing"""
+    start_time = time.time()
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    log_request(
+        "POST",
+        "/signals/upload",
+        current_user.id,
+        {"filename": file.filename, "patient_id": patient_id},
+    )
 
-    print("patient_id", patient_id)
+    logger.debug("Upload requested", extra={"patient_id": patient_id})
     # Validate file type
     if not file.filename:
         raise HTTPException(
@@ -126,6 +183,11 @@ async def upload_signal_file(
                     detail="Patients cannot upload files",
                 )
         else:
+            if settings.DESKTOP_MODE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="patient_id is required in desktop mode",
+                )
             # If no patient specified, create a default patient for this auth user
             user = (
                 db.query(User)
@@ -163,7 +225,7 @@ async def upload_signal_file(
                 process_edf(file_path, file_path)
                 matlab_applied = True
         except Exception as e:
-            print(f"Skipping MATLAB preprocessing: {e}")
+            logger.warning("Skipping MATLAB preprocessing", extra={"error": str(e)})
 
         # Extract the actual saved filename from the path
         saved_filename = os.path.basename(file_path)
@@ -207,28 +269,51 @@ async def upload_signal_file(
             db_file.condition = "processing"
             db.commit()
 
-            # Start inference task
-            try:
-                task_id = inference_service.start_inference(file_path)
-                db_file.task_id = task_id
+            if settings.DESKTOP_MODE or skip_inference:
+                db_file.processing_status = "pending"
+                db_file.condition = "processing"
                 db.commit()
-                print(f"Inference task started for file {db_file.id}: {task_id}")
-            except Exception as e:
-                print(f"Error starting inference task: {e}")
-                # Don't fail the upload if inference fails to start
-                db_file.condition = "failed"
-                db.commit()
+                logger.info(
+                    "Inference skipped for desktop mode",
+                    extra={"file_id": db_file.id, "skip_inference": skip_inference},
+                )
+            else:
+                # Start inference task
+                try:
+                    task_id = _get_inference_service().start_inference(file_path)
+                    db_file.task_id = task_id
+                    db.commit()
+                    logger.info(
+                        "Inference task started",
+                        extra={"file_id": db_file.id, "task_id": task_id},
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Error starting inference task",
+                        extra={"file_id": db_file.id, "error": str(e)},
+                    )
+                    # Don't fail the upload if inference fails to start
+                    db_file.condition = "failed"
+                    db.commit()
 
         except Exception as e:
             # Mark as failed but don't rollback the file record
             db_file.processing_status = "failed"
             db.commit()
-            print(f"Error processing signal file: {e}")
+            logger.warning(f"Error processing signal file {db_file.id}: {e}")
+
+        duration_ms = (time.time() - start_time) * 1000
+        log_file_operation("UPLOAD_SUCCESS", file_path, current_user.id)
+        logger.info(
+            f"File upload completed | file_id={db_file.id} | duration={duration_ms:.2f}ms"
+        )
 
         return FileUploadResponse(
-            message="Matlab Script automatically applied"
-            if matlab_applied
-            else "File uploaded successfully",
+            message=(
+                "Matlab Script automatically applied"
+                if matlab_applied
+                else "File uploaded successfully"
+            ),
             file_id=db_file.id,
             filename=db_file.original_filename,
             file_size=db_file.file_size,
@@ -237,6 +322,7 @@ async def upload_signal_file(
 
     except Exception as e:
         db.rollback()
+        log_error(e, f"File upload failed for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading file: {str(e)}",
@@ -360,16 +446,6 @@ async def create_file_bookmark(
                 detail="You can only access files for your patients",
             )
 
-    existing_bookmarks = (
-        db.query(EEGBookmark).filter(EEGBookmark.file_id == file_id).all()
-    )
-
-    if len(existing_bookmarks) >= 2 and not bookmark_data.replace_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Maximum of 2 bookmarks reached. Select a bookmark to replace.",
-        )
-
     if bookmark_data.replace_id:
         bookmark_to_replace = (
             db.query(EEGBookmark)
@@ -425,6 +501,8 @@ async def create_file_bookmark(
     db.commit()
     db.refresh(bookmark)
 
+    _regenerate_report_pdf(db, file)
+
     return EEGBookmarkResponse(
         id=bookmark.id,
         file_id=bookmark.file_id,
@@ -433,6 +511,63 @@ async def create_file_bookmark(
         created_at=bookmark.created_at,
         created_by=bookmark.created_by,
     )
+
+
+@router.delete("/files/{file_id}/bookmarks/{bookmark_id}")
+async def delete_file_bookmark(
+    file_id: int,
+    bookmark_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Delete EEG bookmark for a signal file"""
+
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+        )
+
+    if current_user.user_type == UserType.PATIENT.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Patients cannot delete bookmarks",
+        )
+
+    if current_user.user_type == UserType.DOCTOR.value:
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == file.user_id,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+            .first()
+        )
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files for your patients",
+            )
+
+    bookmark = (
+        db.query(EEGBookmark)
+        .filter(EEGBookmark.id == bookmark_id, EEGBookmark.file_id == file_id)
+        .first()
+    )
+    if not bookmark:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Bookmark not found"
+        )
+
+    if bookmark.image_path and os.path.exists(bookmark.image_path):
+        os.remove(bookmark.image_path)
+
+    db.delete(bookmark)
+    db.commit()
+
+    _regenerate_report_pdf(db, file)
+
+    return {"message": "Bookmark deleted"}
 
 
 @router.get("/files", response_model=List[SignalFileResponse])
@@ -684,6 +819,7 @@ async def get_plot_data(
                 }
 
             montage_channels = []
+            total_duration = seg.get("total_duration", 0)
             if montage == "bipolar_longitudinal":
                 pairs = [
                     ("FP1", "F7"),
@@ -758,6 +894,7 @@ async def get_plot_data(
                 "start_time": seg.get("start_time", 0),
                 "end_time": seg.get("end_time", 0),
                 "n_samples": seg.get("n_samples", 0),
+                "total_duration": total_duration,
             }
 
         if montage == "original" and seg.get("channels"):
@@ -792,7 +929,7 @@ async def get_file_topomap(file_id: int, db: Session = Depends(get_db)):
 
     # Construct expected path (saved by inference task): <basename>_topomap.png where basename is the filename without extension
     base = os.path.splitext(file.filename)[0]
-    print("Looking for topomap at base:", base)
+    logger.debug("Looking for topomap", extra={"base": base})
     plot_path = os.path.join(
         os.path.dirname(__file__),
         "..",
@@ -802,9 +939,8 @@ async def get_file_topomap(file_id: int, db: Session = Depends(get_db)):
         "plots",
         f"{base}_topomap.png",
     )
-    print(plot_path)
     plot_path = os.path.abspath(plot_path)
-    print(plot_path)
+    logger.debug("Resolved topomap path", extra={"plot_path": plot_path})
     if not os.path.exists(plot_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -868,9 +1004,9 @@ async def get_signal_stats(
                 "id": file.id,
                 "filename": file.filename,
                 "condition": file.condition,
-                "uploaded_at": file.upload_time.isoformat()
-                if file.upload_time
-                else None,
+                "uploaded_at": (
+                    file.upload_time.isoformat() if file.upload_time else None
+                ),
                 "patient_name": file.user.name if file.user else "Unknown",
             }
         )
@@ -910,6 +1046,20 @@ async def get_signal_stats(
 async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
     """Check the status of inference for a specific file"""
 
+    if settings.DESKTOP_MODE:
+        file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+        if not file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+            )
+        return {
+            "file_id": file_id,
+            "condition": file.condition,
+            "inference_status": "not_started",
+            "message": "Inference is disabled in desktop mode",
+        }
+
+    report_task_id = None
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
         raise HTTPException(
@@ -927,7 +1077,7 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
 
     try:
         # Check task status
-        task_status = inference_service.get_task_status(file.task_id)
+        task_status = _get_inference_service().get_task_status(file.task_id)
         report_task_id = None
 
         # If task is completed, update the database
@@ -987,6 +1137,17 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
     If completed, stores the report in the database.
     """
     try:
+        if settings.DESKTOP_MODE:
+            file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+            if not file:
+                raise HTTPException(status_code=404, detail="Signal file not found")
+            return {
+                "file_id": file_id,
+                "report_status": "not_started",
+                "message": "Report generation is disabled in desktop mode",
+                "has_report": bool(file.factual_report),
+            }
+
         file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
         if not file:
             raise HTTPException(status_code=404, detail="Signal file not found")
@@ -1014,7 +1175,7 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
             }
 
         # Check task status
-        status_data = inference_service.get_task_status(file.report_task_id)
+        status_data = _get_inference_service().get_task_status(file.report_task_id)
 
         if not status_data:
             raise HTTPException(status_code=404, detail="Report task not found")
@@ -1101,3 +1262,72 @@ async def download_file(file_id: int, db: Session = Depends(get_db)):
         filename=file.original_filename,
         media_type="application/octet-stream",
     )
+
+
+@router.patch("/files/{file_id}/label", response_model=SignalFileResponse)
+async def update_file_label(
+    file_id: int,
+    label_data: SignalLabelUpdate,
+    current_user: Optional[AuthUser] = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Update label for a signal file"""
+
+    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
+        )
+
+    if settings.DESKTOP_MODE and current_user is None:
+        pass
+    elif current_user.user_type == UserType.PATIENT.value:
+        patient_user = (
+            db.query(User)
+            .filter(User.patient_auth_user_id == current_user.id)
+            .first()
+        )
+        if not patient_user or file.user_id != patient_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access your own files",
+            )
+    elif current_user.user_type == UserType.DOCTOR.value:
+        owner = (
+            db.query(User)
+            .filter(
+                User.id == file.user_id,
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+            )
+            .first()
+        )
+        if not owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access files for your patients",
+            )
+
+    elif current_user.user_type != UserType.TECHNICIAN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update labels",
+        )
+
+    condition = label_data.condition.strip().lower()
+    if condition not in {"normal", "abnormal"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="condition must be 'normal' or 'abnormal'",
+        )
+
+    file.condition = condition
+    file.processing_status = "completed"
+
+    report = db.query(EEGReport).filter(EEGReport.file_id == file.id).first()
+    if report:
+        report.impression = condition
+
+    db.commit()
+    db.refresh(file)
+
+    return file

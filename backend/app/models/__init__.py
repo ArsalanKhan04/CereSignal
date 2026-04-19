@@ -2,5 +2,5 @@
 from .auth import AuthUser, UserSession, UserType
 from .user import User
 from .signal import SignalFile, Signal, ProcessingResult, EEGBookmark
-from .report import EEGReport
+from .report import EEGReport, EEGReportVersion
 from .notification import Notification

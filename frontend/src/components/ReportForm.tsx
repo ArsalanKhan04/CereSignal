@@ -52,6 +52,15 @@ const ReportForm: React.FC<ReportFormProps> = ({
   isDialog = false
 }) => {
   const { user } = useAuth();
+  const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
+
+  const DOCTOR_PROFILES_KEY = 'ceresignal_doctor_profiles';
+  type DoctorProfile = {
+    id: string;
+    name: string;
+    occupation?: string;
+    department?: string;
+  };
 
   const [formData, setFormData] = useState<EEGReportCreate>({
     file_id: fileId || 0,
@@ -78,8 +87,22 @@ const ReportForm: React.FC<ReportFormProps> = ({
   const pollCountRef = useRef(0);
   const MAX_POLL_ATTEMPTS = 30; // 30 attempts * 2 seconds = 60 seconds max wait
 
+  const [doctorProfiles, setDoctorProfiles] = useState<DoctorProfile[]>([]);
+  const [selectedDoctorProfileId, setSelectedDoctorProfileId] = useState<string>('');
+  const [doctorName, setDoctorName] = useState('');
+  const [doctorOccupation, setDoctorOccupation] = useState('');
+  const [doctorDepartment, setDoctorDepartment] = useState('');
+
   useEffect(() => {
     const initializeForm = async () => {
+      try {
+        const stored = localStorage.getItem(DOCTOR_PROFILES_KEY);
+        if (stored) {
+          setDoctorProfiles(JSON.parse(stored));
+        }
+      } catch {
+        setDoctorProfiles([]);
+      }
       if (propExistingReport) {
         // Editing existing report - no need to check for LLM report
         setExistingReport(propExistingReport);
@@ -97,6 +120,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
           doctor_info: propExistingReport.doctor_info || '',
         });
         setIsEditing(true);
+        parseDoctorInfo(propExistingReport.doctor_info);
       } else if (fileId) {
         // First check if existing report exists
         try {
@@ -118,6 +142,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
               doctor_info: response.data.doctor_info || '',
             });
             setIsEditing(true);
+            parseDoctorInfo(response.data.doctor_info);
           } else {
             // No existing report - create new and check for LLM report
             prefillFormData();
@@ -275,21 +300,21 @@ const ReportForm: React.FC<ReportFormProps> = ({
       }));
     }
 
-    // Prefill doctor information
+    // Prefill doctor information only when an explicit doctor is provided
     if (doctor) {
       const doctorName = `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() || doctor.username;
       const doctorTitle = doctor.title ? `${doctor.title} ` : '';
       const doctorSpecialization = doctor.specialization ? ` - ${doctor.specialization}` : '';
       const doctorAffiliation = doctor.hospital_affiliation ? `\n${doctor.hospital_affiliation}` : '';
-      
+
       setFormData(prev => ({
         ...prev,
         doctor_info: `${doctorTitle}${doctorName}${doctorSpecialization}${doctorAffiliation}` || '',
       }));
     }
 
-    // Prefill referring technician / ref_physician with current user's name if the user is a doctor
-    if (user && user.user_type === 'doctor') {
+    // Prefill ref_physician only for non-desktop doctor sessions
+    if (!isDesktopApp && user && user.user_type === 'doctor') {
       const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
       setFormData(prev => ({
         ...prev,
@@ -303,6 +328,71 @@ const ReportForm: React.FC<ReportFormProps> = ({
       indications: prev.indications || 'EEG to investigate a seizure disorder.',
       technique: prev.technique || 'This is a multichannel digital EEG recording using the estimated international 10-20 electrode placement system. EEG started with machine calibration the patient was awake and cooperative during the procedure.',
     }));
+  };
+
+  const buildDoctorInfo = (): string | undefined => {
+    const name = doctorName.trim();
+    if (!name) return undefined;
+    const occupation = doctorOccupation.trim();
+    const department = doctorDepartment.trim();
+    const parts = [name];
+    if (occupation) parts.push(occupation);
+    if (department) parts.push(department);
+    return parts.join(' | ');
+  };
+
+  const parseDoctorInfo = (value?: string | null) => {
+    if (!value) {
+      setDoctorName('');
+      setDoctorOccupation('');
+      setDoctorDepartment('');
+      return;
+    }
+    const parts = value.split('|').map((part) => part.trim()).filter(Boolean);
+    setDoctorName(parts[0] || '');
+    setDoctorOccupation(parts[1] || '');
+    setDoctorDepartment(parts[2] || '');
+  };
+
+  const saveDoctorProfiles = (profiles: DoctorProfile[]) => {
+    setDoctorProfiles(profiles);
+    try {
+      localStorage.setItem(DOCTOR_PROFILES_KEY, JSON.stringify(profiles));
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const handleSaveProfile = () => {
+    const name = doctorName.trim();
+    if (!name) {
+      setError('Doctor name is required to save a profile.');
+      return;
+    }
+    const occupation = doctorOccupation.trim();
+    const department = doctorDepartment.trim();
+    const id = `${name}::${occupation}::${department}`;
+    const existing = doctorProfiles.find((profile) => profile.id === id);
+    const profile: DoctorProfile = { id, name, occupation, department };
+    const nextProfiles = existing
+      ? doctorProfiles.map((item) => (item.id === id ? profile : item))
+      : [profile, ...doctorProfiles];
+    saveDoctorProfiles(nextProfiles);
+    setSelectedDoctorProfileId(id);
+    setSuccess('Doctor profile saved.');
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
+  const handleRemoveProfile = () => {
+    if (!selectedDoctorProfileId) return;
+    const nextProfiles = doctorProfiles.filter((profile) => profile.id !== selectedDoctorProfileId);
+    saveDoctorProfiles(nextProfiles);
+    setSelectedDoctorProfileId('');
+    setDoctorName('');
+    setDoctorOccupation('');
+    setDoctorDepartment('');
+    setSuccess('Doctor profile removed.');
+    setTimeout(() => setSuccess(''), 3000);
   };
 
   const handleChange = (field: keyof EEGReportCreate) => (
@@ -337,11 +427,15 @@ const ReportForm: React.FC<ReportFormProps> = ({
           technique: formData.technique,
           factual_report: formData.factual_report,
           impression: formData.impression,
-          doctor_info: formData.doctor_info,
+          doctor_info: buildDoctorInfo() || (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
         };
         response = await apiClient.updateReport(existingReport.id, updateData);
       } else {
-        response = await apiClient.createReport(formData);
+        const createData: EEGReportCreate = {
+          ...formData,
+          doctor_info: buildDoctorInfo() || (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
+        };
+        response = await apiClient.createReport(createData);
       }
 
       if (response.status === 200 || response.status === 201) {
@@ -497,16 +591,69 @@ const ReportForm: React.FC<ReportFormProps> = ({
             <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
               Doctor Information
             </Typography>
-            <TextField
-              fullWidth
-              label="Doctor Info"
-              multiline
-              rows={4}
-              value={formData.doctor_info}
-              onChange={handleChange('doctor_info')}
-              placeholder="Doctor name, title, specialization, and affiliation..."
-              variant="outlined"
-            />
+            <Stack spacing={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Doctor Profile</InputLabel>
+                  <Select
+                    value={selectedDoctorProfileId}
+                    label="Doctor Profile"
+                    onChange={(event) => {
+                      const profileId = event.target.value as string;
+                      setSelectedDoctorProfileId(profileId);
+                      const profile = doctorProfiles.find((item) => item.id === profileId);
+                      if (profile) {
+                        setDoctorName(profile.name);
+                        setDoctorOccupation(profile.occupation || '');
+                        setDoctorDepartment(profile.department || '');
+                      }
+                    }}
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {doctorProfiles.map((profile) => (
+                      <MenuItem key={profile.id} value={profile.id}>
+                        {profile.name}{profile.department ? ` · ${profile.department}` : ''}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  label="Doctor Name"
+                  value={doctorName}
+                  onChange={(event) => setDoctorName(event.target.value)}
+                  placeholder="Enter doctor name"
+                  variant="outlined"
+                />
+                <TextField
+                  fullWidth
+                  label="Occupation"
+                  value={doctorOccupation}
+                  onChange={(event) => setDoctorOccupation(event.target.value)}
+                  placeholder="e.g., Neurologist"
+                  variant="outlined"
+                />
+                <TextField
+                  fullWidth
+                  label="Department"
+                  value={doctorDepartment}
+                  onChange={(event) => setDoctorDepartment(event.target.value)}
+                  placeholder="e.g., Neurology"
+                  variant="outlined"
+                />
+                <Stack direction="row" spacing={1}>
+                  <Button variant="outlined" onClick={handleSaveProfile}>
+                    Save Profile
+                  </Button>
+                  <Button
+                    variant="text"
+                    color="error"
+                    onClick={handleRemoveProfile}
+                    disabled={!selectedDoctorProfileId}
+                  >
+                    Remove Profile
+                  </Button>
+                </Stack>
+              </Stack>
           </CardContent>
         </Card>
       </Box>

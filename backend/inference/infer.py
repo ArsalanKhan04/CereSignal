@@ -16,6 +16,7 @@ from external.CereProcess.datasets.pipeline import (
     neurotransformer_pipeline,
     resample,
 )
+import sys
 from external.models.neurogate import NeuroGate
 from external.models.neurotransformer import Neurotransformer
 from external.pdr import PDREstimator
@@ -25,9 +26,15 @@ CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 
 app = Celery("tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
+def get_resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 _MODEL_WEIGHTS = {
-    "neurogate": "external/models/neurogate_wgts.pt",
-    "neurotransformer": "external/models/neurotransformer_wgts.pth",
+    "neurogate": get_resource_path(os.path.join("external", "models", "neurogate_wgts.pt")),
+    "neurotransformer": get_resource_path(os.path.join("external", "models", "neurotransformer_wgts.pth")),
 }
 _MODEL_CACHE = {}
 _DEVICE = torch.device("cpu")
@@ -293,7 +300,7 @@ def infer(self, mne_file_path):
     # Attempt to generate a topomap image for this inference
     try:
         base = os.path.splitext(os.path.basename(mne_file_path))[0]
-        title = f"Model Prediction\n({base})"
+        title = ""
         out_path = generate_topomap_from_events(
             base,
             {ch: {k: v for k, v in events[ch].items()} for ch in events},

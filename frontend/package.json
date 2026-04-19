@@ -1,7 +1,8 @@
 {
-  "name": "frontend-r",
+  "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "homepage": "./",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -21,27 +22,30 @@
     "@types/react-dom": "^19.2.2",
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.12.2",
+    "ceresignal-desktop": "file:..",
     "dayjs": "^1.11.18",
+    "plotly.js-basic-dist": "^2.22.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-plotly.js": "^2.5.1",
     "react-router-dom": "^7.9.4",
     "react-scripts": "5.0.1",
     "recharts": "^3.3.0",
-    "react-plotly.js": "^2.5.1",
-    "plotly.js-basic-dist": "^2.22.0",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.16",
+    "cross-env": "^10.1.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.1"
   },
   "scripts": {
-        "start": "NODE_OPTIONS='--max-old-space-size=4096' react-scripts start",
-        "build": "NODE_OPTIONS='--max-old-space-size=4096' react-scripts build",
-        "test": "react-scripts test",
-        "eject": "react-scripts eject"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "build:desktop": "cross-env REACT_APP_DESKTOP=true react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [

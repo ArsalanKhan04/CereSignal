@@ -17,6 +17,7 @@ from app.models.auth import AuthUser, UserType
 from app.models.signal import SignalFile
 from app.models.notification import Notification
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse
+from app.core.logging_config import logger
 
 router = APIRouter()
 
@@ -516,7 +517,10 @@ async def delete_user(
                 try:
                     os.remove(file.file_path)
                 except OSError as e:
-                    print(f"Warning: Could not delete file {file.file_path}: {e}")
+                    logger.warning(
+                        "Could not delete file",
+                        extra={"file_path": file.file_path, "error": str(e)},
+                    )
 
             # Delete from database (cascade will handle related records)
             db.delete(file)

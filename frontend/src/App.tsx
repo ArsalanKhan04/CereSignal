@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -8,6 +8,7 @@ import SignupPage from './pages/SignupPage';
 import DoctorRegistrationPage from './pages/DoctorRegistrationPage';
 import TechnicianRegistrationPage from './pages/TechnicianRegistrationPage';
 import DashboardPage from './pages/DashboardPage';
+import DesktopWorkspace from './pages/DesktopWorkspace';
 import './App.css';
 
 const theme = createTheme({
@@ -45,7 +46,7 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
     h1: {
       fontWeight: 700,
       fontSize: '2rem',
@@ -173,7 +174,20 @@ const AppRoutes: React.FC = () => {
   );
 };
 
+const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
+
 const App: React.FC = () => {
+  if (isDesktopApp) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <DesktopWorkspace />
+        </AuthProvider>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

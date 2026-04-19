@@ -33,11 +33,14 @@ import {
   Person as PersonIcon,
   InsertDriveFile as FileIcon,
   CheckCircle as FinalizedIcon,
-  Drafts as DraftIcon
+  Drafts as DraftIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { EEGReport, SignalFile, Patient } from '../types';
+import { pdfNameFromEdf } from '../utils/fileNames';
+import { EEGReport, SignalFile } from '../types';
 import ReportForm from '../components/ReportForm';
+import ReportVersionHistory from '../components/ReportVersionHistory';
 
 // Ensure this file is treated as a module
 export {};
@@ -48,7 +51,6 @@ const ReportsPage: React.FC = () => {
   // State
   const [reports, setReports] = useState<EEGReport[]>([]);
   const [signalFiles, setSignalFiles] = useState<SignalFile[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
@@ -58,6 +60,7 @@ const ReportsPage: React.FC = () => {
   const [showReportForm, setShowReportForm] = useState(false);
   const [editingReport, setEditingReport] = useState<EEGReport | null>(null);
   const [pdfGenerating, setPdfGenerating] = useState<Set<number>>(new Set());
+  const [historyReport, setHistoryReport] = useState<EEGReport | null>(null);
 
   useEffect(() => {
     loadData();
@@ -66,15 +69,13 @@ const ReportsPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reportsResponse, filesResponse, patientsResponse] = await Promise.all([
+      const [reportsResponse, filesResponse] = await Promise.all([
         apiClient.getReports(),
-        apiClient.getFiles(),
-        apiClient.getPatients(false)
+        apiClient.getFiles()
       ]);
 
       if (reportsResponse.status === 200) setReports(reportsResponse.data);
       if (filesResponse.status === 200) setSignalFiles(filesResponse.data);
-      if (patientsResponse.status === 200) setPatients(patientsResponse.data);
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail || err.message || 'Error loading data';
       setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
@@ -122,6 +123,20 @@ const ReportsPage: React.FC = () => {
     setTimeout(() => setSuccess(''), 3000);
   };
 
+  const handleOpenHistory = (report: EEGReport) => {
+    setHistoryReport(report);
+  };
+
+  const handleHistoryClose = () => {
+    setHistoryReport(null);
+  };
+
+  const handleVersionRestored = () => {
+    loadData();
+    setSuccess('Report restored to selected version.');
+    setTimeout(() => setSuccess(''), 4000);
+  };
+
   const handleGeneratePDF = async (reportId: number) => {
     try {
       setPdfGenerating(prev => new Set(prev).add(reportId));
@@ -142,13 +157,13 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadPDF = async (reportId: number) => {
+  const handleDownloadPDF = async (reportId: number, fileName?: string) => {
     try {
       const blob = await apiClient.downloadReportPDF(reportId);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `EEG_Report_${reportId}.pdf`;
+      link.download = pdfNameFromEdf(fileName, `EEG_Report_${reportId}`);
       document.body.appendChild(link);
       link.click();
       setTimeout(() => {
@@ -337,27 +352,19 @@ const ReportsPage: React.FC = () => {
               >
                 <CardContent sx={{ flexGrow: 1, p: 3 }}>
                   
-                  {/* Status Badges */}
-                  <Box display="flex" justifyContent="space-between" mb={2}>
-                    <Chip 
-                      label={report.is_finalized ? "Finalized" : "Draft"} 
-                      size="small" 
-                      color={report.is_finalized ? "success" : "default"}
-                      icon={report.is_finalized ? <FinalizedIcon /> : <DraftIcon />}
-                      variant={report.is_finalized ? "filled" : "outlined"}
-                    />
+                  <Box display="flex" justifyContent="flex-end" mb={2}>
                     <Stack direction="row" spacing={1}>
-                        <Chip 
-                          label={report.impression || "Pending Analysis"} 
-                          size="small" 
-                          color={getImpressionColor(report.impression)}
-                          sx={{ fontWeight: 600 }}
-                        />
-                        {report.pdf_file_path && (
-                          <Tooltip title="PDF Available">
-                            <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id)} />
-                          </Tooltip>
-                        )}
+                      <Chip 
+                        label={report.impression || "Pending Analysis"} 
+                        size="small" 
+                        color={getImpressionColor(report.impression)}
+                        sx={{ fontWeight: 600 }}
+                      />
+                      {report.pdf_file_path && (
+                        <Tooltip title="PDF Available">
+                          <Chip icon={<PDFIcon />} label="PDF" size="small" color="primary" variant="outlined" clickable onClick={() => handleDownloadPDF(report.id, report.file_name)} />
+                        </Tooltip>
+                      )}
                     </Stack>
                   </Box>
 
@@ -403,6 +410,16 @@ const ReportsPage: React.FC = () => {
                       </IconButton>
                     </Tooltip>
 
+                    <Tooltip title="Version History">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleOpenHistory(report)}
+                        sx={{ bgcolor: 'action.hover', color: 'info.main' }}
+                      >
+                        <HistoryIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+
                     <Tooltip title={report.pdf_file_path ? "Regenerate PDF" : "Generate PDF"}>
                       <span>
                         <IconButton 
@@ -416,17 +433,15 @@ const ReportsPage: React.FC = () => {
                       </span>
                     </Tooltip>
 
-                    {report.pdf_file_path && (
-                      <Tooltip title="Download PDF">
-                        <IconButton 
-                          size="small" 
-                          onClick={() => handleDownloadPDF(report.id)}
-                          sx={{ bgcolor: 'action.hover', color: 'success.main' }}
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    <Tooltip title="Download PDF">
+                      <IconButton 
+                        size="small" 
+                        onClick={() => handleDownloadPDF(report.id, report.file_name)}
+                        sx={{ bgcolor: 'action.hover', color: 'success.main' }}
+                      >
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
 
                     <Tooltip title="Delete Report">
                       <IconButton 
@@ -451,7 +466,7 @@ const ReportsPage: React.FC = () => {
         <ReportForm
           fileId={selectedFileId || editingReport?.file_id}
           signalFile={signalFiles.find(f => f.id === (selectedFileId || editingReport?.file_id))}
-          patient={patients.find(p => p.id === signalFiles.find(f => f.id === (selectedFileId || editingReport?.file_id))?.user_id) || undefined}
+          patient={undefined}
           existingReport={editingReport}
           onSave={handleReportSaved}
           onCancel={() => {
@@ -460,6 +475,17 @@ const ReportsPage: React.FC = () => {
             setEditingReport(null);
           }}
           isDialog={true}
+        />
+      )}
+
+      {/* --- Version History Dialog --- */}
+      {historyReport && (
+        <ReportVersionHistory
+          reportId={historyReport.id}
+          reportPatientName={historyReport.patient_name}
+          open={Boolean(historyReport)}
+          onClose={handleHistoryClose}
+          onRestored={handleVersionRestored}
         />
       )}
     </Box>

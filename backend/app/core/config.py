@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Processing settings
     MAX_CONCURRENT_PROCESSES: int = 4
     PROCESSING_TIMEOUT: int = 300  # 5 minutes
+
+    # Desktop mode (lightweight, no auth/AI)
+    DESKTOP_MODE: bool = False
     
     class Config:
         env_file = ".env"

@@ -1,29 +1,29 @@
 import os
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, mm
+
+from app.core.config import settings
+from app.models.auth import AuthUser
+from app.models.report import EEGReport
+from app.models.signal import EEGBookmark, SignalFile
+from reportlab.lib import colors
 from reportlab.lib.colors import HexColor, black
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch, mm
+from reportlab.pdfgen import canvas
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    Image,
+    PageBreak,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    PageBreak,
-    Image,
 )
 from reportlab.platypus.flowables import HRFlowable
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
-
-from app.core.config import settings
-from app.models.report import EEGReport
-from app.models.signal import SignalFile, EEGBookmark
-from app.models.auth import AuthUser
 
 
 class PDFReportGenerator:
@@ -125,9 +125,11 @@ class PDFReportGenerator:
     ) -> str:
         """Generate a PDF report for the given EEG report"""
 
-        # Create filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"EEG_Report_{report.id}_{timestamp}.pdf"
+        # Create filename based on source EDF name
+        source_name = signal_file.original_filename or signal_file.filename
+        base_name = Path(source_name).name
+        stem = Path(base_name).stem or f"EEG_Report_{report.id}"
+        filename = f"{stem}.pdf"
         filepath = self.reports_dir / filename
 
         # Create PDF document
@@ -159,11 +161,14 @@ class PDFReportGenerator:
         # 3. Clinical Sections (Indications, Technique, Findings)
         story.extend(self._create_clinical_body(report))
 
-        # 4. EEG bookmark images
+        # 4. Topomap (if available)
+        story.extend(self._create_topomap_section(signal_file))
+
+        # 5. EEG bookmark images
         story.extend(self._create_bookmark_section(signal_file))
 
-        # 5. Footer & Signature
-        story.extend(self._create_signature_block(doctor))
+        # 6. Footer & Signature
+        story.extend(self._create_signature_block(report, doctor))
 
         # Build PDF
         doc.build(story, onFirstPage=self._add_footer, onLaterPages=self._add_footer)
@@ -211,11 +216,8 @@ class PDFReportGenerator:
             [
                 Paragraph("<b>File:</b>", self.styles["Normal"]),
                 Paragraph(signal_file.original_filename, self.styles["Normal"]),
-                Paragraph("<b>Status:</b>", self.styles["Normal"]),
-                Paragraph(
-                    "Finalized" if report.is_finalized else "Draft",
-                    self.styles["Normal"],
-                ),
+                Paragraph("", self.styles["Normal"]),
+                Paragraph("", self.styles["Normal"]),
             ],
         ]
 
@@ -246,14 +248,44 @@ class PDFReportGenerator:
 
         story.append(Paragraph("EEG BOOKMARKS:", self.styles["SectionTitle"]))
 
-        for bookmark in bookmarks[:2]:
+        for bookmark in bookmarks:
             if bookmark.image_path and os.path.exists(bookmark.image_path):
                 story.append(
                     Image(bookmark.image_path, width=6.5 * inch, height=3.2 * inch)
                 )
-            comment_text = bookmark.comment or "No comment provided."
-            story.append(Paragraph(comment_text, self.styles["ClinicalText"]))
+            if bookmark.comment:
+                story.append(Paragraph(bookmark.comment, self.styles["ClinicalText"]))
             story.append(Spacer(1, 8))
+
+        return story
+
+    def _create_topomap_section(self, signal_file: SignalFile) -> list:
+        """Create topomap section showing brain activity visualization"""
+        story = []
+
+        # Construct expected path: static/plots/<basename>_topomap.png
+        base = os.path.splitext(signal_file.filename)[0]
+        topomap_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "static",
+            "plots",
+            f"{base}_topomap.png",
+        )
+        topomap_path = os.path.abspath(topomap_path)
+
+        if not os.path.exists(topomap_path):
+            return story
+
+        story.append(Paragraph("BRAIN ACTIVITY TOPOMAP:", self.styles["SectionTitle"]))
+        story.append(Image(topomap_path, width=5 * inch, height=4 * inch))
+        story.append(
+            Paragraph(
+                "Topographic map showing spatial distribution of detected brain activity patterns.",
+                self.styles["ClinicalText"],
+            )
+        )
+        story.append(Spacer(1, 10))
 
         return story
 
@@ -294,22 +326,26 @@ class PDFReportGenerator:
 
         return story
 
-    def _create_signature_block(self, doctor: AuthUser) -> list:
+    def _create_signature_block(self, report: EEGReport, doctor: AuthUser) -> list:
         """Create the bottom right signature block"""
         story = []
         story.append(Spacer(1, 40))
 
         # Doctor details
-        name = (
-            f"{doctor.first_name or ''} {doctor.last_name or ''}".strip()
-            or doctor.username
-        )
-        # Use titles from reference style or doctor object
-        title_lines = [
-            f"<b>{name}</b>",
-            doctor.specialization or "Neurologist",
-            doctor.hospital_affiliation or "Department of Neurophysiology",
-        ]
+        if report.doctor_info:
+            title_lines = [line.strip() for line in report.doctor_info.split("|") if line.strip()]
+            if title_lines:
+                title_lines[0] = f"<b>{title_lines[0]}</b>"
+        else:
+            name = (
+                f"{doctor.first_name or ''} {doctor.last_name or ''}".strip()
+                or doctor.username
+            )
+            title_lines = [
+                f"<b>{name}</b>",
+                doctor.specialization or "Neurologist",
+                doctor.hospital_affiliation or "Department of Neurophysiology",
+            ]
 
         # Create a table to force alignment to the right
         # We use a table so the text block stays together

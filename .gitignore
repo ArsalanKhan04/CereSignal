@@ -141,3 +141,4 @@ test.db
 node_modules/
 
 backend/app/static/plots/*
+backend/logs
