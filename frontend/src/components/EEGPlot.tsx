@@ -571,12 +571,13 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
               </Tooltip>
 
               <FormControl size="small" sx={{ minWidth: 160 }}>
-                <InputLabel>Focus</InputLabel>
+                <InputLabel shrink>Focus</InputLabel>
                 <Select
                   value=""
                   label="Focus"
                   onChange={(e) => handleFocusSelect(Number(e.target.value))}
                   displayEmpty
+                  inputProps={{ 'aria-label': 'Jump to focus point' }}
                 >
                   <MenuItem value="" disabled>
                     Jump to focus point

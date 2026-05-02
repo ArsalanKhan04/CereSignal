@@ -366,15 +366,15 @@ def infer(self, mne_file_path):
         mne_data = mne.io.read_raw_edf(local_path, preload=True)
 
         condition, ab_prob = _process_neurogate(mne_data)
-        print("Inference: neurogate done")
+        print(f"Inference: neurogate done — condition={condition}, ab_prob={ab_prob:.3f}")
         events, raw_events = _process_neurotransformer(mne_data, 0.9)
-        print("Inference: neurotransformer done")
+        print(f"Inference: neurotransformer done — {len(events)} channels, {sum(len(v) for v in raw_events.values())} raw events")
         focus_points = _compute_focus_points(raw_events, 0.5)
         print(f"Inference: computed {len(focus_points)} focus point(s)")
         pdr_text = _compute_pdr(mne_data)
         print(f"Inference: PDR computed ({pdr_text})")
     region_report = _get_region_report(raw_events, 0)
-    print("Inference: region report done")
+    print(f"Inference: region report done — {len(region_report)} regions")
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
 
     # Attempt to generate a topomap image for this inference
@@ -397,6 +397,7 @@ def infer(self, mne_file_path):
     ## Now doing processing steps for neurotransformer
 
     end_time = time.time()
+    print(f"Inference: finished in {end_time - start_time:.1f}s")
 
     return {
         "result": condition,
