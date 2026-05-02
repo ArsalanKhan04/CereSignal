@@ -13,8 +13,9 @@ from app.core.logging_config import logger
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Celery configuration
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+_redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = _redis_url
+CELERY_RESULT_BACKEND = _redis_url
 
 # Initialize Celery app
 inference_app = Celery('inference', broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)

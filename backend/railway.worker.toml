@@ -1,0 +1,7 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.backend"
+
+[deploy]
+startCommand = "celery -A inference.infer worker -l info"
+restartPolicyType = "ON_FAILURE"

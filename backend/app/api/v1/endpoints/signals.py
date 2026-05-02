@@ -67,31 +67,11 @@ EEG_CHANNEL_ORDER = [
 router = APIRouter()
 
 
-class _DesktopInferenceService:
-    def start_inference(self, file_path: str) -> str:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inference is disabled in desktop mode",
-        )
-
-    def get_task_status(self, task_id: str):
-        return {
-            "status": "not_started",
-            "message": "Inference is disabled in desktop mode",
-        }
-
-
-_desktop_inference_service = _DesktopInferenceService()
+from app.services.inference_service import inference_service as _inference_service
 
 
 def _get_inference_service():
-    if settings.DESKTOP_MODE:
-        return _desktop_inference_service
-
-    from importlib import import_module
-
-    module = import_module("app.services.inference_service")
-    return module.inference_service
+    return _inference_service
 
 
 def _regenerate_report_pdf(db: Session, file: SignalFile) -> None:
@@ -183,11 +163,6 @@ async def upload_signal_file(
                     detail="Patients cannot upload files",
                 )
         else:
-            if settings.DESKTOP_MODE:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="patient_id is required in desktop mode",
-                )
             # If no patient specified, create a default patient for this auth user
             user = (
                 db.query(User)
@@ -269,12 +244,12 @@ async def upload_signal_file(
             db_file.condition = "processing"
             db.commit()
 
-            if settings.DESKTOP_MODE or skip_inference:
+            if skip_inference:
                 db_file.processing_status = "pending"
                 db_file.condition = "processing"
                 db.commit()
                 logger.info(
-                    "Inference skipped for desktop mode",
+                    "Inference skipped",
                     extra={"file_id": db_file.id, "skip_inference": skip_inference},
                 )
             else:
@@ -1046,19 +1021,6 @@ async def get_signal_stats(
 async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
     """Check the status of inference for a specific file"""
 
-    if settings.DESKTOP_MODE:
-        file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-        if not file:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-            )
-        return {
-            "file_id": file_id,
-            "condition": file.condition,
-            "inference_status": "not_started",
-            "message": "Inference is disabled in desktop mode",
-        }
-
     report_task_id = None
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
@@ -1137,17 +1099,6 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
     If completed, stores the report in the database.
     """
     try:
-        if settings.DESKTOP_MODE:
-            file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-            if not file:
-                raise HTTPException(status_code=404, detail="Signal file not found")
-            return {
-                "file_id": file_id,
-                "report_status": "not_started",
-                "message": "Report generation is disabled in desktop mode",
-                "has_report": bool(file.factual_report),
-            }
-
         file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
         if not file:
             raise HTTPException(status_code=404, detail="Signal file not found")
@@ -1279,9 +1230,7 @@ async def update_file_label(
             status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
         )
 
-    if settings.DESKTOP_MODE and current_user is None:
-        pass
-    elif current_user.user_type == UserType.PATIENT.value:
+    if current_user.user_type == UserType.PATIENT.value:
         patient_user = (
             db.query(User)
             .filter(User.patient_auth_user_id == current_user.id)

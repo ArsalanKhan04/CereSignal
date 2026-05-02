@@ -52,8 +52,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
   isDialog = false
 }) => {
   const { user } = useAuth();
-  const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
-
   const DOCTOR_PROFILES_KEY = 'ceresignal_doctor_profiles';
   type DoctorProfile = {
     id: string;
@@ -313,8 +311,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       }));
     }
 
-    // Prefill ref_physician only for non-desktop doctor sessions
-    if (!isDesktopApp && user && user.user_type === 'doctor') {
+    if (user && user.user_type === 'doctor') {
       const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
       setFormData(prev => ({
         ...prev,

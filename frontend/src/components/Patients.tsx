@@ -71,9 +71,8 @@ const Patients: React.FC<{
 }) => {
   const { user } = useAuth();
   const isReadOnly = user?.user_type === 'doctor';
-  const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
-  const allowDoctorFileOps = isDesktopApp && user?.user_type === 'doctor';
-  const allowDesktopCreate = isDesktopApp && user?.user_type === 'doctor';
+  const allowDoctorFileOps = false;
+  const allowDesktopCreate = false;
   const allowLabelChange = user?.user_type === 'doctor';
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);

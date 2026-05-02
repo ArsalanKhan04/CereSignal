@@ -20,21 +20,20 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Pass the connection URL to the broker for Celery tasks
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - redis # Ensure Redis starts before the backend attempts to send tasks
+      - redis
 
   # 3. Celery Worker Service
   celery_worker:
     build:
-      context: ./backend # Usually, the worker uses the same codebase as the backend
+      context: ./backend
       dockerfile: Dockerfile.backend
     container_name: celery_worker
     command: celery -A inference.infer worker -l info
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./backend:/usr/src/app
     depends_on:

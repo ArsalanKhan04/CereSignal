@@ -8,7 +8,6 @@ import SignupPage from './pages/SignupPage';
 import DoctorRegistrationPage from './pages/DoctorRegistrationPage';
 import TechnicianRegistrationPage from './pages/TechnicianRegistrationPage';
 import DashboardPage from './pages/DashboardPage';
-import DesktopWorkspace from './pages/DesktopWorkspace';
 import './App.css';
 
 const theme = createTheme({
@@ -174,20 +173,7 @@ const AppRoutes: React.FC = () => {
   );
 };
 
-const isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
-
 const App: React.FC = () => {
-  if (isDesktopApp) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <AuthProvider>
-          <DesktopWorkspace />
-        </AuthProvider>
-      </ThemeProvider>
-    );
-  }
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

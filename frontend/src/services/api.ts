@@ -29,11 +29,8 @@ import {
 class ApiClient {
   private client: AxiosInstance;
   private baseURL: string;
-  private isDesktopApp: boolean;
-
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
-    this.isDesktopApp = process.env.REACT_APP_DESKTOP === 'true';
     this.client = axios.create({
       baseURL: this.baseURL,
       headers: {
@@ -51,11 +48,9 @@ class ApiClient {
           requestId,
           params: config.params,
         });
-        if (!this.isDesktopApp) {
-          const token = localStorage.getItem('auth_token');
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-          }
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
       },
@@ -91,7 +86,7 @@ class ApiClient {
             detail: error.response?.data?.detail,
           }
         );
-        if (!this.isDesktopApp && error.response?.status === 401) {
+        if (error.response?.status === 401) {
           // Token expired or invalid, redirect to login
           localStorage.removeItem('auth_token');
           localStorage.removeItem('current_user');

@@ -73,8 +73,6 @@ const shouldSendRemote = (level: LogLevel): boolean => {
 };
 
 const sendRemoteLog = (entry: LogEntry): void => {
-  const isDesktop = process.env.REACT_APP_DESKTOP === 'true';
-  if (isDesktop) return;
   if (!shouldSendRemote(entry.level)) return;
   const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
   const url = `${baseUrl.replace(/\/$/, '')}/logs/client`;
@@ -101,14 +99,6 @@ const log = (
   const entry = createLogEntry(level, message, context, data);
   addToBuffer(entry);
 
-  const isDesktop = process.env.REACT_APP_DESKTOP === 'true';
-  if (isDesktop && window.electron?.log) {
-    try {
-      window.electron.log(entry);
-    } catch (err) {
-      // fall through to console logging
-    }
-  }
 
   sendRemoteLog(entry);
 

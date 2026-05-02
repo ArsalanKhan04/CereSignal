@@ -145,7 +145,8 @@ six
 sniffio
 soupsieve
 SQLAlchemy
-ollama
+openai
+psycopg2-binary
 resampy
 stack-data
 starlette

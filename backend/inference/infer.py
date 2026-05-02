@@ -5,7 +5,7 @@ import time
 
 import mne
 import numpy as np
-import ollama
+import openai
 import torch
 import torch.nn.functional as F
 from app.services.brain_viz_service import generate_topomap_from_events
@@ -21,8 +21,8 @@ from external.models.neurogate import NeuroGate
 from external.models.neurotransformer import Neurotransformer
 from external.pdr import PDREstimator
 
-CELERY_BROKER_URL = "redis://localhost:6379/0"
-CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 app = Celery("tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
@@ -264,21 +264,22 @@ def _generate_report(ab_prob, region_report, pdr_text):
             """
 
     try:
-        response = ollama.chat(
-            model="qwen3:8b",
-            format="json",
+        client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        response = client.chat.completions.create(
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": prompt_content},
             ],
         )
-        json_str = response["message"]["content"]
+        json_str = response.choices[0].message.content
         data = json.loads(json_str)
 
         factual_report = data.get("factual_report", "invalid")
         impression = data.get("impression", "invalid")
     except Exception as e:
-        print(f"Ollama Error: {e}")
+        print(f"OpenAI Error: {e}")
         factual_report = ""
         impression = ""
     return factual_report, impression
