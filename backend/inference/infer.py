@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import re
 import time
@@ -367,28 +366,34 @@ def infer(self, mne_file_path):
         mne_data = mne.io.read_raw_edf(local_path, preload=True)
 
         condition, ab_prob = _process_neurogate(mne_data)
+        print("Inference: neurogate done")
         events, raw_events = _process_neurotransformer(mne_data, 0.9)
-        logger = logging.getLogger(__name__)
+        print("Inference: neurotransformer done")
         focus_points = _compute_focus_points(raw_events, 0.5)
-        logger.info(f"Computed {len(focus_points)} focus point(s)")
+        print(f"Inference: computed {len(focus_points)} focus point(s)")
         pdr_text = _compute_pdr(mne_data)
+        print(f"Inference: PDR computed ({pdr_text})")
     region_report = _get_region_report(raw_events, 0)
+    print("Inference: region report done")
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
 
     # Attempt to generate a topomap image for this inference
     try:
         base = os.path.splitext(os.path.basename(mne_file_path))[0]
+        print("Inference: generating topomap...")
         out_path = generate_topomap_from_events(
             base,
             {ch: {k: v for k, v in events[ch].items()} for ch in events},
             "",
             vmax=None,
         )
+        print("Inference: topomap done")
     except Exception as e:
         print(f"Warning: failed to generate topomap image: {e}")
         out_path = None
 
     report_task = generate_report.delay(float(ab_prob), region_report, pdr_text)
+    print(f"Inference: report task queued ({report_task.id})")
     ## Now doing processing steps for neurotransformer
 
     end_time = time.time()
