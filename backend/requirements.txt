@@ -155,6 +155,7 @@ sympy
 tenacity
 threadpoolctl
 tinycss2
+torch
 tornado
 tqdm
 traitlets
