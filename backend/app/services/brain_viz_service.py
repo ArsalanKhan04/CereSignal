@@ -119,11 +119,19 @@ def generate_topomap_from_events(recording_basename: str, events: dict, title_su
     ax.set_axis_off()
     ax.set_title(title_suffix, fontsize=12, fontweight='bold', pad=20)
 
-    # Save figure
-    out_file = os.path.join(PLOT_DIR, f"{recording_basename}_topomap.png")
-    fig.savefig(out_file, dpi=150)
+    # Save to temp, upload to Supabase assets bucket, remove temp
+    import tempfile
+    from app.services.storage_service import storage_service, ASSETS_BUCKET
+    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    tmp_path = tmp.name
+    tmp.close()
+    fig.savefig(tmp_path, dpi=150)
     plt.close(fig)
-    return out_file
+    object_path = f"topomaps/{recording_basename}_topomap.png"
+    with open(tmp_path, "rb") as f:
+        storage_service.upload(ASSETS_BUCKET, object_path, f.read())
+    os.unlink(tmp_path)
+    return object_path
 
 
 if __name__ == '__main__':

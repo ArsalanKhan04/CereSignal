@@ -7,7 +7,7 @@ try:
 except ImportError:
     from pydantic import BaseSettings
 from pydantic import field_validator
-from typing import List
+from typing import List, Union
 import os
 
 
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS settings
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    BACKEND_CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:8080"]
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
@@ -55,7 +55,14 @@ class Settings(BaseSettings):
 
     # File upload settings
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
-    ALLOWED_FILE_TYPES: list = [".edf", ".csv", ".json", ".txt"]
+    ALLOWED_FILE_TYPES: Union[List[str], str] = [".edf", ".csv", ".json", ".txt"]
+
+    @field_validator("ALLOWED_FILE_TYPES", mode="before")
+    @classmethod
+    def assemble_file_types(cls, v):
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",")]
+        return v
 
     # Processing settings
     MAX_CONCURRENT_PROCESSES: int = 4

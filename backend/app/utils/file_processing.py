@@ -3,7 +3,6 @@ File processing utilities
 """
 
 import os
-import shutil
 import secrets
 from pathlib import Path
 from typing import Optional
@@ -14,57 +13,42 @@ from fastapi import UploadFile
 
 from app.core.config import settings
 from app.core.logging_config import logger
+from app.services.storage_service import storage_service, SIGNALS_BUCKET
 
 
 async def save_uploaded_file(file: UploadFile, filename: str) -> str:
-    """Save uploaded file to the filesystem with original name + unique suffix"""
-    
-    # Create uploads directory if it doesn't exist
-    upload_dir = Path("uploads")
-    upload_dir.mkdir(exist_ok=True)
-    
-    # Parse the original filename
+    """Upload file to Supabase Storage. Returns the storage object path."""
     original_path = Path(filename)
     name_without_ext = original_path.stem
     extension = original_path.suffix
-    
-    # Generate unique 3-character suffix
-    unique_suffix = secrets.token_hex(2)  # 4 hex chars = 2 bytes, but we want 3 chars
-    unique_suffix = unique_suffix[:3]  # Take first 3 characters
-    
-    # Create new filename: originalname_suffix.ext
+
+    unique_suffix = secrets.token_hex(2)[:3]
     new_filename = f"{name_without_ext}_{unique_suffix}{extension}"
-    
-    # Create file path
-    file_path = upload_dir / new_filename
-    
-    # Save file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    return str(file_path)
+    object_path = f"signals/{new_filename}"
+
+    data = await file.read()
+    storage_service.upload(SIGNALS_BUCKET, object_path, data)
+    return object_path
 
 
-def process_signal_file(file_path: str) -> dict:
-    """Process uploaded signal file and extract metadata using MNE"""
-    
-    file_extension = Path(file_path).suffix.lower()
-    
+def process_signal_file(storage_path: str) -> dict:
+    """Process uploaded signal file (Supabase object path) and extract metadata using MNE."""
+    file_extension = Path(storage_path).suffix.lower()
+
     if file_extension == ".edf":
-        return process_eeg_file_with_mne(file_path)
+        return process_eeg_file_with_mne(storage_path)
     else:
         raise ValueError(f"Unsupported file type: {file_extension}")
 
 
-def process_eeg_file_with_mne(file_path: str) -> dict:
-    """Process EEG file using MNE and return complete signal data"""
+def process_eeg_file_with_mne(storage_path: str) -> dict:
+    """Process EEG file using MNE and return complete signal data."""
     try:
         import mne
-        import json
         import numpy as np
-        
-        # Read the EEG file using MNE
-        raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
+
+        with storage_service.temp_local_file(SIGNALS_BUCKET, storage_path, suffix=".edf") as local_path:
+            raw = mne.io.read_raw_edf(local_path, preload=True, verbose=False)
         
         # Get basic info
         info = raw.info
@@ -179,11 +163,9 @@ def get_file_size(file_path: str) -> int:
 
 
 def delete_file(file_path: str) -> bool:
-    """Delete file from filesystem"""
+    """Delete file from Supabase Storage."""
     try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            return True
-        return False
+        storage_service.delete(SIGNALS_BUCKET, file_path)
+        return True
     except Exception:
         return False

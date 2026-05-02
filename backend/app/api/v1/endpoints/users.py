@@ -510,17 +510,22 @@ async def delete_user(
 
     try:
         # Delete all associated signal files first (both physical files and database records)
+        from app.services.storage_service import storage_service, SIGNALS_BUCKET, ASSETS_BUCKET
+
         signal_files = db.query(SignalFile).filter(SignalFile.user_id == user_id).all()
         for file in signal_files:
-            # Delete physical file from disk
-            if os.path.exists(file.file_path):
-                try:
-                    os.remove(file.file_path)
-                except OSError as e:
-                    logger.warning(
-                        "Could not delete file",
-                        extra={"file_path": file.file_path, "error": str(e)},
-                    )
+            # Delete signal file from Supabase Storage
+            try:
+                storage_service.delete(SIGNALS_BUCKET, file.file_path)
+            except Exception as e:
+                logger.warning(
+                    "Could not delete file from storage",
+                    extra={"file_path": file.file_path, "error": str(e)},
+                )
+            # Delete bookmark images
+            for bookmark in file.bookmarks:
+                if bookmark.image_path:
+                    storage_service.delete(ASSETS_BUCKET, bookmark.image_path)
 
             # Delete from database (cascade will handle related records)
             db.delete(file)

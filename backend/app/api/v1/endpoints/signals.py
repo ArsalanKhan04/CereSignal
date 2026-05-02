@@ -32,11 +32,11 @@ from app.schemas.signal import (
 )
 from app.services.eeg_cache_service import eeg_cache
 from app.services.pdf_service import pdf_generator
+from app.services.storage_service import storage_service, SIGNALS_BUCKET, ASSETS_BUCKET
 from app.utils.file_processing import process_signal_file, save_uploaded_file
-from external.edf_preprocess import process_edf
 from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
                      status)
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, RedirectResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -194,13 +194,6 @@ async def upload_signal_file(
         file_path = await save_uploaded_file(file, original_filename)
 
         matlab_applied = False
-        try:
-            raw = mne.io.read_raw_edf(file_path, preload=False, verbose=False)
-            if len(raw.ch_names) == 24:
-                process_edf(file_path, file_path)
-                matlab_applied = True
-        except Exception as e:
-            logger.warning("Skipping MATLAB preprocessing", extra={"error": str(e)})
 
         # Extract the actual saved filename from the path
         saved_filename = os.path.basename(file_path)
@@ -304,20 +297,6 @@ async def upload_signal_file(
         )
 
 
-@router.get("/files/serve")
-async def serve_file(file_path: str):
-    """Serve a file directly by path - No authentication required"""
-
-    if not os.path.exists(file_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk"
-        )
-
-    filename = os.path.basename(file_path)
-    return FileResponse(
-        path=file_path, filename=filename, media_type="application/octet-stream"
-    )
-
 
 @router.get("/files/{file_id}/bookmarks", response_model=List[EEGBookmarkResponse])
 async def get_file_bookmarks(
@@ -366,13 +345,13 @@ async def get_file_bookmarks(
 
     response = []
     for bookmark in bookmarks:
-        filename = os.path.basename(bookmark.image_path)
+        image_url = storage_service.public_url(bookmark.image_path) if bookmark.image_path else ""
         response.append(
             EEGBookmarkResponse(
                 id=bookmark.id,
                 file_id=bookmark.file_id,
                 comment=bookmark.comment,
-                image_url=f"/uploads/bookmarks/{file_id}/{filename}",
+                image_url=image_url,
                 created_at=bookmark.created_at,
                 created_by=bookmark.created_by,
             )
@@ -435,10 +414,8 @@ async def create_file_bookmark(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Bookmark to replace not found",
             )
-        if bookmark_to_replace.image_path and os.path.exists(
-            bookmark_to_replace.image_path
-        ):
-            os.remove(bookmark_to_replace.image_path)
+        if bookmark_to_replace.image_path:
+            storage_service.delete(ASSETS_BUCKET, bookmark_to_replace.image_path)
         db.delete(bookmark_to_replace)
         db.commit()
 
@@ -464,15 +441,10 @@ async def create_file_bookmark(
     db.commit()
     db.refresh(bookmark)
 
-    bookmark_dir = os.path.join("uploads", "bookmarks", str(file_id))
-    os.makedirs(bookmark_dir, exist_ok=True)
-    filename = f"bookmark_{bookmark.id}.png"
-    image_path = os.path.join(bookmark_dir, filename)
+    object_path = f"bookmarks/{file_id}/bookmark_{bookmark.id}.png"
+    storage_service.upload(ASSETS_BUCKET, object_path, image_bytes)
 
-    with open(image_path, "wb") as handle:
-        handle.write(image_bytes)
-
-    bookmark.image_path = image_path
+    bookmark.image_path = object_path
     db.commit()
     db.refresh(bookmark)
 
@@ -482,7 +454,7 @@ async def create_file_bookmark(
         id=bookmark.id,
         file_id=bookmark.file_id,
         comment=bookmark.comment,
-        image_url=f"/uploads/bookmarks/{file_id}/{filename}",
+        image_url=storage_service.public_url(object_path),
         created_at=bookmark.created_at,
         created_by=bookmark.created_by,
     )
@@ -534,8 +506,8 @@ async def delete_file_bookmark(
             status_code=status.HTTP_404_NOT_FOUND, detail="Bookmark not found"
         )
 
-    if bookmark.image_path and os.path.exists(bookmark.image_path):
-        os.remove(bookmark.image_path)
+    if bookmark.image_path:
+        storage_service.delete(ASSETS_BUCKET, bookmark.image_path)
 
     db.delete(bookmark)
     db.commit()
@@ -902,29 +874,18 @@ async def get_file_topomap(file_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
         )
 
-    # Construct expected path (saved by inference task): <basename>_topomap.png where basename is the filename without extension
     base = os.path.splitext(file.filename)[0]
-    logger.debug("Looking for topomap", extra={"base": base})
-    plot_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "..",
-        "static",
-        "plots",
-        f"{base}_topomap.png",
-    )
-    plot_path = os.path.abspath(plot_path)
-    logger.debug("Resolved topomap path", extra={"plot_path": plot_path})
-    if not os.path.exists(plot_path):
+    object_path = f"topomaps/{base}_topomap.png"
+
+    try:
+        data = storage_service.download(ASSETS_BUCKET, object_path)
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Topomap not found for this file",
         )
 
-    return FileResponse(
-        path=plot_path, filename=os.path.basename(plot_path), media_type="image/png"
-    )
+    return Response(content=data, media_type="image/png")
 
 
 @router.get("/stats")
@@ -1175,9 +1136,13 @@ async def delete_signal_file(file_id: int, db: Session = Depends(get_db)):
         )
 
     try:
-        # Delete physical file
-        if os.path.exists(file.file_path):
-            os.remove(file.file_path)
+        # Delete signal file from Supabase Storage
+        storage_service.delete(SIGNALS_BUCKET, file.file_path)
+
+        # Delete bookmark images from assets bucket
+        for bookmark in file.bookmarks:
+            if bookmark.image_path:
+                storage_service.delete(ASSETS_BUCKET, bookmark.image_path)
 
         # Delete from database (cascade will handle related records)
         db.delete(file)
@@ -1195,7 +1160,7 @@ async def delete_signal_file(file_id: int, db: Session = Depends(get_db)):
 
 @router.get("/files/{file_id}/download")
 async def download_file(file_id: int, db: Session = Depends(get_db)):
-    """Download/serve a signal file for viewing - No authentication required"""
+    """Download/serve a signal file for viewing"""
 
     file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
     if not file:
@@ -1203,15 +1168,17 @@ async def download_file(file_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
         )
 
-    if not os.path.exists(file.file_path):
+    try:
+        data = storage_service.download(SIGNALS_BUCKET, file.file_path)
+    except Exception:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk"
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found in storage"
         )
 
-    return FileResponse(
-        path=file.file_path,
-        filename=file.original_filename,
+    return Response(
+        content=data,
         media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{file.original_filename}"'},
     )
 
 

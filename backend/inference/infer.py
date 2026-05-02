@@ -287,10 +287,11 @@ def _generate_report(ab_prob, region_report, pdr_text):
 
 @app.task(name="infer", bind=True)
 def infer(self, mne_file_path):
+    from app.services.storage_service import storage_service, SIGNALS_BUCKET
     start_time = time.time()
-    if not os.path.exists(mne_file_path):
-        raise FileNotFoundError(f"File {mne_file_path} does not exist.")
-    mne_data = mne.io.read_raw_edf(mne_file_path, preload=True)
+
+    with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
+        mne_data = mne.io.read_raw_edf(local_path, preload=True)
 
     condition, ab_prob = _process_neurogate(mne_data)
     events, raw_events = _process_neurotransformer(mne_data, 0.9)
@@ -301,14 +302,12 @@ def infer(self, mne_file_path):
     # Attempt to generate a topomap image for this inference
     try:
         base = os.path.splitext(os.path.basename(mne_file_path))[0]
-        title = ""
         out_path = generate_topomap_from_events(
             base,
             {ch: {k: v for k, v in events[ch].items()} for ch in events},
-            title,
+            "",
             vmax=None,
         )
-        # include path in result for later DB update if needed
     except Exception as e:
         print(f"Warning: failed to generate topomap image: {e}")
         out_path = None

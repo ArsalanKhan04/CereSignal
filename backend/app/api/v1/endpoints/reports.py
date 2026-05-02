@@ -3,7 +3,7 @@ Report management endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.sql import func
@@ -651,16 +651,9 @@ async def download_report_pdf(
             status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
         )
 
-    needs_regen = False
-    if not report.pdf_file_path or not os.path.exists(report.pdf_file_path):
-        needs_regen = True
-    elif report.updated_at:
-        try:
-            pdf_mtime = os.path.getmtime(report.pdf_file_path)
-            if pdf_mtime < report.updated_at.timestamp():
-                needs_regen = True
-        except Exception:
-            needs_regen = True
+    from app.services.storage_service import storage_service, SIGNALS_BUCKET
+
+    needs_regen = not report.pdf_file_path
 
     if needs_regen:
         try:
@@ -685,10 +678,18 @@ async def download_report_pdf(
                 detail=f"Error generating PDF: {str(e)}",
             )
 
-    # Return the PDF file
+    try:
+        data = storage_service.download(SIGNALS_BUCKET, report.pdf_file_path)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="PDF not found in storage"
+        )
+
     filename = os.path.basename(report.pdf_file_path)
-    return FileResponse(
-        path=report.pdf_file_path, filename=filename, media_type="application/pdf"
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -724,7 +725,7 @@ async def get_pdf_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
         )
 
-    pdf_exists = report.pdf_file_path and os.path.exists(report.pdf_file_path)
+    pdf_exists = bool(report.pdf_file_path)
 
     return {
         "report_id": report_id,

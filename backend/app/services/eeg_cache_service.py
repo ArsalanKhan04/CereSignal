@@ -29,8 +29,11 @@ class EEGCacheService:
                 self._cache.move_to_end(file_id)
                 return self._cache[file_id]
 
-            # load raw with preload to keep data in memory
-            raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
+            # Download from Supabase to a temp file; preload=True puts all data in RAM
+            # so the temp file can be deleted immediately after this call.
+            from app.services.storage_service import storage_service, SIGNALS_BUCKET
+            with storage_service.temp_local_file(SIGNALS_BUCKET, file_path, suffix=".edf") as local_path:
+                raw = mne.io.read_raw_edf(local_path, preload=True, verbose=False)
             meta = {
                 "raw": raw,
                 "ch_names": list(raw.ch_names),

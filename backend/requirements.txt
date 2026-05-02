@@ -147,6 +147,7 @@ soupsieve
 SQLAlchemy
 openai
 psycopg2-binary
+supabase
 resampy
 stack-data
 starlette

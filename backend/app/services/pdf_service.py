@@ -30,8 +30,7 @@ class PDFReportGenerator:
     """Generate professional PDF reports for EEG analysis"""
 
     def __init__(self):
-        self.reports_dir = Path("reports")
-        self.reports_dir.mkdir(exist_ok=True)
+        pass
 
         # Define styles
         self.styles = getSampleStyleSheet()
@@ -123,18 +122,22 @@ class PDFReportGenerator:
     def generate_report_pdf(
         self, report: EEGReport, signal_file: SignalFile, doctor: AuthUser
     ) -> str:
-        """Generate a PDF report for the given EEG report"""
+        """Generate a PDF report and upload to Supabase Storage. Returns storage object path."""
+        import tempfile
+        from app.services.storage_service import storage_service, SIGNALS_BUCKET
 
-        # Create filename based on source EDF name
         source_name = signal_file.original_filename or signal_file.filename
-        base_name = Path(source_name).name
-        stem = Path(base_name).stem or f"EEG_Report_{report.id}"
+        stem = Path(Path(source_name).name).stem or f"EEG_Report_{report.id}"
         filename = f"{stem}.pdf"
-        filepath = self.reports_dir / filename
+
+        # Write to a temp file, then upload
+        tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
 
         # Create PDF document
         doc = SimpleDocTemplate(
-            str(filepath),
+            tmp_path,
             pagesize=A4,
             rightMargin=50,
             leftMargin=50,
@@ -142,38 +145,41 @@ class PDFReportGenerator:
             bottomMargin=50,
         )
 
-        # Build content
+        # Build content — collect temp paths for embedded images so we can clean up after build
+        temp_image_paths = []
         story = []
 
-        # 1. Header Section
         story.extend(self._create_header())
-
-        # 2. Patient & Metadata Grid
         story.extend(self._create_metadata_grid(report, signal_file))
-
-        # Separator line
         story.append(
             HRFlowable(
                 width="100%", thickness=1, color=black, spaceBefore=5, spaceAfter=15
             )
         )
-
-        # 3. Clinical Sections (Indications, Technique, Findings)
         story.extend(self._create_clinical_body(report))
-
-        # 4. Topomap (if available)
-        story.extend(self._create_topomap_section(signal_file))
-
-        # 5. EEG bookmark images
-        story.extend(self._create_bookmark_section(signal_file))
-
-        # 6. Footer & Signature
+        story.extend(self._create_topomap_section(signal_file, temp_image_paths))
+        story.extend(self._create_bookmark_section(signal_file, temp_image_paths))
         story.extend(self._create_signature_block(report, doctor))
 
-        # Build PDF
         doc.build(story, onFirstPage=self._add_footer, onLaterPages=self._add_footer)
 
-        return str(filepath)
+        # Clean up embedded image temp files
+        for p in temp_image_paths:
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+        # Upload PDF to Supabase and remove local temp
+        object_path = f"reports/{filename}"
+        with open(tmp_path, "rb") as f:
+            storage_service.upload(SIGNALS_BUCKET, object_path, f.read())
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+        return object_path
 
     def _create_header(self) -> list:
         """Create the hospital/department header"""
@@ -236,49 +242,58 @@ class PDFReportGenerator:
 
         return [table, Spacer(1, 5)]
 
-    def _create_bookmark_section(self, signal_file: SignalFile) -> list:
-        """Create bookmark section with attached EEG images"""
-        story = []
+    def _create_bookmark_section(self, signal_file: SignalFile, temp_paths: list) -> list:
+        """Create bookmark section with attached EEG images downloaded from Supabase."""
+        import tempfile
+        from app.services.storage_service import storage_service, ASSETS_BUCKET
 
-        bookmarks = (
-            list(signal_file.bookmarks) if hasattr(signal_file, "bookmarks") else []
-        )
+        story = []
+        bookmarks = list(signal_file.bookmarks) if hasattr(signal_file, "bookmarks") else []
         if not bookmarks:
             return story
 
         story.append(Paragraph("EEG BOOKMARKS:", self.styles["SectionTitle"]))
 
         for bookmark in bookmarks:
-            if bookmark.image_path and os.path.exists(bookmark.image_path):
-                story.append(
-                    Image(bookmark.image_path, width=6.5 * inch, height=3.2 * inch)
-                )
+            if bookmark.image_path:
+                try:
+                    data = storage_service.download(ASSETS_BUCKET, bookmark.image_path)
+                    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                    tmp.write(data)
+                    tmp.flush()
+                    tmp.close()
+                    temp_paths.append(tmp.name)
+                    story.append(Image(tmp.name, width=6.5 * inch, height=3.2 * inch))
+                except Exception:
+                    pass
             if bookmark.comment:
                 story.append(Paragraph(bookmark.comment, self.styles["ClinicalText"]))
             story.append(Spacer(1, 8))
 
         return story
 
-    def _create_topomap_section(self, signal_file: SignalFile) -> list:
-        """Create topomap section showing brain activity visualization"""
+    def _create_topomap_section(self, signal_file: SignalFile, temp_paths: list) -> list:
+        """Create topomap section, downloading the PNG from Supabase."""
+        import tempfile
+        from app.services.storage_service import storage_service, ASSETS_BUCKET
+
         story = []
-
-        # Construct expected path: static/plots/<basename>_topomap.png
         base = os.path.splitext(signal_file.filename)[0]
-        topomap_path = os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "static",
-            "plots",
-            f"{base}_topomap.png",
-        )
-        topomap_path = os.path.abspath(topomap_path)
+        object_path = f"topomaps/{base}_topomap.png"
 
-        if not os.path.exists(topomap_path):
+        try:
+            data = storage_service.download(ASSETS_BUCKET, object_path)
+        except Exception:
             return story
 
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        tmp.write(data)
+        tmp.flush()
+        tmp.close()
+        temp_paths.append(tmp.name)
+
         story.append(Paragraph("BRAIN ACTIVITY TOPOMAP:", self.styles["SectionTitle"]))
-        story.append(Image(topomap_path, width=5 * inch, height=4 * inch))
+        story.append(Image(tmp.name, width=5 * inch, height=4 * inch))
         story.append(
             Paragraph(
                 "Topographic map showing spatial distribution of detected brain activity patterns.",

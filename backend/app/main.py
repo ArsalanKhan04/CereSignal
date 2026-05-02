@@ -4,7 +4,6 @@ Main application entry point
 """
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pathlib import Path
@@ -53,10 +52,6 @@ def create_application() -> FastAPI:
 
     # Include API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
-
-    # Public uploads (bookmarks)
-    Path("uploads").mkdir(parents=True, exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
     return app
 
