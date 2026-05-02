@@ -4,7 +4,7 @@ Admin endpoints — hospital-scoped staff and invitation management
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -54,7 +54,7 @@ async def create_invitation(
         StaffInvitation.invited_email == str(data.email),
         StaffInvitation.hospital_id == hid,
         StaffInvitation.used_at == None,
-        StaffInvitation.expires_at > datetime.utcnow(),
+        StaffInvitation.expires_at > datetime.now(timezone.utc),
     ).first()
     if pending:
         raise HTTPException(400, detail="A pending invitation already exists for this email")
@@ -65,7 +65,7 @@ async def create_invitation(
         invited_email=str(data.email),
         role=data.role,
         token=token,
-        expires_at=datetime.utcnow() + timedelta(days=7),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
         created_by=current_user.id,
     )
     db.add(invitation)
@@ -124,7 +124,7 @@ async def get_admin_stats(
     pending_invitations = db.query(func.count(StaffInvitation.id)).filter(
         StaffInvitation.hospital_id == hid,
         StaffInvitation.used_at == None,
-        StaffInvitation.expires_at > datetime.utcnow(),
+        StaffInvitation.expires_at > datetime.now(timezone.utc),
     ).scalar() or 0
 
     return AdminStatsResponse(

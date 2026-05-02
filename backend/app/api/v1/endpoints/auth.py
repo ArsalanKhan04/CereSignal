@@ -3,7 +3,7 @@ Authentication endpoints
 """
 
 import uuid
-from datetime import date as date_type
+from datetime import date as date_type, timezone
 from datetime import datetime, timedelta
 from typing import List
 
@@ -109,7 +109,7 @@ async def validate_invite_token(token: str, db: Session = Depends(get_db)):
     if invitation.used_at is not None:
         raise HTTPException(status_code=410, detail="This invitation has already been used")
 
-    if invitation.expires_at < datetime.utcnow():
+    if invitation.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="This invitation has expired")
 
     hospital = db.query(Hospital).filter(Hospital.id == invitation.hospital_id).first()
@@ -139,7 +139,7 @@ async def register_from_invite(
         raise HTTPException(status_code=404, detail="Invitation not found")
     if invitation.used_at is not None:
         raise HTTPException(status_code=410, detail="This invitation has already been used")
-    if invitation.expires_at < datetime.utcnow():
+    if invitation.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="This invitation has expired")
 
     if db.query(AuthUser).filter(AuthUser.username == data.username).first():
@@ -167,7 +167,7 @@ async def register_from_invite(
             is_active=True,
         )
         db.add(staff)
-        invitation.used_at = datetime.utcnow()
+        invitation.used_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(staff)
         return staff
@@ -443,7 +443,7 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
         )
 
     # Update last login
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
 
     # Create access token
@@ -516,7 +516,7 @@ async def login_patient(
         )
 
     # Update last login
-    auth_user.last_login = datetime.utcnow()
+    auth_user.last_login = datetime.now(timezone.utc)
     db.commit()
 
     # Create access token
