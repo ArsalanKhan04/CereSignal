@@ -31,9 +31,10 @@ import {
   BookmarkAdd as BookmarkIcon,
   Fullscreen as FullscreenIcon,
   FullscreenExit as FullscreenExitIcon,
+  SkipNext as SkipNextIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
-import { EventsData, EEGBookmark } from '../types';
+import { EventsData, EEGBookmark, FocusPoint } from '../types';
 
 const MONTAGE_OPTIONS = [
   { value: 'original', label: 'Original' },
@@ -66,6 +67,12 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [endReached, setEndReached] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const focusPoints: FocusPoint[] = useMemo(
+    () => (eventsData as any)?.focus_points || [],
+    [eventsData]
+  );
+
   const plotCacheRef = useRef<Map<string, any>>(new Map());
   const inflightRef = useRef<Set<string>>(new Set());
   const MAX_CACHE_ENTRIES = 8;
@@ -186,6 +193,21 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     }
     setPlotStart(snappedStart);
   }, [buildCacheKey, plotDuration, montage, totalDuration]);
+
+  const handleNextFocus = useCallback(() => {
+    if (!focusPoints.length) return;
+    const currentEnd = plotStart + plotDuration;
+    let next = focusPoints.find((fp) => fp.center_s > currentEnd * 0.7);
+    if (!next) next = focusPoints[0];
+    goToStart(Math.max(0, next.center_s - plotDuration / 2));
+  }, [focusPoints, plotStart, plotDuration, goToStart]);
+
+  const handleFocusSelect = useCallback(
+    (center_s: number) => {
+      goToStart(Math.max(0, center_s - plotDuration / 2));
+    },
+    [plotDuration, goToStart]
+  );
 
   // Keyboard navigation handler
   useEffect(() => {
@@ -453,6 +475,21 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
       });
     });
 
+    focusPoints.forEach((fp) => {
+      if (fp.center_s >= plotStart && fp.center_s <= plotStart + plotDuration) {
+        traces.push({
+          x: [fp.center_s, fp.center_s],
+          y: [globalMin, globalMax],
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: 'rgba(255, 87, 34, 0.45)', width: 1.5, dash: 'dash' },
+          showlegend: false,
+          hoverinfo: 'text',
+          hovertext: `Focus: ${fp.abnormal_pct}% abnormal`,
+        });
+      }
+    });
+
     layout.annotations = annotations;
     layout.yaxis = {
       showline: true,
@@ -523,6 +560,35 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
             <Typography variant="caption" color="text.secondary">
               / {Math.max(0, totalDuration - plotDuration).toFixed(0)}s
             </Typography>
+          )}
+
+          {focusPoints.length > 0 && (
+            <>
+              <Tooltip title="Skip to next focus point">
+                <IconButton size="small" onClick={handleNextFocus}>
+                  <SkipNextIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Focus</InputLabel>
+                <Select
+                  value=""
+                  label="Focus"
+                  onChange={(e) => handleFocusSelect(Number(e.target.value))}
+                  displayEmpty
+                >
+                  <MenuItem value="" disabled>
+                    Jump to focus point
+                  </MenuItem>
+                  {focusPoints.map((fp) => (
+                    <MenuItem key={fp.center_s} value={fp.center_s}>
+                      {fp.center_s}s ({fp.abnormal_pct}%)
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </>
           )}
 
           <FormControl size="small" sx={{ minWidth: 100 }}>

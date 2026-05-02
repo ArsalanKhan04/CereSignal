@@ -85,6 +85,78 @@ def _merge_events(events):
     return merged_events
 
 
+def _compute_focus_points(raw_events, threshold=0.5, fallback_n=10):
+    if not raw_events:
+        return []
+
+    n_channels = len(raw_events)
+    n_windows = max(len(v) for v in raw_events.values())
+    window_size = 5  # 5 x 2s = 10s aggregation window
+
+    if n_windows < window_size:
+        return []
+
+    abnormal_counts = []
+    for w in range(n_windows):
+        count = 0
+        for ch_events in raw_events.values():
+            if w < len(ch_events) and ch_events[w] != "normal wave":
+                count += 1
+        abnormal_counts.append(count)
+
+    smoothed = []
+    for i in range(window_size - 1, n_windows):
+        span = abnormal_counts[i - window_size + 1 : i + 1]
+        smoothed.append(span)
+
+    smoothed_pct = [sum(s) / len(s) / n_channels for s in smoothed]
+
+    peaks = []
+    for i in range(1, len(smoothed_pct) - 1):
+        if smoothed_pct[i] > smoothed_pct[i - 1] and smoothed_pct[i] > smoothed_pct[i + 1]:
+            if smoothed_pct[i] >= threshold:
+                peaks.append((i, smoothed_pct[i]))
+
+    merged = []
+    for idx, pct in peaks:
+        if merged and idx - merged[-1][0] < 2:
+            if pct > merged[-1][1]:
+                merged[-1] = (idx, pct)
+        else:
+            merged.append((idx, pct))
+
+    focus_points = []
+    for idx, pct in merged:
+        center_s = round(idx * 2 + 5, 1)
+        focus_points.append({
+            "center_s": center_s,
+            "window_start": round(center_s - 5, 1),
+            "window_end": round(center_s + 5, 1),
+            "abnormal_pct": round(pct * 100, 1),
+        })
+
+    if not focus_points:
+        top_indices = sorted(
+            range(len(smoothed_pct)),
+            key=lambda i: smoothed_pct[i],
+            reverse=True,
+        )[:fallback_n]
+        seen = set()
+        for idx in top_indices:
+            if smoothed_pct[idx] > 0 and idx not in seen:
+                center_s = round(idx * 2 + 5, 1)
+                focus_points.append({
+                    "center_s": center_s,
+                    "window_start": round(center_s - 5, 1),
+                    "window_end": round(center_s + 5, 1),
+                    "abnormal_pct": round(smoothed_pct[idx] * 100, 1),
+                })
+                seen.add(idx)
+        focus_points.sort(key=lambda p: p["center_s"])
+
+    return focus_points
+
+
 def _process_neurogate(mne_data):
     ## Starting with processing and inference for neurogate
     processed_data = _PIPELINES["neurogate"].apply(mne_data)
@@ -295,6 +367,7 @@ def infer(self, mne_file_path):
 
         condition, ab_prob = _process_neurogate(mne_data)
         events, raw_events = _process_neurotransformer(mne_data, 0.9)
+        focus_points = _compute_focus_points(raw_events, 0.5)
         pdr_text = _compute_pdr(mne_data)
     region_report = _get_region_report(raw_events, 0)
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
@@ -320,6 +393,7 @@ def infer(self, mne_file_path):
     return {
         "result": condition,
         "events": events,
+        "focus_points": focus_points,
         "inference_time": end_time - start_time,
         "topomap_path": out_path,
         "report_task_id": report_task.id,

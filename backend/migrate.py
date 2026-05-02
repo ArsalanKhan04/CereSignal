@@ -26,6 +26,10 @@ def run():
              "portal_token"),
             ("ALTER TABLE users ADD COLUMN portal_sent_at TIMESTAMP WITH TIME ZONE",
              "portal_sent_at"),
+
+            # Signal files table — EEG focus points navigation
+            ("ALTER TABLE signal_files ADD COLUMN focus_points JSON",
+             "focus_points"),
         ]
 
         for sql, col_name in migrations:
