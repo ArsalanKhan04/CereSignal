@@ -130,6 +130,7 @@ pywebview
 PyYAML
 pyzmq
 redis
+resend
 referencing
 reportlab
 requests

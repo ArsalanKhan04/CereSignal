@@ -68,14 +68,17 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_PROCESSES: int = 4
     PROCESSING_TIMEOUT: int = 300  # 5 minutes
 
-    # Email settings (fastapi-mail)
+    # Email — Resend SDK (preferred)
+    RESEND_API_KEY: str = ""
+
+    # Email — SMTP fallback (fastapi-mail)
     MAIL_USERNAME: str = ""
     MAIL_PASSWORD: str = ""
     MAIL_FROM: str = ""
-    MAIL_PORT: int = 587
-    MAIL_SERVER: str = "smtp.gmail.com"
-    MAIL_STARTTLS: bool = True
-    MAIL_SSL_TLS: bool = False
+    MAIL_PORT: int = 465
+    MAIL_SERVER: str = "smtp.resend.com"
+    MAIL_STARTTLS: bool = False
+    MAIL_SSL_TLS: bool = True
 
     # Frontend URL (used in invitation email links)
     FRONTEND_URL: str = "http://localhost:3000"
