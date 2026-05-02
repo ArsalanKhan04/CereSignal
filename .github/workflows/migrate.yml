@@ -21,6 +21,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # DATABASE_URL must be the Session Pooler URL (port 5432 on pooler host) — not the
+      # direct connection. GitHub Actions is IPv4-only; the direct connection requires IPv6.
+      # In Supabase dashboard: Connect → Session pooler → copy the connection string.
+      # Format: postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
       - name: Apply schema
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
