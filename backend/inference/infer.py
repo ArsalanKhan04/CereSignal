@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import time
@@ -367,7 +368,9 @@ def infer(self, mne_file_path):
 
         condition, ab_prob = _process_neurogate(mne_data)
         events, raw_events = _process_neurotransformer(mne_data, 0.9)
+        logger = logging.getLogger(__name__)
         focus_points = _compute_focus_points(raw_events, 0.5)
+        logger.info(f"Computed {len(focus_points)} focus point(s)")
         pdr_text = _compute_pdr(mne_data)
     region_report = _get_region_report(raw_events, 0)
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
