@@ -626,6 +626,7 @@ async def get_file_events(
         "filename": file.filename,
         "condition": file.condition,
         "events": file.events or {},
+        "focus_points": file.focus_points or [],
     }
 
 
@@ -1030,6 +1031,10 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                     # Store events data if available
                     if "events" in result and result["events"]:
                         file.events = result["events"]
+
+                    # Store focus points if available
+                    if "focus_points" in result and result["focus_points"]:
+                        file.focus_points = result["focus_points"]
                 else:
                     file.condition = "failed"
             else:  # failed

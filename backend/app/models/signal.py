@@ -49,6 +49,9 @@ class SignalFile(Base):
     events: Optional[dict] = Column(
         JSON, nullable=True
     )  # Event data from neurotransformer
+    focus_points: Optional[dict] = Column(
+        JSON, nullable=True
+    )  # Computed focus point timestamps for EEG viewer navigation
     factual_report: Optional[str] = Column(
         Text, nullable=True
     )  # AI-generated factual report

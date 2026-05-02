@@ -305,11 +305,19 @@ export interface DashboardStats {
 }
 
 // Events types
+export interface FocusPoint {
+  center_s: number;
+  window_start: number;
+  window_end: number;
+  abnormal_pct: number;
+}
+
 export interface EventsData {
   file_id: number;
   filename: string;
   condition: string;
   events: Record<string, Record<string, Array<[number, number]>>>;
+  focus_points: FocusPoint[];
 }
 
 // Report types

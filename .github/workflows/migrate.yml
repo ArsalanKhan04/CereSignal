@@ -31,3 +31,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: python -c "from app.core.database import engine, Base; import app.models; Base.metadata.create_all(bind=engine)"
+
+      - name: Migrate — add focus_points column
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -c "
+from sqlalchemy import text
+from app.core.database import engine
+with engine.connect() as conn:
+    conn.execute(text('ALTER TABLE signal_files ADD COLUMN IF NOT EXISTS focus_points JSON'))
+    conn.commit()
+print('Migration: focus_points column ready')
+"
