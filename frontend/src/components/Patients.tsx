@@ -676,12 +676,12 @@ const Patients: React.FC<{
   const detailReport = detailPatient ? getPatientReport(detailPatient, detailFile) : null;
   const detailHasPdf = Boolean(detailReport?.pdf_file_path);
 
-  const shouldShowPatient = (report: EEGReport | null, file: SignalFile | null) => {
+  const shouldShowPatient = (patient: Patient, report: EEGReport | null, file: SignalFile | null) => {
     const fileLabel = file?.condition?.toLowerCase();
     const hasLabel = fileLabel === 'normal' || fileLabel === 'abnormal' || Boolean(report?.impression);
     const hasReportAndLabel = Boolean(report) && hasLabel;
     if (activeStatusFilter === 'all') return true;
-    if (activeStatusFilter === 'examined') return hasReportAndLabel;
+    if (activeStatusFilter === 'examined') return hasReportAndLabel && !patient.report_sent;
     return !hasReportAndLabel;
   };
 
@@ -693,7 +693,7 @@ const Patients: React.FC<{
     }
     const file = getPatientFile(patient);
     const report = getPatientReport(patient, file);
-    return shouldShowPatient(report, file);
+    return shouldShowPatient(patient, report, file);
   });
 
   const handleAssignLabel = async (patient: Patient, file: SignalFile, label: 'normal' | 'abnormal') => {
