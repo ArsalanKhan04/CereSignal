@@ -1,5 +1,8 @@
 FROM node:18-alpine AS builder
 
+ARG REACT_APP_API_BASE_URL
+ENV REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL}
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./

@@ -99,7 +99,7 @@ const Files: React.FC = () => {
 
   const handleViewFile = async (file: SignalFile) => {
     // Open EDF viewer in new tab with file serving URL
-    const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/signals/files/serve?file_path=${encodeURIComponent(file.file_path)}`;
+    const fileUrl = `${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/signals/files/serve?file_path=${encodeURIComponent(file.file_path)}`;
     const viewerUrl = `/edf-viewer/viewer.html?file=${encodeURIComponent(fileUrl)}`;
     window.open(viewerUrl, '_blank');
   };
