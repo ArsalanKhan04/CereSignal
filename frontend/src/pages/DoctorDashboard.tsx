@@ -46,8 +46,8 @@ const DoctorDashboard: React.FC = () => {
     return 'DR';
   };
 
-  const doctorName = user?.first_name && user?.last_name 
-    ? `Dr. ${user.first_name} ${user.last_name}` 
+  const doctorName = user?.first_name && user?.last_name
+    ? `Dr. ${user.first_name} ${user.last_name}`
     : user?.username || 'Doctor';
 
   const unreadCount = notifications.filter((item) => !item.is_read).length;
@@ -100,20 +100,20 @@ const DoctorDashboard: React.FC = () => {
   const primaryColor = theme.palette.primary.main;
 
   return (
-    <Box sx={{ 
-      flexGrow: 1, 
-      bgcolor: '#f0f2f5', // Softer gray background
+    <Box sx={{
+      flexGrow: 1,
+      bgcolor: '#f0f2f5',
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column'
     }}>
       {/* --- Top Navigation Bar --- */}
-      <AppBar 
-        position="sticky" 
-        elevation={0} 
-        sx={{ 
-          bgcolor: 'rgba(255, 255, 255, 0.9)', // Semi-transparent white
-          backdropFilter: 'blur(8px)',          // Glassmorphism blur
+      <AppBar
+        position="sticky"
+        elevation={0}
+        sx={{
+          bgcolor: 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(8px)',
           borderBottom: '1px solid rgba(0,0,0,0.08)',
           color: 'text.primary'
         }}
@@ -123,14 +123,14 @@ const DoctorDashboard: React.FC = () => {
             {/* Logo Section */}
             <Box sx={{ display: 'flex', alignItems: 'center', mr: 2, flexGrow: 1 }}>
               <LogoIcon sx={{ color: primaryColor, fontSize: 26, mr: 1 }} />
-              <Typography 
-                variant="h6" 
-                noWrap 
-                component="div" 
-                sx={{ 
-                  color: '#1a1a1a', 
-                  fontWeight: 700, 
-                  letterSpacing: '-0.4px' 
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                sx={{
+                  color: '#1a1a1a',
+                  fontWeight: 700,
+                  letterSpacing: '-0.4px'
                 }}
               >
                 Cere<Box component="span" sx={{ color: primaryColor }}>Signal</Box>
@@ -146,7 +146,7 @@ const DoctorDashboard: React.FC = () => {
                   </Badge>
                 </IconButton>
               </Tooltip>
-              
+
               <Chip
                 avatar={
                   <Avatar sx={{ bgcolor: theme.palette.primary.light, color: theme.palette.primary.main }}>
@@ -154,8 +154,8 @@ const DoctorDashboard: React.FC = () => {
                   </Avatar>
                 }
                 label={doctorName}
-                sx={{ 
-                  bgcolor: 'transparent', 
+                sx={{
+                  bgcolor: 'transparent',
                   border: '1px solid',
                   borderColor: 'divider',
                   fontWeight: 500,
@@ -164,7 +164,7 @@ const DoctorDashboard: React.FC = () => {
                   '&:hover': { bgcolor: 'action.hover' }
                 }}
               />
-              
+
               <Tooltip title="Logout">
                 <IconButton onClick={logout} color="default" sx={{ border: '1px solid', borderColor: 'divider' }}>
                   <LogoutIcon fontSize="small" />
@@ -223,10 +223,10 @@ const DoctorDashboard: React.FC = () => {
       {/* --- Main Content Area --- */}
       <Container maxWidth="xl" sx={{ mt: 3, mb: 3, flexGrow: 1 }}>
         <Fade in={true} timeout={800}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              borderRadius: 3, 
+          <Paper
+            elevation={0}
+            sx={{
+              borderRadius: 3,
               border: '1px solid',
               borderColor: 'rgba(0,0,0,0.06)',
               overflow: 'hidden',
@@ -236,14 +236,14 @@ const DoctorDashboard: React.FC = () => {
             }}
           >
             {/* Context Header */}
-            <Box sx={{ 
-              px: 3, 
-              py: 2.5, 
-              borderBottom: '1px solid', 
-              borderColor: 'divider', 
+            <Box sx={{
+              px: 3,
+              py: 2.5,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
               bgcolor: '#ffffff',
-              display: 'flex', 
-              justifyContent: 'space-between', 
+              display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'center',
               gap: 2
             }}>

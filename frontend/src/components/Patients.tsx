@@ -36,6 +36,7 @@ import {
   InsertDriveFile as FileIcon,
   Download as DownloadIcon,
   Close as CloseIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { pdfNameFromEdf } from '../utils/fileNames';
@@ -44,6 +45,7 @@ import { useAuth } from '../contexts/AuthContext';
 import EEGPlot from './EEGPlot';
 import TopographicMap from './TopographicMap';
 import ReportForm from './ReportForm';
+import ReportVersionHistory from './ReportVersionHistory';
 
 
 const Patients: React.FC<{
@@ -95,6 +97,7 @@ const Patients: React.FC<{
   const [localStatusFilter, setLocalStatusFilter] = useState<'pending' | 'examined' | 'all'>(initialStatusFilter);
   const [detailPatient, setDetailPatient] = useState<Patient | null>(null);
   const [detailPatientLoading, setDetailPatientLoading] = useState(false);
+  const [historyReport, setHistoryReport] = useState<EEGReport | null>(null);
   const pollingRef = useRef<number | null>(null);
 
   const activeStatusFilter = statusFilter ?? localStatusFilter;
@@ -736,6 +739,7 @@ const Patients: React.FC<{
   }
 
   return (
+    <>
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -1312,6 +1316,16 @@ const Patients: React.FC<{
                         {detailReport ? 'Edit Report' : 'Create Report'}
                       </Button>
                     )}
+                    {(isReadOnly || allowDoctorFileOps) && detailReport && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<HistoryIcon fontSize="small" />}
+                        onClick={() => setHistoryReport(detailReport)}
+                      >
+                        Version History
+                      </Button>
+                    )}
                     {(isReadOnly || user?.user_type === 'technician') && detailReport && (
                       <Button
                         variant="outlined"
@@ -1744,6 +1758,20 @@ const Patients: React.FC<{
       </Dialog>
 
     </Box>
+
+      {historyReport && (
+        <ReportVersionHistory
+          reportId={historyReport.id}
+          reportPatientName={historyReport.patient_name}
+          open={Boolean(historyReport)}
+          onClose={() => setHistoryReport(null)}
+          onRestored={() => {
+            setHistoryReport(null);
+            loadPatients();
+          }}
+        />
+      )}
+    </>
   );
 };
 
