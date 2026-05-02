@@ -30,4 +30,4 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        run: python -c "from app.core.database import engine, Base; import app.models; Base.metadata.create_all(bind=engine)"
+        run: python migrate.py

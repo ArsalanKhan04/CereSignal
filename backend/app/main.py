@@ -16,31 +16,6 @@ from app.core.database import engine, Base
 from app.api.v1.api import api_router
 from app.core.middleware import setup_middleware
 from app.models import user, signal, auth
-from sqlalchemy import text
-
-
-def _run_migrations():
-    """Add new columns to existing tables if they don't exist yet."""
-    with engine.connect() as conn:
-        is_postgres = "postgresql" in str(engine.url)
-
-        migrations = [
-            # Users table — portal-token flow
-            ("ALTER TABLE users ADD COLUMN report_sent BOOLEAN NOT NULL DEFAULT false", "report_sent"),
-            ("ALTER TABLE users ADD COLUMN portal_token VARCHAR(255)", "portal_token"),
-            ("ALTER TABLE users ADD COLUMN portal_sent_at TIMESTAMP WITH TIME ZONE", "portal_sent_at"),
-        ]
-
-        for sql, col_name in migrations:
-            try:
-                if is_postgres:
-                    conn.execute(text(sql.replace("ADD COLUMN", "ADD COLUMN IF NOT EXISTS")))
-                else:
-                    conn.execute(text(sql))
-            except Exception as e:
-                if "duplicate column" not in str(e).lower() and "already exists" not in str(e).lower():
-                    raise
-        conn.commit()
 
 
 @asynccontextmanager
@@ -56,10 +31,6 @@ async def lifespan(app: FastAPI):
         # Ignore the exact race condition error if multiple workers start at once
         if "already exists" not in str(e).lower():
             raise
-
-    # Run column migrations for existing tables
-    _run_migrations()
-
     yield
 
 
