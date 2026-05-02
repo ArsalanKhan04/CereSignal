@@ -15,6 +15,7 @@ class UserType(str, enum.Enum):
     DOCTOR = "doctor"
     TECHNICIAN = "technician"
     PATIENT = "patient"
+    ADMIN = "admin"
 
 
 class AuthUser(Base):
@@ -38,6 +39,8 @@ class AuthUser(Base):
     hospital_affiliation: Optional[str] = Column(String(255), nullable=True)
     years_experience: Optional[int] = Column(Integer, nullable=True)
     profile_picture: Optional[str] = Column(String(500), nullable=True)
+    # Hospital association
+    hospital_id: Optional[int] = Column(Integer, ForeignKey("hospitals.id"), nullable=True, index=True)
     # System fields
     is_active: bool = Column(Boolean, default=True)
     is_superuser: bool = Column(Boolean, default=False)
@@ -48,6 +51,8 @@ class AuthUser(Base):
     patient_users = relationship("User", back_populates="auth_user", foreign_keys="User.auth_user_id")
     # Relationship for patients who can log in (one-to-one)
     patient_user = relationship("User", back_populates="auth_user_patient", uselist=False, foreign_keys="User.patient_auth_user_id")
+    # Hospital relationship
+    hospital = relationship("Hospital", back_populates="staff", foreign_keys=[hospital_id])
 
 
 class UserSession(Base):

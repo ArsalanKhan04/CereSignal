@@ -8,6 +8,8 @@ import SignupPage from './pages/SignupPage';
 import DoctorRegistrationPage from './pages/DoctorRegistrationPage';
 import TechnicianRegistrationPage from './pages/TechnicianRegistrationPage';
 import DashboardPage from './pages/DashboardPage';
+import HospitalSignupPage from './pages/HospitalSignupPage';
+import StaffInviteRegistrationPage from './pages/StaffInviteRegistrationPage';
 import './App.css';
 
 const theme = createTheme({
@@ -149,17 +151,25 @@ const AppRoutes: React.FC = () => {
         path="/" 
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} 
       />
-      <Route 
-        path="/signup" 
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <SignupPage />} 
+      <Route
+        path="/signup"
+        element={<Navigate to="/register/hospital" replace />}
       />
-      <Route 
-        path="/register/doctor" 
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <DoctorRegistrationPage />} 
+      <Route
+        path="/register/hospital"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <HospitalSignupPage />}
       />
-      <Route 
-        path="/register/technician" 
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <TechnicianRegistrationPage />} 
+      <Route
+        path="/register/invite/:token"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <StaffInviteRegistrationPage />}
+      />
+      <Route
+        path="/register/doctor"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <DoctorRegistrationPage />}
+      />
+      <Route
+        path="/register/technician"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <TechnicianRegistrationPage />}
       />
       <Route 
         path="/dashboard" 

@@ -99,6 +99,7 @@ class AuthUserResponse(BaseModel):
     hospital_affiliation: Optional[str] = None
     years_experience: Optional[int] = None
     profile_picture: Optional[str] = None
+    hospital_id: Optional[int] = None
     is_active: bool
     is_superuser: bool
     created_at: datetime

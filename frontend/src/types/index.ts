@@ -1,5 +1,5 @@
 // Authentication types
-export type UserType = 'doctor' | 'technician' | 'patient';
+export type UserType = 'doctor' | 'technician' | 'patient' | 'admin';
 
 export interface User {
   id: number;
@@ -16,6 +16,86 @@ export interface User {
   hospital_affiliation?: string;
   years_experience?: number;
   profile_picture?: string;
+  hospital_id?: number;
+  is_active: boolean;
+  created_at: string;
+  last_login?: string;
+}
+
+export interface Hospital {
+  id: number;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface StaffInvitation {
+  id: number;
+  hospital_id: number;
+  invited_email: string;
+  role: 'doctor' | 'technician';
+  expires_at: string;
+  used_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminStats {
+  total_patients: number;
+  total_doctors: number;
+  total_technicians: number;
+  pending_reports: number;
+  completed_reports: number;
+  pending_invitations: number;
+}
+
+export interface HospitalAdminRegisterRequest {
+  hospital_name: string;
+  hospital_address?: string;
+  hospital_phone?: string;
+  hospital_email?: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  email: string;
+  password: string;
+  confirm_password: string;
+}
+
+export interface InviteTokenInfo {
+  email: string;
+  role: 'doctor' | 'technician';
+  hospital_name: string;
+  hospital_id: number;
+}
+
+export interface StaffInviteRegisterRequest {
+  first_name: string;
+  last_name: string;
+  username: string;
+  password: string;
+  confirm_password: string;
+  title?: string;
+  specialization?: string;
+  license_number?: string;
+  phone?: string;
+  about?: string;
+  years_experience?: number;
+}
+
+export interface StaffMember {
+  id: number;
+  username: string;
+  email: string;
+  user_type: 'doctor' | 'technician';
+  first_name?: string;
+  last_name?: string;
+  title?: string;
+  specialization?: string;
+  phone?: string;
   is_active: boolean;
   created_at: string;
   last_login?: string;

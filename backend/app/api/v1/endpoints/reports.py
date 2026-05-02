@@ -102,6 +102,7 @@ async def create_report(
         db_report = EEGReport(
             file_id=report_data.file_id,
             auth_user_id=current_user.id,
+            hospital_id=current_user.hospital_id,
             patient_name=report_dict["patient_name"],
             patient_age=report_dict.get("patient_age"),
             patient_gender=report_dict.get("patient_gender"),
@@ -186,15 +187,18 @@ async def get_reports(
                 .filter(SignalFile.user_id == patient_user.id)
             )
         elif current_user.user_type == UserType.TECHNICIAN.value:
-            reports = db.query(EEGReport).join(SignalFile)
+            reports = db.query(EEGReport).filter(
+                EEGReport.hospital_id == current_user.hospital_id
+            )
         else:
-            # Doctors see reports for their managed patients
+            # Doctors see reports for their managed patients within their hospital
             reports = (
                 db.query(EEGReport)
                 .join(SignalFile)
                 .join(User)
                 .filter(
-                    or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
+                    or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+                    EEGReport.hospital_id == current_user.hospital_id,
                 )
             )
 

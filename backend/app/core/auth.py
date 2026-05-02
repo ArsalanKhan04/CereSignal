@@ -125,3 +125,18 @@ def get_current_superuser(current_user: AuthUser = Depends(get_current_user)) ->
             detail="Not enough permissions"
         )
     return current_user
+
+
+def get_current_admin_user(current_user: AuthUser = Depends(get_current_active_user)) -> AuthUser:
+    """Require that the current user is a hospital ADMIN"""
+    if current_user.user_type != UserType.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    if not current_user.hospital_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin must be associated with a hospital"
+        )
+    return current_user

@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import DoctorDashboard from './DoctorDashboard';
 import TechnicianDashboard from './TechnicianDashboard';
 import PatientPortal from './PatientPortal';
+import AdminDashboard from './AdminDashboard';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 const DashboardPage: React.FC = () => {
@@ -32,6 +33,8 @@ const DashboardPage: React.FC = () => {
       return <TechnicianDashboard />;
     case 'patient':
       return <PatientPortal />;
+    case 'admin':
+      return <AdminDashboard />;
     default:
       return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>

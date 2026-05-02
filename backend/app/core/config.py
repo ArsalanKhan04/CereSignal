@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_PROCESSES: int = 4
     PROCESSING_TIMEOUT: int = 300  # 5 minutes
 
+    # Email settings (fastapi-mail)
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    MAIL_FROM: str = ""
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
+
+    # Frontend URL (used in invitation email links)
+    FRONTEND_URL: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

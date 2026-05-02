@@ -96,6 +96,7 @@ async def create_user(
                         AuthUser.id == user_data.doctor_id,
                         AuthUser.user_type == UserType.DOCTOR.value,
                         AuthUser.is_active == True,
+                        AuthUser.hospital_id == current_user.hospital_id,
                     )
                     .first()
                 )
@@ -114,6 +115,9 @@ async def create_user(
 
         # Remove doctor_id from dict as it's not a User model field
         user_dict.pop("doctor_id", None)
+
+        # Scope patient to the creating user's hospital
+        user_dict["hospital_id"] = current_user.hospital_id
 
         # Convert empty strings to None for optional fields to avoid unique constraint issues
         if user_dict.get("medical_id") == "":
@@ -221,21 +225,30 @@ async def get_users(
             return [patient_user]
         return []
 
-    # Technicians can see all active patients
+    # Technicians can see all active patients in their hospital
     if current_user.user_type == UserType.TECHNICIAN.value:
-        query = db.query(User).filter(User.is_active == True)
+        query = db.query(User).filter(
+            User.is_active == True,
+            User.hospital_id == current_user.hospital_id,
+        )
     elif current_user.user_type == UserType.DOCTOR.value:
         if include_unassigned:
             query = db.query(User).filter(
                 User.is_active == True,
+                User.hospital_id == current_user.hospital_id,
                 or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
             )
         else:
             query = db.query(User).filter(
-                User.auth_user_id == current_user.id, User.is_active == True
+                User.auth_user_id == current_user.id,
+                User.is_active == True,
+                User.hospital_id == current_user.hospital_id,
             )
     else:
-        query = db.query(User).filter(User.is_active == True)
+        query = db.query(User).filter(
+            User.is_active == True,
+            User.hospital_id == current_user.hospital_id,
+        )
 
     if search:
         query = query.filter(
@@ -277,8 +290,14 @@ async def get_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access your own record",
             )
-    # Doctors can only access their managed patients; technicians can access any patient
     else:
+        # Hospital isolation — staff can only access patients in their hospital
+        if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only access patients from your hospital",
+            )
+        # Doctors can only access their managed patients
         if (
             current_user.user_type == UserType.DOCTOR.value
             and user.auth_user_id != current_user.id
@@ -320,8 +339,14 @@ async def update_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only update your own record",
             )
-    # Doctors can only update their managed patients; technicians can update any patient
     else:
+        # Hospital isolation
+        if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only update patients from your hospital",
+            )
+        # Doctors can only update their managed patients
         if (
             current_user.user_type == UserType.DOCTOR.value
             and user.auth_user_id != current_user.id
@@ -382,13 +407,14 @@ async def update_user(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only technicians can reassign patients to a different doctor",
                 )
-            # Verify doctor exists and is active
+            # Verify doctor exists, is active, and is in the same hospital
             doctor = (
                 db.query(AuthUser)
                 .filter(
                     AuthUser.id == doctor_id,
                     AuthUser.user_type == UserType.DOCTOR.value,
                     AuthUser.is_active == True,
+                    AuthUser.hospital_id == current_user.hospital_id,
                 )
                 .first()
             )
@@ -496,6 +522,13 @@ async def delete_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    # Hospital isolation
+    if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete patients from your hospital",
         )
 
     # Doctors can only delete managed patients; technicians can delete any patient

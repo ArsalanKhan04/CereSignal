@@ -17,6 +17,7 @@ class EEGReport(Base):
     id: int = Column(Integer, primary_key=True, index=True)
     file_id: int = Column(Integer, ForeignKey("signal_files.id"), nullable=False)
     auth_user_id: int = Column(Integer, ForeignKey("auth_users.id"), nullable=False)
+    hospital_id: Optional[int] = Column(Integer, ForeignKey("hospitals.id"), nullable=True, index=True)
     
     # Patient Information
     patient_name: str = Column(String(255), nullable=False)

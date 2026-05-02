@@ -2,6 +2,7 @@
 Authentication endpoints
 """
 
+import uuid
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from typing import List
@@ -10,13 +11,20 @@ from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     create_access_token,
     get_current_active_user,
+    get_current_admin_user,
     get_password_hash,
     verify_password,
 )
 from app.core.database import get_db
 from app.core.logging_config import log_auth, logger
 from app.models.auth import AuthUser, UserType
+from app.models.hospital import Hospital, StaffInvitation
 from app.models.user import User
+from app.schemas.admin import (
+    HospitalAdminRegister,
+    InviteTokenValidation,
+    StaffInviteRegister,
+)
 from app.schemas.auth import (
     AuthUserResponse,
     PasswordChange,
@@ -33,9 +41,150 @@ router = APIRouter()
 
 
 @router.post(
+    "/register/hospital",
+    response_model=AuthUserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_hospital_admin(
+    data: HospitalAdminRegister, db: Session = Depends(get_db)
+):
+    """Register a new hospital and its first admin account"""
+    if data.password != data.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    if db.query(AuthUser).filter(AuthUser.username == data.username).first():
+        raise HTTPException(status_code=400, detail="Username already registered")
+
+    if db.query(AuthUser).filter(AuthUser.email == data.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    try:
+        # Auto-generate a unique slug from hospital name
+        import re
+        base_code = re.sub(r"[^a-z0-9]+", "-", data.hospital_name.lower()).strip("-")[:48]
+        code = base_code
+        suffix = 1
+        while db.query(Hospital).filter(Hospital.code == code).first():
+            code = f"{base_code}-{suffix}"
+            suffix += 1
+
+        hospital = Hospital(
+            name=data.hospital_name,
+            code=code,
+            address=data.hospital_address or None,
+            phone=data.hospital_phone or None,
+            email=str(data.hospital_email) if data.hospital_email else None,
+        )
+        db.add(hospital)
+        db.flush()  # get hospital.id before creating admin
+
+        admin = AuthUser(
+            username=data.username,
+            email=str(data.email),
+            hashed_password=get_password_hash(data.password),
+            user_type=UserType.ADMIN.value,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            hospital_id=hospital.id,
+            is_active=True,
+        )
+        db.add(admin)
+        db.commit()
+        db.refresh(admin)
+        return admin
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating hospital: {str(e)}")
+
+
+@router.get("/invite/{token}", response_model=InviteTokenValidation)
+async def validate_invite_token(token: str, db: Session = Depends(get_db)):
+    """Validate a staff invitation token (public, no auth)"""
+    invitation = db.query(StaffInvitation).filter(StaffInvitation.token == token).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    if invitation.used_at is not None:
+        raise HTTPException(status_code=410, detail="This invitation has already been used")
+
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="This invitation has expired")
+
+    hospital = db.query(Hospital).filter(Hospital.id == invitation.hospital_id).first()
+
+    return InviteTokenValidation(
+        email=invitation.invited_email,
+        role=invitation.role,
+        hospital_name=hospital.name if hospital else "Unknown Hospital",
+        hospital_id=invitation.hospital_id,
+    )
+
+
+@router.post(
+    "/register/invite/{token}",
+    response_model=AuthUserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_from_invite(
+    token: str, data: StaffInviteRegister, db: Session = Depends(get_db)
+):
+    """Complete staff registration via an invitation token"""
+    if data.password != data.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    invitation = db.query(StaffInvitation).filter(StaffInvitation.token == token).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if invitation.used_at is not None:
+        raise HTTPException(status_code=410, detail="This invitation has already been used")
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="This invitation has expired")
+
+    if db.query(AuthUser).filter(AuthUser.username == data.username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    # Email is authoritative from the invitation — prevent substitution
+    if db.query(AuthUser).filter(AuthUser.email == invitation.invited_email).first():
+        raise HTTPException(status_code=400, detail="An account with this email already exists")
+
+    try:
+        staff = AuthUser(
+            username=data.username,
+            email=invitation.invited_email,
+            hashed_password=get_password_hash(data.password),
+            user_type=invitation.role,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            title=data.title or None,
+            specialization=data.specialization or None,
+            license_number=data.license_number or None,
+            phone=data.phone or None,
+            about=data.about or None,
+            years_experience=data.years_experience,
+            hospital_id=invitation.hospital_id,
+            is_active=True,
+        )
+        db.add(staff)
+        invitation.used_at = datetime.utcnow()
+        db.commit()
+        db.refresh(staff)
+        return staff
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating staff account: {str(e)}")
+
+
+@router.post(
     "/register", response_model=AuthUserResponse, status_code=status.HTTP_201_CREATED
 )
-async def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
+async def register_user(
+    user_data: UserRegister,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_admin_user),
+):
     """Register a new authentication user (doctor or technician)"""
 
     # Validate password confirmation
@@ -114,6 +263,7 @@ async def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
             years_experience=(
                 user_data.years_experience if user_data.years_experience else None
             ),
+            hospital_id=current_user.hospital_id,
         )
 
         db.add(db_user)
@@ -451,7 +601,11 @@ async def get_doctors(
 
     doctors = (
         db.query(AuthUser)
-        .filter(AuthUser.user_type == UserType.DOCTOR.value, AuthUser.is_active == True)
+        .filter(
+            AuthUser.user_type == UserType.DOCTOR.value,
+            AuthUser.is_active == True,
+            AuthUser.hospital_id == current_user.hospital_id,
+        )
         .all()
     )
 

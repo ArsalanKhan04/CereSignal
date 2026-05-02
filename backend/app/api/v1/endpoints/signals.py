@@ -206,6 +206,7 @@ async def upload_signal_file(
             file_path=file_path,
             file_size=file.size,
             file_type=file_extension,
+            hospital_id=current_user.hospital_id,
         )
 
         db.add(db_file)
@@ -537,15 +538,18 @@ async def get_signal_files(
             return []  # No patient record found
         query = db.query(SignalFile).filter(SignalFile.user_id == patient_user.id)
     elif current_user.user_type == UserType.TECHNICIAN.value:
-        # Technicians can see files for all patients they manage (all patients)
-        query = db.query(SignalFile)
+        # Technicians can see files for all patients in their hospital
+        query = db.query(SignalFile).filter(
+            SignalFile.hospital_id == current_user.hospital_id
+        )
     else:
-        # Doctors can see files for their assigned or unassigned patients
+        # Doctors can see files for their assigned or unassigned patients in their hospital
         query = (
             db.query(SignalFile)
             .join(User)
             .filter(
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
+                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
+                SignalFile.hospital_id == current_user.hospital_id,
             )
         )
 

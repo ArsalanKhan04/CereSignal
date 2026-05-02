@@ -38,6 +38,7 @@ class User(Base):
     is_active: bool = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    hospital_id: Optional[int] = Column(Integer, ForeignKey("hospitals.id"), nullable=True, index=True)
     auth_user_id: Optional[int] = Column(
         Integer, ForeignKey("auth_users.id"), nullable=True
     )  # Doctor/technician managing this patient

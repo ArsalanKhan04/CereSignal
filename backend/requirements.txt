@@ -42,6 +42,7 @@ edfio
 email-validator
 executing
 fastapi
+fastapi-mail==1.4.1
 fasteners
 fastjsonschema
 filelock

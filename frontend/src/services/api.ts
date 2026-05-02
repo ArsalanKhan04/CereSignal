@@ -23,7 +23,13 @@ import {
   NotificationItem,
   PatientIdLoginRequest,
   EEGBookmark,
-  EEGBookmarkCreate
+  EEGBookmarkCreate,
+  HospitalAdminRegisterRequest,
+  InviteTokenInfo,
+  StaffInviteRegisterRequest,
+  AdminStats,
+  StaffInvitation,
+  StaffMember,
 } from '../types';
 
 class ApiClient {
@@ -135,6 +141,47 @@ class ApiClient {
 
   async getDoctors(): Promise<ApiResponse<User[]>> {
     const response = await this.client.get('/auth/doctors');
+    return { data: response.data, status: response.status };
+  }
+
+  async registerHospital(data: HospitalAdminRegisterRequest): Promise<ApiResponse<User>> {
+    const response = await this.client.post('/auth/register/hospital', data);
+    return { data: response.data, status: response.status };
+  }
+
+  async validateInviteToken(token: string): Promise<ApiResponse<InviteTokenInfo>> {
+    const response = await this.client.get(`/auth/invite/${token}`);
+    return { data: response.data, status: response.status };
+  }
+
+  async registerFromInvite(token: string, data: StaffInviteRegisterRequest): Promise<ApiResponse<User>> {
+    const response = await this.client.post(`/auth/register/invite/${token}`, data);
+    return { data: response.data, status: response.status };
+  }
+
+  // Admin methods
+  async sendInvitation(data: { email: string; role: string }): Promise<ApiResponse<{ id: number; invited_email: string; expires_at: string; token: string }>> {
+    const response = await this.client.post('/admin/invite', data);
+    return { data: response.data, status: response.status };
+  }
+
+  async getAdminStats(): Promise<ApiResponse<AdminStats>> {
+    const response = await this.client.get('/admin/stats');
+    return { data: response.data, status: response.status };
+  }
+
+  async getStaff(): Promise<ApiResponse<StaffMember[]>> {
+    const response = await this.client.get('/admin/staff');
+    return { data: response.data, status: response.status };
+  }
+
+  async toggleStaffActive(userId: number): Promise<ApiResponse<{ id: number; is_active: boolean }>> {
+    const response = await this.client.put(`/admin/staff/${userId}/toggle-active`);
+    return { data: response.data, status: response.status };
+  }
+
+  async getInvitations(): Promise<ApiResponse<StaffInvitation[]>> {
+    const response = await this.client.get('/admin/invitations');
     return { data: response.data, status: response.status };
   }
 

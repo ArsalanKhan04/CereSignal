@@ -26,6 +26,7 @@ class SignalFile(Base):
 
     id: int = Column(Integer, primary_key=True, index=True)
     user_id: int = Column(Integer, ForeignKey("users.id"), nullable=False)
+    hospital_id: Optional[int] = Column(Integer, ForeignKey("hospitals.id"), nullable=True, index=True)
     filename: str = Column(String(255), nullable=False)
     original_filename: str = Column(String(255), nullable=False)
     file_path: str = Column(String(500), nullable=False)

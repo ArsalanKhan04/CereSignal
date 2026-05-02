@@ -289,44 +289,32 @@ const LoginPage: React.FC = () => {
 
             <Divider sx={{ width: '100%', my: 4 }}>
               <Typography variant="caption" color="text.secondary" fontWeight="600">
-                OR REGISTER AS
+                NEW TO CEREIGNAL?
               </Typography>
             </Divider>
 
-            <Stack 
-              direction="row" 
-              spacing={1} 
-              justifyContent="center" 
-              sx={{ width: '100%' }}
-            >
-              {[
-                { label: 'Doctor', path: '/register/doctor' },
-                { label: 'Technician', path: '/register/technician' },
-              ].map((role) => (
-                <Button
-                  key={role.label}
-                  component={RouterLink}
-                  to={role.path}
-                  variant="outlined"
-                  size="small"
-                  sx={{ 
-                    borderRadius: 20, 
-                    textTransform: 'none', 
-                    fontWeight: 600,
-                    borderColor: 'divider',
-                    color: 'text.secondary',
-                    flex: 1,
-                    '&:hover': {
-                      borderColor: primaryMain,
-                      color: primaryMain,
-                      bgcolor: 'transparent'
-                    }
-                  }}
-                >
-                  {role.label}
-                </Button>
-              ))}
-            </Stack>
+            <Box sx={{ width: '100%' }}>
+              <Button
+                component={RouterLink}
+                to="/register/hospital"
+                variant="outlined"
+                fullWidth
+                sx={{
+                  borderRadius: 20,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderColor: 'divider',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    borderColor: primaryMain,
+                    color: primaryMain,
+                    bgcolor: 'transparent',
+                  },
+                }}
+              >
+                Register your hospital
+              </Button>
+            </Box>
             </Box>
           </Fade>
         </Grid>
