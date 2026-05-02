@@ -293,9 +293,9 @@ def infer(self, mne_file_path):
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         mne_data = mne.io.read_raw_edf(local_path, preload=True)
 
-    condition, ab_prob = _process_neurogate(mne_data)
-    events, raw_events = _process_neurotransformer(mne_data, 0.9)
-    pdr_text = _compute_pdr(mne_data)
+        condition, ab_prob = _process_neurogate(mne_data)
+        events, raw_events = _process_neurotransformer(mne_data, 0.9)
+        pdr_text = _compute_pdr(mne_data)
     region_report = _get_region_report(raw_events, 0)
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
 
