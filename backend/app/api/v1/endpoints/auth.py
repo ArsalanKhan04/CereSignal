@@ -536,9 +536,15 @@ async def login_patient(
 @router.get("/me", response_model=AuthUserResponse)
 async def get_current_user_info(
     current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
 ):
     """Get current user information"""
-    return current_user
+    response = AuthUserResponse.model_validate(current_user)
+    if current_user.hospital_id:
+        hospital = db.query(Hospital).filter(Hospital.id == current_user.hospital_id).first()
+        if hospital:
+            response.hospital_name = hospital.name
+    return response
 
 
 @router.put("/change-password")

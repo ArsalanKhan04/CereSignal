@@ -59,6 +59,22 @@ const TechnicianDashboard: React.FC = () => {
 
             {/* User Profile */}
             <Stack direction="row" spacing={2} alignItems="center">
+              {user?.hospital_name && (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'text.secondary',
+                    fontWeight: 500,
+                    display: { xs: 'none', sm: 'block' },
+                    maxWidth: 200,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {user.hospital_name}
+                </Typography>
+              )}
               <Chip
                 avatar={<Avatar sx={{ bgcolor: theme.palette.primary.light, color: theme.palette.primary.main }}>{technicianName[0]}</Avatar>}
                 label={technicianName}

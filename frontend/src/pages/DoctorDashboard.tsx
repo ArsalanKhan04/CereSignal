@@ -139,6 +139,23 @@ const DoctorDashboard: React.FC = () => {
 
             {/* User Profile Section */}
             <Stack direction="row" spacing={2} alignItems="center">
+              {user?.hospital_name && (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'text.secondary',
+                    fontWeight: 500,
+                    display: { xs: 'none', sm: 'block' },
+                    maxWidth: 200,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {user.hospital_name}
+                </Typography>
+              )}
+
               <Tooltip title="Notifications">
                 <IconButton sx={{ color: 'text.secondary' }} onClick={handleNotificationsClick}>
                   <Badge color="error" variant="dot" invisible={unreadCount === 0}>

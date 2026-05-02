@@ -17,6 +17,7 @@ export interface User {
   years_experience?: number;
   profile_picture?: string;
   hospital_id?: number;
+  hospital_name?: string;
   is_active: boolean;
   created_at: string;
   last_login?: string;
