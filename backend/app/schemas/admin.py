@@ -2,7 +2,7 @@
 Admin and hospital schemas
 """
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -14,6 +14,13 @@ class HospitalAdminRegister(BaseModel):
     hospital_address: Optional[str] = None
     hospital_phone: Optional[str] = Field(None, max_length=50)
     hospital_email: Optional[EmailStr] = None
+
+    @field_validator("hospital_address", "hospital_phone", "hospital_email", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
     # Admin account
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
