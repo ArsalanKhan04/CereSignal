@@ -24,7 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Patients from '../components/Patients';
 
 const TechnicianDashboard: React.FC = () => {
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'examined' | 'all'>('pending');
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'examined' | 'all' | 'report_sent'>('pending');
   const { user, logout } = useAuth();
   const theme = useTheme();
 
@@ -131,18 +131,23 @@ const TechnicianDashboard: React.FC = () => {
               <ToggleButtonGroup
                 value={statusFilter}
                 exclusive
-                onChange={(_event: React.SyntheticEvent, value: 'pending' | 'examined' | 'all' | null) => value && setStatusFilter(value)}
+                onChange={(_event: React.SyntheticEvent, value: 'pending' | 'examined' | 'all' | 'report_sent' | null) => value && setStatusFilter(value)}
                 size="small"
               >
                 <ToggleButton value="pending">Pending Review</ToggleButton>
                 <ToggleButton value="examined">Examined</ToggleButton>
+                <ToggleButton value="report_sent">Report Sent</ToggleButton>
                 <ToggleButton value="all">All</ToggleButton>
               </ToggleButtonGroup>
             </Box>
 
             {/* Content */}
             <Box sx={{ p: 3, bgcolor: '#fcfcfc' }}>
-              <Patients statusFilter={statusFilter} showStatusToggle={false} />
+              <Patients
+                statusFilter={statusFilter === 'report_sent' ? 'examined' : statusFilter}
+                reportSentFilter={statusFilter === 'report_sent' ? true : undefined}
+                showStatusToggle={false}
+              />
             </Box>
           </Paper>
         </Fade>

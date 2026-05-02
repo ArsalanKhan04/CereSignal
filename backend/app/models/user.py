@@ -35,6 +35,9 @@ class User(Base):
     medical_conditions: Optional[str] = Column(Text, nullable=True)
     current_medications: Optional[str] = Column(Text, nullable=True)
     notes: Optional[str] = Column(Text, nullable=True)  # Medical notes
+    report_sent: bool = Column(Boolean, default=False, nullable=False)
+    portal_token: Optional[str] = Column(String(255), nullable=True, unique=True, index=True)
+    portal_sent_at: Optional[DateTime] = Column(DateTime(timezone=True), nullable=True)
     is_active: bool = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

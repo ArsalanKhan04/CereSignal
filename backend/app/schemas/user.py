@@ -75,6 +75,8 @@ class UserResponse(UserBase):
     auth_user_id: Optional[int] = None
     profile_picture: Optional[str] = None
     is_active: bool
+    report_sent: bool = False
+    portal_sent_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     doctor_name: Optional[str] = None
@@ -95,6 +97,8 @@ class UserListResponse(BaseModel):
     referred_by: Optional[str] = None
     auth_user_id: Optional[int] = None
     is_active: bool
+    report_sent: bool = False
+    portal_sent_at: Optional[datetime] = None
     created_at: datetime
     doctor_name: Optional[str] = None
 

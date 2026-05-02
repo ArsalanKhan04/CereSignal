@@ -8,6 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   loginPatient: (credentials: PatientIdLoginRequest) => Promise<void>;
+  loginWithToken: (accessToken: string) => void;
   register: (userData: RegisterRequest) => Promise<void>;
   registerPatient: (userData: PatientRegisterRequest) => Promise<void>;
   logout: () => void;
@@ -130,6 +131,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const loginWithToken = (accessToken: string) => {
+    apiClient.setAuthToken(accessToken);
+    apiClient.getCurrentUser().then((r) => {
+      if (r.status === 200) {
+        setUser(r.data);
+        localStorage.setItem('current_user', JSON.stringify(r.data));
+      }
+    });
+  };
+
   const logout = () => {
     apiClient.clearAuth();
     setUser(null);
@@ -141,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     loginPatient,
+    loginWithToken,
     register,
     registerPatient,
     logout,

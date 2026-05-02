@@ -10,6 +10,7 @@ import TechnicianRegistrationPage from './pages/TechnicianRegistrationPage';
 import DashboardPage from './pages/DashboardPage';
 import HospitalSignupPage from './pages/HospitalSignupPage';
 import StaffInviteRegistrationPage from './pages/StaffInviteRegistrationPage';
+import PatientPortalAccess from './pages/PatientPortalAccess';
 import './App.css';
 
 const theme = createTheme({
@@ -163,6 +164,7 @@ const AppRoutes: React.FC = () => {
         path="/register/invite/:token"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <StaffInviteRegistrationPage />}
       />
+      <Route path="/patient/portal/:token" element={<PatientPortalAccess />} />
       <Route
         path="/register/doctor"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <DoctorRegistrationPage />}

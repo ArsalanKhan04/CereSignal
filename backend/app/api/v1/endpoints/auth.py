@@ -533,6 +533,54 @@ async def login_patient(
     }
 
 
+@router.get("/patient-portal/{token}", response_model=Token)
+async def patient_portal_access(token: str, db: Session = Depends(get_db)):
+    """Exchange a patient portal token for a session JWT (public, no auth required)."""
+    patient = db.query(User).filter(User.portal_token == token).first()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid portal link")
+
+    auth_user = None
+    if patient.patient_auth_user_id:
+        auth_user = db.query(AuthUser).filter(AuthUser.id == patient.patient_auth_user_id).first()
+
+    if not auth_user:
+        base_username = f"patient-{patient.id}"
+        username = base_username
+        suffix = 1
+        while db.query(AuthUser).filter(AuthUser.username == username).first():
+            username = f"{base_username}-{suffix}"
+            suffix += 1
+
+        email = patient.email
+        if email and db.query(AuthUser).filter(AuthUser.email == email).first():
+            email = None
+        if not email:
+            email = f"patient-{patient.id}@placeholder.local"
+
+        auth_user = AuthUser(
+            username=username,
+            email=email,
+            hashed_password=get_password_hash(str(token)),
+            user_type=UserType.PATIENT.value,
+        )
+        db.add(auth_user)
+        db.flush()
+        patient.patient_auth_user_id = auth_user.id
+
+    if not auth_user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
+
+    auth_user.last_login = datetime.now(timezone.utc)
+    db.commit()
+
+    access_token = create_access_token(
+        data={"sub": auth_user.username, "user_id": auth_user.id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return {"access_token": access_token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60}
+
+
 @router.get("/me", response_model=AuthUserResponse)
 async def get_current_user_info(
     current_user: AuthUser = Depends(get_current_active_user),

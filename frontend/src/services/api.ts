@@ -190,14 +190,31 @@ class ApiClient {
     includeUnassigned?: boolean,
     search?: string,
     skip?: number,
-    limit?: number
+    limit?: number,
+    reportSent?: boolean,
   ): Promise<ApiResponse<Patient[]>> {
     const params: Record<string, any> = {};
     if (includeUnassigned) params.include_unassigned = true;
     if (search) params.search = search;
     if (skip !== undefined) params.skip = skip;
     if (limit !== undefined) params.limit = limit;
+    if (reportSent !== undefined) params.report_sent = reportSent;
     const response = await this.client.get('/users/', { params });
+    return { data: response.data, status: response.status };
+  }
+
+  async markReportSent(patientId: number): Promise<ApiResponse<Patient>> {
+    const response = await this.client.post(`/users/${patientId}/mark-report-sent`);
+    return { data: response.data, status: response.status };
+  }
+
+  async sendPortalEmail(patientId: number): Promise<ApiResponse<Patient>> {
+    const response = await this.client.post(`/users/${patientId}/send-portal-email`);
+    return { data: response.data, status: response.status };
+  }
+
+  async loginWithPortalToken(token: string): Promise<ApiResponse<{ access_token: string; token_type: string; expires_in: number }>> {
+    const response = await this.client.get(`/auth/patient-portal/${token}`);
     return { data: response.data, status: response.status };
   }
 

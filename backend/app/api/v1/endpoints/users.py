@@ -5,8 +5,9 @@ User management endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime, timezone
 import os
+import uuid
 
 from sqlalchemy import or_
 
@@ -211,6 +212,7 @@ async def get_users(
     limit: int = 50,
     search: Optional[str] = None,
     include_unassigned: bool = False,
+    report_sent: Optional[bool] = None,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -256,6 +258,9 @@ async def get_users(
             | User.email.ilike(f"%{search}%")
             | User.medical_id.ilike(f"%{search}%")
         )
+
+    if report_sent is not None:
+        query = query.filter(User.report_sent == report_sent)
 
     users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
     # Attach doctor name for each patient if available
@@ -611,3 +616,75 @@ async def get_user_files(
 
     files = db.query(User.signal_files).filter(User.id == user_id).all()
     return files
+
+
+@router.post("/{user_id}/mark-report-sent", response_model=UserListResponse)
+async def mark_report_sent(
+    user_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Mark a patient's report as sent (technician/doctor only)."""
+    if current_user.user_type == UserType.PATIENT.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+    if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    user.report_sent = True
+    db.commit()
+    db.refresh(user)
+    setattr(user, "doctor_name", None)
+    return user
+
+
+@router.post("/{user_id}/send-portal-email", response_model=UserListResponse)
+async def send_portal_email(
+    user_id: int,
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a portal token and email it to the patient. Requires patient email."""
+    if current_user.user_type == UserType.PATIENT.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+    if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    if not user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Patient has no email address",
+        )
+
+    if not user.portal_token:
+        user.portal_token = str(uuid.uuid4())
+
+    from app.core.config import settings
+    from app.services.email_service import send_patient_portal_email
+    portal_url = f"{settings.FRONTEND_URL}/#/patient/portal/{user.portal_token}"
+
+    try:
+        await send_patient_portal_email(
+            to_email=user.email,
+            patient_name=user.name,
+            portal_url=portal_url,
+        )
+        user.portal_sent_at = datetime.now(timezone.utc)
+        user.report_sent = True
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send email: {str(e)}",
+        )
+
+    setattr(user, "doctor_name", None)
+    return user

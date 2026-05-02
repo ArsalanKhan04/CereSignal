@@ -26,6 +26,7 @@ import {
   Paper,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,6 +38,8 @@ import {
   Download as DownloadIcon,
   Close as CloseIcon,
   History as HistoryIcon,
+  MarkEmailRead as MarkSentIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import { pdfNameFromEdf } from '../utils/fileNames';
@@ -58,6 +61,7 @@ const Patients: React.FC<{
   onDoctorViewModeChange?: (value: 'assigned' | 'all') => void;
   selectedPatientId?: number | null;
   onPatientDetailsClose?: () => void;
+  reportSentFilter?: boolean;
 }> = ({
   doctorViewMode = 'assigned',
   initialStatusFilter = 'all',
@@ -68,6 +72,7 @@ const Patients: React.FC<{
   onDoctorViewModeChange,
   selectedPatientId,
   onPatientDetailsClose,
+  reportSentFilter,
 }) => {
   const { user } = useAuth();
   const isReadOnly = user?.user_type === 'doctor';
@@ -97,6 +102,7 @@ const Patients: React.FC<{
   const [detailPatient, setDetailPatient] = useState<Patient | null>(null);
   const [detailPatientLoading, setDetailPatientLoading] = useState(false);
   const [historyReport, setHistoryReport] = useState<EEGReport | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   const pollingRef = useRef<number | null>(null);
 
   const activeStatusFilter = statusFilter ?? localStatusFilter;
@@ -136,7 +142,7 @@ const Patients: React.FC<{
     if (user?.user_type === 'technician' || allowDesktopCreate) {
       loadDoctors();
     }
-  }, [user, doctorViewMode, searchQuery]);
+  }, [user, doctorViewMode, searchQuery, reportSentFilter]);
 
   useEffect(() => {
     if (!selectedPatientId) return;
@@ -194,7 +200,7 @@ const Patients: React.FC<{
 
   const loadPatients = async () => {
     try {
-      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all', searchQuery.trim() || undefined, 0, 200);
+      const response = await apiClient.getPatients(isReadOnly && doctorViewMode === 'all', searchQuery.trim() || undefined, 0, 200, reportSentFilter);
       if (response.status === 200) {
         const filteredPatients = isReadOnly && doctorViewMode === 'assigned'
           ? response.data.filter((patient) => patient.auth_user_id === user?.id)
@@ -729,6 +735,34 @@ const Patients: React.FC<{
     }
   };
 
+  const handleMarkReportSent = async (patientId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setActionLoadingId(patientId);
+    try {
+      await apiClient.markReportSent(patientId);
+      await loadPatients();
+      setSuccess('Report marked as sent');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to mark report as sent');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleSendPortalEmail = async (patientId: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setActionLoadingId(patientId);
+    try {
+      await apiClient.sendPortalEmail(patientId);
+      await loadPatients();
+      setSuccess('Portal email sent to patient');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to send portal email');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -1109,6 +1143,34 @@ const Patients: React.FC<{
                       Download Report
                     </Button>
                   )}
+                  {user?.user_type === 'technician' && hasReportAndLabel && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<MarkSentIcon fontSize="small" />}
+                      onClick={(event) => handleMarkReportSent(patient.id, event)}
+                      disabled={actionLoadingId === patient.id || patient.report_sent}
+                      sx={{ minWidth: 130, height: 28, fontSize: '0.75rem', px: 1 }}
+                    >
+                      {patient.report_sent ? 'Sent' : 'Report Sent'}
+                    </Button>
+                  )}
+                  {user?.user_type === 'technician' && hasReportAndLabel && (
+                    <Tooltip title={!patient.email ? 'Patient email is unavailable' : ''}>
+                      <span>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<EmailIcon fontSize="small" />}
+                          onClick={(event) => handleSendPortalEmail(patient.id, event)}
+                          disabled={!patient.email || actionLoadingId === patient.id}
+                          sx={{ minWidth: 130, height: 28, fontSize: '0.75rem', px: 1 }}
+                        >
+                          Email Report
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  )}
                   <Button
                     variant="outlined"
                     size="small"
@@ -1336,6 +1398,42 @@ const Patients: React.FC<{
                         Download Report
                       </Button>
                     )}
+                    {user?.user_type === 'technician' && detailReport && detailFile && (() => {
+                      const label = detailFile?.condition?.toLowerCase();
+                      const hasLabel = label === 'normal' || label === 'abnormal' || Boolean(detailReport?.impression);
+                      const hasReportAndLabel = Boolean(detailReport) && hasLabel;
+                      if (!hasReportAndLabel) return null;
+                      return (
+                        <>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<MarkSentIcon fontSize="small" />}
+                            onClick={() => {
+                              handleMarkReportSent(detailPatient.id, { stopPropagation: () => {} } as React.MouseEvent);
+                            }}
+                            disabled={actionLoadingId === detailPatient.id || detailPatient.report_sent}
+                          >
+                            {detailPatient.report_sent ? 'Sent' : 'Report Sent'}
+                          </Button>
+                          <Tooltip title={!detailPatient.email ? 'Patient email is unavailable' : ''}>
+                            <span>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<EmailIcon fontSize="small" />}
+                                onClick={() => {
+                                  handleSendPortalEmail(detailPatient.id, { stopPropagation: () => {} } as React.MouseEvent);
+                                }}
+                                disabled={!detailPatient.email || actionLoadingId === detailPatient.id}
+                              >
+                                Email Report
+                              </Button>
+                            </span>
+                          </Tooltip>
+                        </>
+                      );
+                    })()}
                   {allowDoctorFileOps && detailFile && (
                     <IconButton
                       color="error"
