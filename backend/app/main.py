@@ -96,8 +96,6 @@ def _friendly_msg(error: dict) -> str:
     # Map raw Pydantic error codes to user-friendly messages
     type_messages = {
         "missing": f"{label} is required.",
-        "value_error.email": f"Please enter a valid email address.",
-        "value_error.missing": f"{label} is required.",
         "string_too_short": f"{label} is too short (minimum {error.get('ctx', {}).get('min_length', '?')} characters).",
         "string_too_long": f"{label} is too long (maximum {error.get('ctx', {}).get('max_length', '?')} characters).",
         "string_pattern_mismatch": f"Please enter a valid {label.lower()}.",
@@ -114,7 +112,10 @@ def _friendly_msg(error: dict) -> str:
         "value_error.datetime": f"Please enter a valid date for {label.lower()}.",
     }
 
-    return type_messages.get(etype, msg)
+    if etype == "value_error":
+        if "email" in str(field).lower() or "not a valid email" in str(msg).lower():
+            return "Please enter a valid email address."
+        return type_messages.get(etype, msg)
 
 
 @asynccontextmanager

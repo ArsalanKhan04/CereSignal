@@ -393,7 +393,6 @@ const AdminDashboard: React.FC = () => {
                           fullWidth
                           onClick={() => {
                             jumpToStep('1.4');
-                            logout();
                             navigate(`/register/invite/${lastInviteToken}`);
                           }}
                         />

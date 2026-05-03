@@ -2,7 +2,8 @@
 Authentication schemas
 """
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
+from app.schemas.email_types import LenientEmailStr
 from typing import Optional
 from datetime import datetime
 from app.models.auth import UserType
@@ -19,7 +20,7 @@ class UserRegister(BaseModel):
     """Schema for user registration"""
 
     username: str = Field(..., min_length=3, max_length=50)
-    email: EmailStr
+    email: LenientEmailStr
     password: str = Field(..., min_length=6)
     confirm_password: str = Field(..., min_length=6)
     user_type: UserType = Field(default=UserType.DOCTOR)
@@ -44,7 +45,7 @@ class PatientRegister(BaseModel):
     """Schema for patient registration (creates both AuthUser and User)"""
 
     username: str = Field(..., min_length=3, max_length=50)
-    email: EmailStr
+    email: LenientEmailStr
     password: str = Field(..., min_length=6)
     confirm_password: str = Field(..., min_length=6)
     # Patient information

@@ -146,7 +146,7 @@ const DevAdminDashboard: React.FC = () => {
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, fontSize: 13 }}
-                  formatter={(v: number, name: string) => [v, name === 'files' ? 'EEG Files' : 'Patients']}
+                  formatter={(v, name) => [v, name === 'files' ? 'EEG Files' : 'Patients']}
                 />
                 <Bar dataKey="files" name="files" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, idx) => (

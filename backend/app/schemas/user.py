@@ -2,7 +2,8 @@
 Pydantic schemas for user management
 """
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
+from app.schemas.email_types import LenientEmailStr
 from typing import Optional
 from datetime import datetime
 
@@ -11,7 +12,7 @@ class UserBase(BaseModel):
     """Base schema for user"""
 
     name: str = Field(..., min_length=1, max_length=255, description="User's full name")
-    email: Optional[EmailStr] = None
+    email: Optional[LenientEmailStr] = None
     phone: Optional[str] = Field(
         None,
         max_length=50,
@@ -55,7 +56,7 @@ class UserUpdate(BaseModel):
     """Schema for updating a user"""
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    email: Optional[EmailStr] = None
+    email: Optional[LenientEmailStr] = None
     phone: Optional[str] = Field(
         None,
         max_length=50,
