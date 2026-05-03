@@ -1,14 +1,12 @@
 """
 Database migration script.
-Drops all tables, recreates the schema, seeds demo data, and ensures
-the dev superuser exists. Safe to run repeatedly — everything is rebuilt
-from scratch each time.
+Drops all tables, recreates the schema, and ensures the dev superuser
+exists. Safe to run repeatedly — everything is rebuilt from scratch.
 """
 
 from app.core.database import engine, Base, SessionLocal
 from app.models import *  # noqa: F401,F403 — register all models
 from sqlalchemy import text
-from scripts.seed_demo import seed_demo
 
 # Drop order: dependent tables first so FK constraints don't block the DROP.
 # PostgreSQL uses CASCADE; SQLite requires ordered drops.
@@ -91,15 +89,7 @@ def run():
     Base.metadata.create_all(bind=engine)
     print("Tables recreated.")
 
-    # 3. Seed demo data
-    db = SessionLocal()
-    try:
-        seed_demo(db)
-        print("Demo data seeded.")
-    finally:
-        db.close()
-
-    # 4. Ensure dev superuser
+    # 3. Ensure dev superuser
     _ensure_superuser()
 
 
