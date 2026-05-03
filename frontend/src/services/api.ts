@@ -404,6 +404,22 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  // Contact form
+  async submitContact(data: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    hospital?: string;
+    role?: string;
+    country?: string;
+    volume?: string;
+    interest?: string;
+    message?: string;
+  }): Promise<ApiResponse<any>> {
+    const response = await this.client.post('/contact/', data);
+    return { data: response.data, status: response.status };
+  }
+
   // Utility methods
   getPublicBaseUrl(): string {
     return this.baseURL.replace(/\/api\/v1\/?$/, '');

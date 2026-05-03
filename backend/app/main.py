@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.v1.api import api_router
 from app.core.middleware import setup_middleware
-from app.models import user, signal, auth
+from app.models import user, signal, auth, contact
 
 
 @asynccontextmanager

@@ -6,3 +6,4 @@ from .user import User
 from .signal import SignalFile, Signal, ProcessingResult, EEGBookmark
 from .report import EEGReport, EEGReportVersion
 from .notification import Notification
+from .contact import ContactSubmission
