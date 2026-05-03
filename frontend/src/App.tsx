@@ -13,6 +13,11 @@ import DashboardPage from './pages/DashboardPage';
 import HospitalSignupPage from './pages/HospitalSignupPage';
 import StaffInviteRegistrationPage from './pages/StaffInviteRegistrationPage';
 import PatientPortalAccess from './pages/PatientPortalAccess';
+import DevAdminLayout from './pages/dev-admin/DevAdminLayout';
+import DevAdminDashboard from './pages/dev-admin/DevAdminDashboard';
+import DevAdminHospitals from './pages/dev-admin/DevAdminHospitals';
+import DevAdminHospitalDetail from './pages/dev-admin/DevAdminHospitalDetail';
+import DevAdminContacts from './pages/dev-admin/DevAdminContacts';
 import './App.css';
 
 const theme = createTheme({
@@ -141,22 +146,40 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
 };
 
-const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+const SuperuserRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return <div>Loading...</div>;
   }
 
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (!user?.is_superuser) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
+const AppRoutes: React.FC = () => {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  const authenticatedRedirect = isAuthenticated
+    ? user?.is_superuser
+      ? '/dev-admin'
+      : '/dashboard'
+    : null;
+
   return (
     <Routes>
       <Route
         path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <LandingPage />}
       />
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <LoginPage />}
       />
       <Route
         path="/contact"
@@ -168,29 +191,42 @@ const AppRoutes: React.FC = () => {
       />
       <Route
         path="/register/hospital"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <HospitalSignupPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <HospitalSignupPage />}
       />
       <Route
         path="/register/invite/:token"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <StaffInviteRegistrationPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <StaffInviteRegistrationPage />}
       />
       <Route path="/patient/portal/:token" element={<PatientPortalAccess />} />
       <Route
         path="/register/doctor"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <DoctorRegistrationPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <DoctorRegistrationPage />}
       />
       <Route
         path="/register/technician"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <TechnicianRegistrationPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <TechnicianRegistrationPage />}
       />
-      <Route 
-        path="/dashboard" 
+      <Route
+        path="/dashboard"
         element={
           <ProtectedRoute>
             <DashboardPage />
           </ProtectedRoute>
-        } 
+        }
       />
+      <Route
+        path="/dev-admin"
+        element={
+          <SuperuserRoute>
+            <DevAdminLayout />
+          </SuperuserRoute>
+        }
+      >
+        <Route index element={<DevAdminDashboard />} />
+        <Route path="hospitals" element={<DevAdminHospitals />} />
+        <Route path="hospitals/:id" element={<DevAdminHospitalDetail />} />
+        <Route path="contacts" element={<DevAdminContacts />} />
+      </Route>
     </Routes>
   );
 };

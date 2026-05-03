@@ -30,6 +30,11 @@ import {
   AdminStats,
   StaffInvitation,
   StaffMember,
+  DevAdminGlobalStats,
+  DevAdminHospitalSummary,
+  DevAdminHospitalDetail,
+  DevAdminContact,
+  DevAdminContactListResponse,
 } from '../types';
 
 class ApiClient {
@@ -402,6 +407,94 @@ class ApiClient {
   async restoreReportVersion(reportId: number, versionId: number): Promise<ApiResponse<EEGReport>> {
     const response = await this.client.post(`/reports/${reportId}/versions/${versionId}/restore`);
     return { data: response.data, status: response.status };
+  }
+
+  // Dev Admin methods (superuser only)
+  async getDevAdminStats(): Promise<ApiResponse<DevAdminGlobalStats>> {
+    const response = await this.client.get('/dev-admin/stats');
+    return { data: response.data, status: response.status };
+  }
+
+  async getDevAdminHospitals(): Promise<ApiResponse<DevAdminHospitalSummary[]>> {
+    const response = await this.client.get('/dev-admin/hospitals');
+    return { data: response.data, status: response.status };
+  }
+
+  async getDevAdminHospitalDetail(id: number): Promise<ApiResponse<DevAdminHospitalDetail>> {
+    const response = await this.client.get(`/dev-admin/hospitals/${id}`);
+    return { data: response.data, status: response.status };
+  }
+
+  async getDevAdminContacts(
+    skip = 0,
+    limit = 20,
+    unreadOnly = false
+  ): Promise<ApiResponse<DevAdminContactListResponse>> {
+    const response = await this.client.get('/dev-admin/contacts', {
+      params: { skip, limit, unread_only: unreadOnly },
+    });
+    return { data: response.data, status: response.status };
+  }
+
+  async markContactRead(id: number): Promise<ApiResponse<DevAdminContact>> {
+    const response = await this.client.put(`/dev-admin/contacts/${id}/read`);
+    return { data: response.data, status: response.status };
+  }
+
+  async downloadHospitalFile(hospitalId: number, fileId: number, filename: string): Promise<void> {
+    const response = await this.client.get(
+      `/dev-admin/hospitals/${hospitalId}/files/${fileId}/download`,
+      { responseType: 'blob' }
+    );
+    const url = URL.createObjectURL(new Blob([response.data]));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async downloadHospitalReport(
+    hospitalId: number,
+    reportId: number,
+    filename: string
+  ): Promise<void> {
+    const response = await this.client.get(
+      `/dev-admin/hospitals/${hospitalId}/reports/${reportId}/download`,
+      { responseType: 'blob' }
+    );
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async downloadHospitalZip(
+    hospitalId: number,
+    filename: string,
+    onProgress?: (percent: number) => void
+  ): Promise<void> {
+    const token = localStorage.getItem('auth_token');
+    const response = await axios.get(
+      `${this.baseURL}/dev-admin/hospitals/${hospitalId}/download`,
+      {
+        responseType: 'blob',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        onDownloadProgress: (evt) => {
+          if (onProgress && evt.total) {
+            onProgress(Math.round((evt.loaded / evt.total) * 100));
+          }
+        },
+      }
+    );
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Contact form
