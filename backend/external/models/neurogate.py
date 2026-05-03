@@ -1,6 +1,36 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
+
+
+class SinusoidalPositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=5000):
+        super(SinusoidalPositionalEncoding, self).__init__()
+
+        # Create a long matrix of sines and cosines
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        # Shape: [1, max_len, d_model] so it easily broadcasts with your batch
+        pe = pe.unsqueeze(0)
+
+        # Register as a buffer so it saves with the model but isn't updated by backprop
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor, shape [Batch, Seq_Len, d_model]
+        """
+        seq_len = x.size(1)
+        # Add the positional encoding to the input sequence
+        x = x + self.pe[:, :seq_len, :]
+        return x
 
 
 class WaveLayer(nn.Module):
@@ -11,7 +41,7 @@ class WaveLayer(nn.Module):
             in_channels,
             in_channels,
             kernel_size,
-            padding=self.padding,
+            padding=0,
             dilation=dilation,
         )
         self.tanh = nn.Tanh()
@@ -30,14 +60,11 @@ class WaveLayer(nn.Module):
     # self.residual = nn.Conv1d(out_channels, in_channels, 1)
 
     def forward(self, x):
-        # x_padded = torch.nn.functional.pad(x, (self.padding, 0))
-        output = self.conv(x)
+        x_padded = F.pad(x, (self.padding, 0))
+        output = self.conv(x_padded)
         filter = self.filter(output)
         gate = self.gate(output)
-        tanh = self.tanh(filter)
-        sig = self.sig(gate)
-        z = tanh * sig
-        z = z[:, :, : -self.padding]
+        z = self.tanh(filter) * self.sig(gate)
         z = self.conv2(z)
         x = x + z
         return x
@@ -66,11 +93,13 @@ class MFFMBlock(nn.Module):
         self.conv1 = nn.Conv1d(
             in_channels=in_channels, out_channels=8, kernel_size=5, padding=2
         )
-        self.bn1 = nn.BatchNorm1d(8)
+        # self.bn1 = nn.BatchNorm1d(8)
+        self.bn1 = nn.GroupNorm(num_groups=4, num_channels=8)
         self.conv2 = nn.Conv1d(
             in_channels=in_channels + 8, out_channels=16, kernel_size=5, padding=2
         )
-        self.bn2 = nn.BatchNorm1d(16)
+        # self.bn2 = nn.BatchNorm1d(16)
+        self.bn2 = nn.GroupNorm(num_groups=4, num_channels=16)
 
         nn.init.xavier_uniform_(self.conv1.weight)
         nn.init.xavier_uniform_(self.conv2.weight)
@@ -93,19 +122,24 @@ class NeuroGate(nn.Module):
         self.conv1 = nn.Conv1d(
             in_channels=n_chans + 24, out_channels=20, kernel_size=3, padding=1
         )
-        self.bn1 = nn.BatchNorm1d(n_chans)
         self.conv2 = nn.Conv1d(
             in_channels=20 + 24, out_channels=20, kernel_size=3, padding=1
         )
-        self.bn2 = nn.BatchNorm1d(20)
+        # self.bn1 = nn.BatchNorm1d(20)
+        self.bn1 = nn.GroupNorm(num_groups=4, num_channels=20)
         self.conv3 = nn.Conv1d(
             in_channels=20 + 24, out_channels=20, kernel_size=3, padding=1
         )
-        self.bn3 = nn.BatchNorm1d(20)
-        self.bn4 = nn.BatchNorm1d(20)
+        # self.bn2 = nn.BatchNorm1d(20)
+        # self.bn3 = nn.BatchNorm1d(20)
+        self.bn2 = nn.GroupNorm(num_groups=4, num_channels=20)
+        self.bn3 = nn.GroupNorm(num_groups=4, num_channels=20)
+        self.pos_encoder = SinusoidalPositionalEncoding(d_model=20, max_len=3000)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, 20))
         self.encoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(20, 4, dropout=0.5, batch_first=True), 2
         )
+
         self.fc = nn.Linear(20, 2)
 
         nn.init.xavier_uniform_(self.conv1.weight)
@@ -113,61 +147,40 @@ class NeuroGate(nn.Module):
         nn.init.xavier_uniform_(self.conv3.weight)
         nn.init.xavier_uniform_(self.fc.weight)
 
+
     def forward(self, x):
-        # gap = torch.mean(x, dim=1, keepdim=True)
-        # gsp = torch.std(x, dim=1, keepdim=True)
-        # gmp, _ = torch.max(x, dim=1, keepdim=True)
-        # gmnp, _ = torch.min(x, dim=1, keepdim=True)
-        # axis = 1  # compute kurtosis over the “channels” dimension
-
-        # # 1) mean per example & channel
-        # mu = x.mean(dim=axis, keepdim=True)
-
-        # # 2) second moment (variance)
-        # m2 = ((x - mu) ** 2).mean(dim=axis, keepdim=True)
-
-        # # 3) fourth moment
-        # m4 = ((x - mu) ** 4).mean(dim=axis, keepdim=True)
-
-        # # 4) kurtosis: m4 / (m2**2) minus 3
-        # gkp = m4.div(m2.pow(2)).sub(3.0)  # shape [batch, 1, ...]
-
-        # gap = F.dropout(gap, 0.05, training=self.training)
-        # gmp = F.dropout(gmp, 0.05, training=self.training)
-        # gsp = F.dropout(gsp, 0.05, training=self.training)
-        # gmnp = F.dropout(gmnp, 0.05, training=self.training)
-        # gkp = F.dropout(gkp, 0.05, training=self.training)
-
-        # x = torch.cat((x, gap, gsp, gmp, gmnp,gkp), dim=1)
-
-        # x1 = F.avg_pool1d(x, kernel_size=5, stride=5)
-        # x2 = F.max_pool1d(x, kernel_size=5, stride=5)
-        # x = torch.cat((x1, x2), dim=1)
-        # x = self.bn1(x)
         x1 = self.mffm_block1(x)
         x2 = self.wave_block1(x)
         x = x1 + x2
 
         # Apply spatial dropout
-        # x = x.permute(0, 2, 1)
-        x = F.dropout2d(x, 0.5, training=self.training)
-        # x = x.permute(0, 2, 1)
-
+        x = F.dropout1d(x, 0.5, training=self.training)
         x = F.max_pool1d(x, kernel_size=5, stride=5)
-        x = F.relu(self.bn2(self.conv1(x)))
+
+        x = F.relu(self.bn1(self.conv1(x)))
+
         x1 = self.mffm_block2(x)
         x2 = self.wave_block2(x)
         x = x1 + x2
-        x = self.bn3(self.conv2(x))
+
+        x = F.relu(self.bn2(self.conv2(x)))
+
         x = self.mffm_block3(x)
         x = F.max_pool1d(x, kernel_size=5, stride=5)
-        x = self.bn4(self.conv3(x))
+
+        x = F.relu(self.bn3(self.conv3(x)))
 
         x = x.permute(0, 2, 1)
+
+        batch_size = x.size(0)
+        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x = self.pos_encoder(x)
         x = self.encoder(x)
-        x = x.permute(0, 2, 1)
+        x = x[:, 0, :]
 
-        x = torch.mean(x, dim=2)
         x = self.fc(x)
-        # return F.softmax(x, dim=-1)
         return x
+
+
+
