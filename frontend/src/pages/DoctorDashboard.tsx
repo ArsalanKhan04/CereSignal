@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -30,6 +31,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
 import { NotificationItem } from '../types';
 import Patients from '../components/Patients';
+import { useDemo } from '../contexts/DemoContext';
+import DemoButton from '../components/DemoButton';
 
 const DoctorDashboard: React.FC = () => {
   const [patientFilter, setPatientFilter] = useState<'assigned' | 'all'>('assigned');
@@ -39,6 +42,8 @@ const DoctorDashboard: React.FC = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const { user, logout } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData } = useDemo();
 
   // Helper to get initials for the Avatar
   const getInitials = (first?: string, last?: string) => {
@@ -67,7 +72,10 @@ const DoctorDashboard: React.FC = () => {
     };
 
     loadNotifications();
-  }, [user]);
+    if (isDemoActive && (currentStepId === '3.3')) {
+      jumpToStep('4.0');
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNotificationsClick = (event: React.MouseEvent<HTMLElement>) => {
     setNotificationsAnchor(event.currentTarget);
@@ -292,6 +300,17 @@ const DoctorDashboard: React.FC = () => {
                 selectedPatientId={selectedPatientId}
                 onPatientDetailsClose={() => setSelectedPatientId(null)}
               />
+              {isDemoActive && (
+                <Box sx={{ mt: 2 }}>
+                  <DemoButton
+                    label="Continue as Technician →"
+                    onClick={() => {
+                      jumpToStep('5.0');
+                      navigate('/login');
+                    }}
+                  />
+                </Box>
+              )}
             </Box>
           </Paper>
         </Fade>

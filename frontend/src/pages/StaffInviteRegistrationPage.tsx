@@ -37,6 +37,8 @@ import {
 } from '@mui/icons-material';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import DemoButton from '../components/DemoButton';
+import { useDemo } from '../contexts/DemoContext';
 import {
   validateUsername, validatePassword, validateConfirmPassword,
   validateName, validatePhone, validateYearsExperience, validateMaxLength,
@@ -51,6 +53,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>();
   const { login } = useAuth();
+  const { isActive: isDemoActive, demoData, currentStepId, jumpToStep } = useDemo();
 
   const [tokenInfo, setTokenInfo] = useState<InviteTokenInfo | null>(null);
   const [tokenError, setTokenError] = useState<string>('');
@@ -418,6 +421,31 @@ const StaffInviteRegistrationPage: React.FC = () => {
                     </Grid>
                   </Grid>
                 </Paper>
+
+                {isDemoActive && (
+                  <Box sx={{ mb: 2 }}>
+                    <DemoButton
+                      label={currentStepId === '1.3' ? "⚡ Autofill Technician Details" : "⚡ Autofill Doctor Details"}
+                      fullWidth
+                      onClick={() => {
+                        const isTech = currentStepId === '1.3';
+                        setFormData((prev: any) => ({
+                          ...prev,
+                          first_name: isTech ? 'Jordan' : 'Dr. Sam',
+                          last_name: isTech ? 'Lee' : 'Rivera',
+                          username: isTech ? demoData.techUsername : demoData.docUsername,
+                          password: isTech ? demoData.techPassword : demoData.docPassword,
+                          confirm_password: isTech ? demoData.techPassword : demoData.docPassword,
+                          title: isTech ? '' : 'Dr.',
+                          specialization: isTech ? 'EEG Technology' : 'Clinical Neurophysiology',
+                          license_number: isTech ? `TECH-${demoData.suffix.toUpperCase()}-001` : `DOC-${demoData.suffix.toUpperCase()}-001`,
+                          phone: isTech ? '+1 (312) 555-0180' : '+1 (312) 555-0190',
+                        }));
+                        jumpToStep(currentStepId);
+                      }}
+                    />
+                  </Box>
+                )}
 
                 <Box>
                   <Button

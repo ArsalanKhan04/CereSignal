@@ -34,6 +34,8 @@ import {
 } from '@mui/icons-material';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import DemoButton from '../components/DemoButton';
+import { useDemo } from '../contexts/DemoContext';
 import {
   validateUsername, validateEmail, validatePassword, validateConfirmPassword,
   validateName, validatePhone, validateHospitalName,
@@ -47,6 +49,7 @@ const HospitalSignupPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { isActive: isDemoActive, jumpToStep, demoData } = useDemo();
 
   const [formData, setFormData] = useState<HospitalAdminRegisterRequest>({
     hospital_name: '',
@@ -102,8 +105,8 @@ const HospitalSignupPage: React.FC = () => {
     try {
       await apiClient.registerHospital(formData);
       setSuccess('Registration successful! Redirecting...');
-      // Log in immediately after registration
       await login({ username: formData.username, password: formData.password });
+      jumpToStep('1.1');
       navigate('/dashboard');
     } catch (err: any) {
       const responseData = err.response?.data;
@@ -317,6 +320,30 @@ const HospitalSignupPage: React.FC = () => {
                     </Grid>
                   </Grid>
                 </Paper>
+
+                {isDemoActive && (
+                  <Box sx={{ mb: 2 }}>
+                    <DemoButton
+                      label="⚡ Autofill Demo Data"
+                      fullWidth
+                      onClick={() => {
+                        setFormData({
+                          hospital_name: demoData.hospitalName,
+                          hospital_address: '1000 Medical Plaza Drive, Chicago, IL',
+                          hospital_phone: '+1 (312) 555-0142',
+                          hospital_email: `admin.${demoData.suffix}@demo.local`,
+                          first_name: 'Alex',
+                          last_name: 'Morgan',
+                          username: demoData.adminUsername,
+                          email: `admin.${demoData.suffix}@demo.local`,
+                          password: demoData.adminPassword,
+                          confirm_password: demoData.adminPassword,
+                        });
+                        jumpToStep('1.0');
+                      }}
+                    />
+                  </Box>
+                )}
 
                 <Box>
                   <Button

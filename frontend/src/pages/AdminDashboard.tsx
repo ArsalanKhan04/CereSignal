@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -49,10 +50,14 @@ import { AdminStats, StaffInvitation, StaffMember } from '../types';
 import { validateEmail, collectErrors } from '../utils/validation';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import DemoButton from '../components/DemoButton';
+import { useDemo } from '../contexts/DemoContext';
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData, setDemoData } = useDemo();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -64,6 +69,7 @@ const AdminDashboard: React.FC = () => {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
+  const [lastInviteToken, setLastInviteToken] = useState<string | null>(null);
 
   const [dataLoading, setDataLoading] = useState(true);
 
@@ -95,7 +101,7 @@ const AdminDashboard: React.FC = () => {
       }
     };
     loadData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleActive = async (userId: number) => {
     try {
@@ -116,7 +122,15 @@ const AdminDashboard: React.FC = () => {
     }
     setInviteLoading(true);
     try {
-      await apiClient.sendInvitation({ email: inviteEmail, role: inviteRole });
+      const inviteRes = await apiClient.sendInvitation({ email: inviteEmail, role: inviteRole });
+      const token = inviteRes.data?.token ?? null;
+      setLastInviteToken(token);
+      if (token) {
+        setDemoData(prev => inviteRole === 'technician'
+          ? { ...prev, techInviteToken: token }
+          : { ...prev, docInviteToken: token }
+        );
+      }
       setInviteSuccess(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
       // Refresh invitations list
@@ -342,6 +356,32 @@ const AdminDashboard: React.FC = () => {
                       <PersonAddIcon color="primary" fontSize="small" /> Invite Staff
                     </Typography>
                     <Stack spacing={2}>
+                      {isDemoActive && (
+                        <>
+                          {currentStepId === '1.1' && (
+                            <DemoButton
+                              label="⚡ Autofill Technician Invite"
+                              fullWidth
+                              onClick={() => {
+                                setInviteEmail(demoData.techEmail);
+                                setInviteRole('technician');
+                                jumpToStep('1.1');
+                              }}
+                            />
+                          )}
+                          {currentStepId === '3.1' && (
+                            <DemoButton
+                              label="⚡ Autofill Doctor Invite"
+                              fullWidth
+                              onClick={() => {
+                                setInviteEmail(demoData.docEmail);
+                                setInviteRole('doctor');
+                                jumpToStep('3.1');
+                              }}
+                            />
+                          )}
+                        </>
+                      )}
                       <FormTextField
                         size="small" label="Email address" type="email"
                         value={inviteEmail}
@@ -363,6 +403,17 @@ const AdminDashboard: React.FC = () => {
                         </Select>
                       </FormControl>
                       <FormAlert error={inviteError} success={inviteSuccess} onDismiss={() => { setInviteError(''); setInviteSuccess(''); }} />
+                      {isDemoActive && inviteSuccess && lastInviteToken && (
+                        <DemoButton
+                          label={inviteRole === 'technician' ? "Go to Technician's Registration →" : "Go to Doctor's Registration →"}
+                          fullWidth
+                          onClick={() => {
+                            const nextStep = inviteRole === 'technician' ? '1.3' : '3.3';
+                            jumpToStep(nextStep);
+                            navigate(`/register/invite/${lastInviteToken}`);
+                          }}
+                        />
+                      )}
                       <Button
                         variant="contained"
                         fullWidth

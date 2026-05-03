@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -22,13 +23,25 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import Patients from '../components/Patients';
+import { useDemo } from '../contexts/DemoContext';
+import DemoButton from '../components/DemoButton';
 
 const TechnicianDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'examined' | 'all' | 'report_sent'>('pending');
   const { user, logout } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData } = useDemo();
 
   const technicianName = user?.first_name ? `${user.first_name} ${user.last_name}` : 'Technician';
+
+  useEffect(() => {
+    if (isDemoActive && currentStepId === '1.3') {
+      jumpToStep('2.0');
+    } else if (isDemoActive && currentStepId === '5.1') {
+      setStatusFilter('examined');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Custom Colors ---
   const primaryColor = theme.palette.primary.main;
@@ -148,6 +161,41 @@ const TechnicianDashboard: React.FC = () => {
                 reportSentFilter={statusFilter === 'report_sent' ? true : undefined}
                 showStatusToggle={false}
               />
+              {isDemoActive && (currentStepId === '2.4' || currentStepId === '2.3' || currentStepId === '2.2') && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {(currentStepId === '2.2' || currentStepId === '2.3' || currentStepId === '2.4') && (
+                    <DemoButton
+                      label="Show Full Workload →"
+                      onClick={() => {
+                        jumpToStep('2.4');
+                        setStatusFilter('all');
+                      }}
+                    />
+                  )}
+                  {currentStepId === '2.4' && (
+                    <DemoButton
+                      label="Continue as Admin →"
+                      onClick={() => {
+                        jumpToStep('3.0');
+                        navigate('/login');
+                      }}
+                    />
+                  )}
+                </Box>
+              )}
+              {isDemoActive && (currentStepId === '5.1' || currentStepId === '5.2') && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {currentStepId === '5.2' && demoData.portalToken && (
+                    <DemoButton
+                      label="Open Patient Portal →"
+                      onClick={() => {
+                        jumpToStep('6.0');
+                        navigate(`/patient/portal/${demoData.portalToken}`);
+                      }}
+                    />
+                  )}
+                </Box>
+              )}
             </Box>
           </Paper>
         </Fade>

@@ -2,7 +2,8 @@
 Admin and hospital schemas
 """
 
-from pydantic import BaseModel, Field, EmailStr, field_validator
+from pydantic import BaseModel, Field, field_validator
+from app.schemas.email_types import LenientEmailStr
 from typing import Optional, List
 from datetime import datetime
 
@@ -18,7 +19,7 @@ class HospitalAdminRegister(BaseModel):
         pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
         description="Hospital phone number",
     )
-    hospital_email: Optional[EmailStr] = None
+    hospital_email: Optional[LenientEmailStr] = None
 
     @field_validator("hospital_address", "hospital_phone", "hospital_email", mode="before")
     @classmethod
@@ -30,14 +31,14 @@ class HospitalAdminRegister(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=50)
-    email: EmailStr
+    email: LenientEmailStr
     password: str = Field(..., min_length=6)
     confirm_password: str = Field(..., min_length=6)
 
 
 class InviteCreate(BaseModel):
     """Admin sends invitation to a staff member"""
-    email: EmailStr
+    email: LenientEmailStr
     role: str = Field(..., pattern="^(doctor|technician)$")
 
 

@@ -4,13 +4,14 @@ Contact schemas
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
+from app.schemas.email_types import LenientEmailStr
 
 
 class ContactSubmissionCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    email: EmailStr
+    email: LenientEmailStr
     hospital: Optional[str] = Field(None, max_length=255)
     role: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)

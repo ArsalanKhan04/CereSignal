@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -32,6 +33,7 @@ import {
   Warning as AbnormalIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useDemo } from '../contexts/DemoContext';
 import { apiClient } from '../services/api';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { EEGReport, Patient, EEGBookmark } from '../types';
@@ -39,6 +41,8 @@ import { EEGReport, Patient, EEGBookmark } from '../types';
 const PatientPortal: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, endDemo } = useDemo();
   const [reports, setReports] = useState<EEGReport[]>([]);
   const [patientProfile, setPatientProfile] = useState<Patient | null>(null);
   const [bookmarks, setBookmarks] = useState<EEGBookmark[]>([]);
@@ -48,7 +52,10 @@ const PatientPortal: React.FC = () => {
   useEffect(() => {
     loadReports();
     loadPatientProfile();
-  }, []);
+    if (isDemoActive && currentStepId === '6.0') {
+      jumpToStep('6.1');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (reports.length === 0) {
@@ -514,6 +521,92 @@ const PatientPortal: React.FC = () => {
             </Box>
 
         </Fade>
+
+        {/* Demo Completion Overlay */}
+        {isDemoActive && currentStepId === '6.2' && (
+          <Box
+            sx={{
+              mt: 4,
+              mx: 'auto',
+              maxWidth: 600,
+              p: 4,
+              borderRadius: 3,
+              bgcolor: '#fffbeb',
+              border: '2px solid #f59e0b',
+              textAlign: 'center',
+            }}
+          >
+            <Typography variant="h4" fontWeight={800} sx={{ mb: 1 }}>
+              🎉 Demo Complete!
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+              You've seen the full CereSignal workflow in under 3 minutes.
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+              {[
+                '1 Hospital created',
+                '3 Staff registered',
+                '3 Patients managed',
+                '2 Reports generated',
+                '1 Portal email sent',
+              ].map((stat) => (
+                <Box
+                  key={stat}
+                  sx={{
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 10,
+                    bgcolor: 'white',
+                    border: '1px solid #f59e0b',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#92400e',
+                  }}
+                >
+                  {stat}
+                </Box>
+              ))}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  endDemo();
+                  logout();
+                  navigate('/');
+                }}
+                sx={{ borderColor: '#f59e0b', color: '#92400e', '&:hover': { borderColor: '#d97706', bgcolor: '#fef3c7' } }}
+              >
+                🔄 Return to Start
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  endDemo();
+                  logout();
+                  navigate('/register/hospital');
+                }}
+                sx={{ bgcolor: '#f59e0b', color: 'white', '&:hover': { bgcolor: '#d97706' }, boxShadow: 'none' }}
+              >
+                🏥 Register Your Hospital
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {isDemoActive && currentStepId === '6.1' && (
+          <Box sx={{ mt: 3, textAlign: 'center' }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => jumpToStep('6.2')}
+              sx={{ borderColor: '#f59e0b', color: '#92400e' }}
+            >
+              View Demo Summary →
+            </Button>
+          </Box>
+        )}
+
       </Container>
     </Box>
   );

@@ -3,6 +3,8 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DemoProvider, useDemo } from './contexts/DemoContext';
+import DemoGuide from './components/DemoGuide';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import ContactPage from './pages/ContactPage';
@@ -160,18 +162,22 @@ const SuperuserRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { isActive: isDemoActive } = useDemo();
 
   if (isLoading) {
     return <div>Loading...</div>;
   }
 
-  const authenticatedRedirect = isAuthenticated
+  // During demo mode, don't auto-redirect away from registration/login pages
+  const authenticatedRedirect = isAuthenticated && !isDemoActive
     ? user?.is_superuser
       ? '/dev-admin'
       : '/dashboard'
     : null;
 
   return (
+    <>
+    <DemoGuide />
     <Routes>
       <Route
         path="/"
@@ -228,6 +234,7 @@ const AppRoutes: React.FC = () => {
         <Route path="contacts" element={<DevAdminContacts />} />
       </Route>
     </Routes>
+    </>
   );
 };
 
@@ -235,11 +242,13 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </AuthProvider>
+      <DemoProvider>
+        <AuthProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </AuthProvider>
+      </DemoProvider>
     </ThemeProvider>
   );
 };

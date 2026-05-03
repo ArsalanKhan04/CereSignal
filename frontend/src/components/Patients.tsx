@@ -54,10 +54,36 @@ import FormTextField from '../components/FormTextField';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData, EEGReport } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useDemo } from '../contexts/DemoContext';
+import DemoButton from '../components/DemoButton';
 import EEGPlot from './EEGPlot';
 import TopographicMap from './TopographicMap';
 import ReportForm from './ReportForm';
 import ReportVersionHistory from './ReportVersionHistory';
+
+const FIRST_NAMES = ['Emma', 'Liam', 'Olivia', 'Noah', 'Ava', 'Ethan', 'Sophia', 'Mason', 'Isabella', 'James'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+const STREETS = ['Oak St', 'Maple Ave', 'Pine Rd', 'Cedar Ln', 'Elm Dr', 'Birch Ct', 'Willow Way', 'Cherry Blvd'];
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const SUPABASE_DEMO_URL = 'https://youzlormisviizcrszje.supabase.co/storage/v1/object/public/eeg-demo';
+
+function pickRandom<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function randomDOB(minAge: number, maxAge: number): string {
+  const now = new Date();
+  const age = minAge + Math.floor(Math.random() * (maxAge - minAge));
+  const birthYear = now.getFullYear() - age;
+  const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+  const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+  return `${birthYear}-${month}-${day}`;
+}
+
+async function fetchDemoEdf(filename: string): Promise<File> {
+  const response = await fetch(`${SUPABASE_DEMO_URL}/${filename}`);
+  if (!response.ok) throw new Error(`Failed to fetch demo EEG: ${response.status}`);
+  const blob = await response.blob();
+  return new File([blob], filename, { type: 'application/octet-stream' });
+}
 
 
 const Patients: React.FC<{
@@ -84,6 +110,7 @@ const Patients: React.FC<{
   reportSentFilter,
 }) => {
   const { user } = useAuth();
+  const { isActive: isDemoActive, demoData, setDemoData, jumpToStep } = useDemo();
   const isReadOnly = user?.user_type === 'doctor';
   const allowDoctorFileOps = false;
   const allowDesktopCreate = false;
@@ -116,6 +143,59 @@ const Patients: React.FC<{
   const pollingRef = useRef<number | null>(null);
 
   const activeStatusFilter = statusFilter ?? localStatusFilter;
+
+  const generateDemoPatientData = (variant: 'normal' | 'abnormal'): PatientCreate & { doctor_id?: number; age?: number } => {
+    const first = pickRandom(FIRST_NAMES);
+    const last = pickRandom(LAST_NAMES);
+    const fullName = `${first} ${last}`;
+    const area = String(200 + Math.floor(Math.random() * 800));
+    const num1 = String(100 + Math.floor(Math.random() * 900));
+    const num2 = String(1000 + Math.floor(Math.random() * 9000));
+    const phone = `+1 (${area}) ${num1}-${num2}`;
+    const streetNum = Math.floor(100 + Math.random() * 9000);
+    const address = `${streetNum} ${pickRandom(STREETS)}, Apt ${Math.floor(1 + Math.random() * 20)}`;
+    const emailUser = first.toLowerCase() + '.' + last.toLowerCase();
+    const medicalId = `MED-${Date.now().toString(36).toUpperCase()}`;
+    const dob = randomDOB(22, 75);
+    const birthYear = parseInt(dob.split('-')[0]);
+    const now = new Date();
+    const calculatedAge = now.getFullYear() - birthYear - (now.getMonth() < parseInt(dob.split('-')[1]) - 1 ? 1 : 0);
+
+    const base: PatientCreate & { doctor_id?: number; age?: number } = {
+      name: fullName,
+      email: `${emailUser}@demo.local`,
+      phone,
+      medical_id: medicalId,
+      gender: Math.random() > 0.5 ? 'F' : 'M',
+      date_of_birth: dob,
+      age: calculatedAge,
+      address,
+      emergency_contact_name: `${pickRandom(FIRST_NAMES)} ${pickRandom(LAST_NAMES)}`,
+      emergency_contact_phone: `+1 (${String(200 + Math.floor(Math.random() * 800))}) ${String(100 + Math.floor(Math.random() * 900))}-${String(1000 + Math.floor(Math.random() * 9000))}`,
+      blood_type: pickRandom(BLOOD_TYPES) as PatientCreate['blood_type'],
+      allergies: '',
+      medical_conditions: '',
+      current_medications: '',
+      notes: '',
+      referred_by: '',
+      doctor_id: undefined,
+    };
+
+    if (variant === 'normal') {
+      base.allergies = 'None known';
+      base.notes = 'Routine EEG checkup. No neurological complaints.';
+      base.referred_by = `Dr. ${pickRandom(LAST_NAMES)}`;
+    } else {
+      base.allergies = 'Penicillin';
+      base.medical_conditions = 'History of focal seizures, intermittent confusion, suspected cognitive slowing';
+      base.current_medications = 'Levetiracetam 500mg BID';
+      base.notes = 'Patient referred for urgent EEG evaluation due to suspected seizure activity and cognitive decline over 3 months. Recent episodes of speech arrest lasting 30-60 seconds.';
+      base.referred_by = `Dr. ${pickRandom(LAST_NAMES)}`;
+    }
+
+    return base;
+  };
+
   const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number; age?: number }>({
     name: '',
     email: '',
@@ -138,6 +218,7 @@ const Patients: React.FC<{
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string>('');
+  const [fetchingDemoFile, setFetchingDemoFile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const searchTimeoutRef = useRef<number | null>(null);
@@ -785,7 +866,10 @@ const Patients: React.FC<{
     event.stopPropagation();
     setActionLoadingId(patientId);
     try {
-      await apiClient.sendPortalEmail(patientId);
+      const res = await apiClient.sendPortalEmail(patientId);
+      if (isDemoActive && res.data.portal_token) {
+        setDemoData(prev => ({ ...prev, portalToken: res.data.portal_token! }));
+      }
       await loadPatients();
       setSuccess('Portal email sent to patient');
     } catch (err: any) {
@@ -1599,6 +1683,50 @@ const Patients: React.FC<{
             <Alert severity="info">
               Date of birth is optional. If provided, age will sync to the calculated value.
             </Alert>
+            {isDemoActive && !editingPatient && (
+              <Box>
+                <Stack direction="row" spacing={1}>
+                  <DemoButton
+                    label="Add Normal Details"
+                    fullWidth
+                    disabled={fetchingDemoFile}
+                    onClick={async () => {
+                      setFetchingDemoFile(true);
+                      try {
+                        setFormData(generateDemoPatientData('normal'));
+                        const file = await fetchDemoEdf('normal.edf');
+                        setSelectedFile(file);
+                        setFileError('');
+                        jumpToStep('2.1');
+                      } catch {
+                        setFileError('Could not fetch demo EEG file. Please upload manually.');
+                      } finally {
+                        setFetchingDemoFile(false);
+                      }
+                    }}
+                  />
+                  <DemoButton
+                    label="Add Abnormal Details"
+                    fullWidth
+                    disabled={fetchingDemoFile}
+                    onClick={async () => {
+                      setFetchingDemoFile(true);
+                      try {
+                        setFormData(generateDemoPatientData('abnormal'));
+                        const file = await fetchDemoEdf('abnormal.edf');
+                        setSelectedFile(file);
+                        setFileError('');
+                        jumpToStep('2.1');
+                      } catch {
+                        setFileError('Could not fetch demo EEG file. Please upload manually.');
+                      } finally {
+                        setFetchingDemoFile(false);
+                      }
+                    }}
+                  />
+                </Stack>
+              </Box>
+            )}
             <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} />
             {(!editingPatient || allowDesktopCreate) && (
               <Box>
