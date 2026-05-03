@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -49,10 +50,14 @@ import { AdminStats, StaffInvitation, StaffMember } from '../types';
 import { validateEmail, collectErrors } from '../utils/validation';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import DemoButton from '../components/DemoButton';
+import { useDemo } from '../contexts/DemoContext';
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, setTechnicianInviteToken } = useDemo();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -64,6 +69,7 @@ const AdminDashboard: React.FC = () => {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
+  const [lastInviteToken, setLastInviteToken] = useState<string | null>(null);
 
   const [dataLoading, setDataLoading] = useState(true);
 
@@ -95,7 +101,11 @@ const AdminDashboard: React.FC = () => {
       }
     };
     loadData();
-  }, []);
+    // Advance demo to admin dashboard intro step on mount
+    if (isDemoActive && (currentStepId === '1.0')) {
+      jumpToStep('1.1');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleActive = async (userId: number) => {
     try {
@@ -116,7 +126,10 @@ const AdminDashboard: React.FC = () => {
     }
     setInviteLoading(true);
     try {
-      await apiClient.sendInvitation({ email: inviteEmail, role: inviteRole });
+      const inviteRes = await apiClient.sendInvitation({ email: inviteEmail, role: inviteRole });
+      const token = inviteRes.data?.token ?? null;
+      setLastInviteToken(token);
+      if (token) setTechnicianInviteToken(token);
       setInviteSuccess(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
       // Refresh invitations list
@@ -342,6 +355,17 @@ const AdminDashboard: React.FC = () => {
                       <PersonAddIcon color="primary" fontSize="small" /> Invite Staff
                     </Typography>
                     <Stack spacing={2}>
+                      {isDemoActive && (
+                        <DemoButton
+                          label="⚡ Autofill Jenny's Email"
+                          fullWidth
+                          onClick={() => {
+                            setInviteEmail('jenny.tech@demo.local');
+                            setInviteRole('technician');
+                            jumpToStep('1.2');
+                          }}
+                        />
+                      )}
                       <FormTextField
                         size="small" label="Email address" type="email"
                         value={inviteEmail}
@@ -363,6 +387,17 @@ const AdminDashboard: React.FC = () => {
                         </Select>
                       </FormControl>
                       <FormAlert error={inviteError} success={inviteSuccess} onDismiss={() => { setInviteError(''); setInviteSuccess(''); }} />
+                      {isDemoActive && inviteSuccess && lastInviteToken && (
+                        <DemoButton
+                          label="Go to Jenny's Invitation →"
+                          fullWidth
+                          onClick={() => {
+                            jumpToStep('1.4');
+                            logout();
+                            navigate(`/register/invite/${lastInviteToken}`);
+                          }}
+                        />
+                      )}
                       <Button
                         variant="contained"
                         fullWidth

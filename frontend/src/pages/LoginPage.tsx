@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useDemo } from '../contexts/DemoContext';
+import DemoButton from '../components/DemoButton';
 import {
   Box,
   Button,
@@ -40,6 +42,11 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { isActive: isDemoActive, seededData, jumpToStep } = useDemo();
+
+  const autofillDemo = (username: string, password: string) => {
+    setFormData({ username, password });
+  };
 
   const handleDismiss = () => {
     setError('');
@@ -205,6 +212,34 @@ const LoginPage: React.FC = () => {
                 </Button>
               </Stack>
             </Box>
+
+            {isDemoActive && (
+              <Box sx={{ width: '100%', mt: 3 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: 'block', mb: 1 }}>
+                  DEMO QUICK-LOGIN
+                </Typography>
+                <Stack spacing={1}>
+                  <DemoButton
+                    label="🔑 Login as Dr. David Chen"
+                    fullWidth
+                    onClick={() => {
+                      autofillDemo(seededData.doctorCreds.username, seededData.doctorCreds.password);
+                      jumpToStep('3.0');
+                    }}
+                  />
+                  <DemoButton
+                    label="🔑 Login as Jenny Park (Technician)"
+                    fullWidth
+                    onClick={() => autofillDemo(seededData.technicianCreds.username, seededData.technicianCreds.password)}
+                  />
+                  <DemoButton
+                    label="🔑 Login as Admin (Sarah Mitchell)"
+                    fullWidth
+                    onClick={() => autofillDemo(seededData.adminCreds.username, seededData.adminCreds.password)}
+                  />
+                </Stack>
+              </Box>
+            )}
 
             <Divider sx={{ width: '100%', my: 4 }}>
               <Typography variant="caption" color="text.secondary" fontWeight="600">

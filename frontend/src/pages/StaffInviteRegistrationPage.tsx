@@ -37,6 +37,8 @@ import {
 } from '@mui/icons-material';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import DemoButton from '../components/DemoButton';
+import { useDemo } from '../contexts/DemoContext';
 import {
   validateUsername, validatePassword, validateConfirmPassword,
   validateName, validatePhone, validateYearsExperience, validateMaxLength,
@@ -51,6 +53,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>();
   const { login } = useAuth();
+  const { isActive: isDemoActive, jumpToStep } = useDemo();
 
   const [tokenInfo, setTokenInfo] = useState<InviteTokenInfo | null>(null);
   const [tokenError, setTokenError] = useState<string>('');
@@ -418,6 +421,30 @@ const StaffInviteRegistrationPage: React.FC = () => {
                     </Grid>
                   </Grid>
                 </Paper>
+
+                {isDemoActive && (
+                  <Box sx={{ mb: 2 }}>
+                    <DemoButton
+                      label="⚡ Autofill Jenny's Details"
+                      fullWidth
+                      onClick={() => {
+                        setFormData((prev: any) => ({
+                          ...prev,
+                          first_name: 'Jennifer',
+                          last_name: 'Park',
+                          username: 'jenny_tech',
+                          password: 'Demo@2025!',
+                          confirm_password: 'Demo@2025!',
+                          title: '',
+                          specialization: 'EEG Technology',
+                          license_number: 'TECH-2025-0042',
+                          phone: '+44 7700 900100',
+                        }));
+                        jumpToStep('1.4');
+                      }}
+                    />
+                  </Box>
+                )}
 
                 <Box>
                   <Button

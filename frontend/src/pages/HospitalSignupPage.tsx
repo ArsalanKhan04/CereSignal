@@ -34,6 +34,8 @@ import {
 } from '@mui/icons-material';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import DemoButton from '../components/DemoButton';
+import { useDemo } from '../contexts/DemoContext';
 import {
   validateUsername, validateEmail, validatePassword, validateConfirmPassword,
   validateName, validatePhone, validateHospitalName,
@@ -47,6 +49,7 @@ const HospitalSignupPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { isActive: isDemoActive, jumpToStep } = useDemo();
 
   const [formData, setFormData] = useState<HospitalAdminRegisterRequest>({
     hospital_name: '',
@@ -317,6 +320,30 @@ const HospitalSignupPage: React.FC = () => {
                     </Grid>
                   </Grid>
                 </Paper>
+
+                {isDemoActive && (
+                  <Box sx={{ mb: 2 }}>
+                    <DemoButton
+                      label="⚡ Autofill Demo Data"
+                      fullWidth
+                      onClick={() => {
+                        setFormData({
+                          hospital_name: 'Neurolink Diagnostics',
+                          hospital_address: '221B Baker Street, London',
+                          hospital_phone: '+44 20 7946 0958',
+                          hospital_email: 'admin@neurolink.demo.local',
+                          first_name: 'Sarah',
+                          last_name: 'Mitchell',
+                          username: 'admin_nl',
+                          email: 'admin@neurolink.demo.local',
+                          password: 'Demo@2025!',
+                          confirm_password: 'Demo@2025!',
+                        });
+                        jumpToStep('1.0');
+                      }}
+                    />
+                  </Box>
+                )}
 
                 <Box>
                   <Button

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDemo } from '../contexts/DemoContext';
 import './LandingPage.css';
 
 /* ─── Animated EEG Waveform Background for CTA ─── */
@@ -399,6 +400,12 @@ const LogoMark: React.FC = () => (
 const LandingPage: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
+  const { startDemo } = useDemo();
+
+  const handleStartDemo = useCallback(() => {
+    startDemo();
+    navigate('/register/hospital');
+  }, [startDemo, navigate]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -474,6 +481,35 @@ const LandingPage: React.FC = () => {
                   <path d="M8 5v14l11-7z" fill="currentColor" />
                 </svg>
                 Watch the pipeline
+              </button>
+              <button
+                className="lp-btn-demo"
+                onClick={handleStartDemo}
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '12px 22px',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: '0 4px 14px rgba(245,158,11,0.35)',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                }}
+                onMouseOver={e => {
+                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 8px 20px rgba(245,158,11,0.45)';
+                }}
+                onMouseOut={e => {
+                  (e.currentTarget as HTMLButtonElement).style.transform = '';
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 14px rgba(245,158,11,0.35)';
+                }}
+              >
+                ▶ Start Guided Demo
               </button>
             </div>
             <div className="lp-hero-trust">
