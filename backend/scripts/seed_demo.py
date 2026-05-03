@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.core.database import SessionLocal
 from app.models.auth import AuthUser
@@ -246,6 +247,16 @@ def seed_demo(db: Session) -> None:
             db.add(Notification(**nd))
 
     db.commit()
+
+    # ── Reset sequences ─────────────────────────────────────────
+    # Explicit IDs (e.g. hospital=1) don't advance PostgreSQL
+    # sequences — new INSERTs would collide. Set each sequence past
+    # the current MAX so auto-generated IDs don't conflict.
+    _tables_with_ids = ["hospitals", "auth_users", "users", "signal_files", "eeg_reports", "staff_invitations"]
+    for t in _tables_with_ids:
+        db.execute(text(f"SELECT setval('{t}_id_seq', COALESCE((SELECT MAX(id) FROM {t}), 1), true)"))
+    db.commit()
+
     print("Demo seed complete.")
 
 
