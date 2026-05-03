@@ -177,7 +177,7 @@ const TechnicianDashboard: React.FC = () => {
                       label="Continue as Admin →"
                       onClick={() => {
                         jumpToStep('3.0');
-                        navigate('/login');
+                        navigate('/');
                       }}
                     />
                   )}

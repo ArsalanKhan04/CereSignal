@@ -72,7 +72,7 @@ export const DEMO_STEPS: DemoStep[] = [
   {
     id: '3.0',
     phase: 3,
-    route: '/login',
+    route: '/',
     instruction: 'Click "Continue as Admin →" to log out and return to the admin account. Then log in using the autofill button to add a doctor to the workspace.',
   },
   {
@@ -120,7 +120,7 @@ export const DEMO_STEPS: DemoStep[] = [
   {
     id: '5.0',
     phase: 5,
-    route: '/login',
+    route: '/',
     instruction: 'Click "Continue as Technician →" to log out and return to the technician account. The technician finalizes the workflow by sending the report to the patient.',
   },
   {

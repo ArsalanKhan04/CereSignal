@@ -134,7 +134,7 @@ const ContactPage: React.FC = () => {
           <button className="lp-nav-link" onClick={() => { navigate('/'); setTimeout(() => document.getElementById('safety')?.scrollIntoView({ behavior: 'smooth' }), 100); }}>Safety</button>
         </div>
         <div className="lp-nav-actions">
-          <button className="lp-nav-login" onClick={() => navigate('/login')}>Login</button>
+          <button className="lp-nav-login" onClick={() => navigate('/')}>Login</button>
           <button className="lp-nav-cta" onClick={() => navigate('/')}>← Back to home</button>
         </div>
       </nav>
@@ -386,7 +386,7 @@ const ContactPage: React.FC = () => {
             <h5>Get Started</h5>
             <ul>
               <li><a href="/#/register/hospital">Try Now</a></li>
-              <li><a href="/#/login">Login</a></li>
+              <li><a href="/#/">Login</a></li>
               <li><a href="/#/register/hospital">Register</a></li>
             </ul>
           </div>

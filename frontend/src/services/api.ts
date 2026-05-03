@@ -98,10 +98,13 @@ class ApiClient {
           }
         );
         if (error.response?.status === 401) {
-          // Token expired or invalid, redirect to login
+          const url = error.config?.url || '';
+          const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/patient-login');
           localStorage.removeItem('auth_token');
           localStorage.removeItem('current_user');
-          window.location.href = '/';
+          if (!isAuthEndpoint) {
+            window.location.href = '/';
+          }
         }
         return Promise.reject(error);
       }

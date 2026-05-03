@@ -306,7 +306,7 @@ const DoctorDashboard: React.FC = () => {
                     label="Continue as Technician →"
                     onClick={() => {
                       jumpToStep('5.0');
-                      navigate('/login');
+                      navigate('/');
                     }}
                   />
                 </Box>

@@ -302,15 +302,6 @@ async def get_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access patients from your hospital",
             )
-        # Doctors can only access their managed patients
-        if (
-            current_user.user_type == UserType.DOCTOR.value
-            and user.auth_user_id != current_user.id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access patients you manage",
-            )
 
     # Attach doctor_name
     doc = db.query(AuthUser).filter(AuthUser.id == user.auth_user_id).first()
@@ -602,16 +593,6 @@ async def get_user_files(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only access your own files",
-            )
-    # Doctors can only access files of their managed patients; technicians can access any patient's files
-    else:
-        if (
-            current_user.user_type == UserType.DOCTOR.value
-            and user.auth_user_id != current_user.id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access files of patients you manage",
             )
 
     files = db.query(User.signal_files).filter(User.id == user_id).all()

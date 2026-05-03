@@ -425,7 +425,7 @@ const LandingPage: React.FC = () => {
   }, [navigate]);
 
   const handleLogin = useCallback(() => {
-    navigate('/login');
+    navigate('/');
   }, [navigate]);
 
   return (

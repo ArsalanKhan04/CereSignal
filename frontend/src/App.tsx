@@ -181,11 +181,15 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route
         path="/"
-        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <LandingPage />}
+        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <LoginPage />}
       />
       <Route
         path="/login"
-        element={authenticatedRedirect ? <Navigate to={authenticatedRedirect} replace /> : <LoginPage />}
+        element={<Navigate to="/" replace />}
+      />
+      <Route
+        path="/landing"
+        element={<LandingPage />}
       />
       <Route
         path="/contact"
