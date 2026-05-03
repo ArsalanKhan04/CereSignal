@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     admin,
     auth,
+    dev_admin,
     signals,
     processing,
     users,
@@ -27,3 +28,4 @@ api_router.include_router(signals.router, prefix="/signals", tags=["signals"])
 api_router.include_router(processing.router, prefix="/processing", tags=["processing"])
 api_router.include_router(logs.router, prefix="/logs", tags=["logs"])
 api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
+api_router.include_router(dev_admin.router, prefix="/dev-admin", tags=["dev-admin"])

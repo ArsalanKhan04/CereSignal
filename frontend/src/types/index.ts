@@ -19,6 +19,7 @@ export interface User {
   hospital_id?: number;
   hospital_name?: string;
   is_active: boolean;
+  is_superuser?: boolean;
   created_at: string;
   last_login?: string;
 }
@@ -398,4 +399,99 @@ export interface ApiResponse<T> {
 
 export interface ApiError {
   detail: string;
+}
+
+// Dev Admin types
+export interface DevAdminStaffMember {
+  id: number;
+  username: string;
+  email: string;
+  user_type: string;
+  first_name?: string;
+  last_name?: string;
+  title?: string;
+  specialization?: string;
+  license_number?: string;
+  phone?: string;
+  is_active: boolean;
+  last_login?: string;
+  created_at: string;
+}
+
+export interface DevAdminEEGFile {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  processing_status: string;
+  condition: string;
+  upload_time: string;
+  patient_name?: string;
+}
+
+export interface DevAdminReport {
+  id: number;
+  patient_name: string;
+  doctor_name?: string;
+  is_finalized: boolean;
+  has_pdf: boolean;
+  created_at: string;
+  file_id: number;
+}
+
+export interface DevAdminHospitalSummary {
+  id: number;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  is_active: boolean;
+  created_at: string;
+  total_doctors: number;
+  total_technicians: number;
+  total_patients: number;
+  total_files: number;
+  pending_reports: number;
+  completed_reports: number;
+}
+
+export interface DevAdminHospitalDetail extends DevAdminHospitalSummary {
+  staff: DevAdminStaffMember[];
+  files: DevAdminEEGFile[];
+  reports: DevAdminReport[];
+}
+
+export interface DevAdminGlobalStats {
+  total_hospitals: number;
+  active_hospitals: number;
+  total_doctors: number;
+  total_technicians: number;
+  total_patients: number;
+  total_eeg_files: number;
+  total_reports: number;
+  pending_reports: number;
+  completed_reports: number;
+  unread_contacts: number;
+  hospitals_breakdown: DevAdminHospitalSummary[];
+}
+
+export interface DevAdminContact {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  hospital?: string;
+  role?: string;
+  country?: string;
+  volume?: string;
+  interest?: string;
+  message?: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface DevAdminContactListResponse {
+  items: DevAdminContact[];
+  total: number;
+  unread_count: number;
 }
