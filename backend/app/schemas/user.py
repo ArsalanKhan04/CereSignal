@@ -119,6 +119,7 @@ class UserListResponse(BaseModel):
     auth_user_id: Optional[int] = None
     is_active: bool
     report_sent: bool = False
+    portal_token: Optional[str] = None
     portal_sent_at: Optional[datetime] = None
     created_at: datetime
     doctor_name: Optional[str] = None

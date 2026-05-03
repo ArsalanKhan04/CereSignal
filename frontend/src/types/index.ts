@@ -186,6 +186,7 @@ export interface Patient {
   current_medications?: string;
   notes?: string;
   report_sent: boolean;
+  portal_token?: string | null;
   portal_sent_at?: string | null;
   is_active: boolean;
   created_at: string;

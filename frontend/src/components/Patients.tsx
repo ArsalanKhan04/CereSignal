@@ -110,7 +110,7 @@ const Patients: React.FC<{
   reportSentFilter,
 }) => {
   const { user } = useAuth();
-  const { isActive: isDemoActive, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, demoData, setDemoData, jumpToStep } = useDemo();
   const isReadOnly = user?.user_type === 'doctor';
   const allowDoctorFileOps = false;
   const allowDesktopCreate = false;
@@ -866,7 +866,10 @@ const Patients: React.FC<{
     event.stopPropagation();
     setActionLoadingId(patientId);
     try {
-      await apiClient.sendPortalEmail(patientId);
+      const res = await apiClient.sendPortalEmail(patientId);
+      if (isDemoActive && res.data.portal_token) {
+        setDemoData(prev => ({ ...prev, portalToken: res.data.portal_token! }));
+      }
       await loadPatients();
       setSuccess('Portal email sent to patient');
     } catch (err: any) {

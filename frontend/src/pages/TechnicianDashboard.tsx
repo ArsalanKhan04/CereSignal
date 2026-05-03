@@ -163,7 +163,7 @@ const TechnicianDashboard: React.FC = () => {
               />
               {isDemoActive && (currentStepId === '2.4' || currentStepId === '2.3' || currentStepId === '2.2') && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {(currentStepId === '2.2' || currentStepId === '2.3') && (
+                  {(currentStepId === '2.2' || currentStepId === '2.3' || currentStepId === '2.4') && (
                     <DemoButton
                       label="Show Full Workload →"
                       onClick={() => {
