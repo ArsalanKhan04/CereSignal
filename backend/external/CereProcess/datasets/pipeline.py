@@ -501,6 +501,94 @@ class WindowData(Preprocess):
         )
 
 
+class AverageRef(Preprocess):
+    """Responsible for applying a common average reference (CAR) to the data
+    Inputs: raw EEG data in MNE format
+    Outputs: raw EEG data with an average reference applied
+    """
+
+    def func(self, data):
+        # Data must be loaded into memory before changing the reference
+        data.load_data()
+
+        # set_eeg_reference returns a tuple: (modified_data, ref_data)
+        # We only need the modified data. projection=False applies it directly to the signals.
+        data, _ = mne.set_eeg_reference(
+            data,
+            ref_channels='average',
+            copy=False,
+            projection=False,
+            verbose=False
+        )
+        return data
+
+    def get_id(self):
+        return self.__class__.__name__
+
+
+class IQRNormalization(Preprocess):
+    """Responsible for applying IQR Normalization.
+    Centers each channel by subtracting its median, then scales all channels
+    by the global Interquartile Range (75th - 25th percentile).
+    This protects the scaling factor from being massively inflated by
+    extreme field artifacts (like jaw clenches or loose electrodes).
+    """
+
+    def func(self, data):
+        data_only = data.get_data()
+
+        # 1. Center using the Median (Robust against extreme outliers)
+        medians = np.median(data_only, axis=1, keepdims=True)
+        centered_data = data_only - medians
+
+        # 2. Calculate the global 75th and 25th percentiles
+        q75, q25 = np.percentile(centered_data, [75, 25])
+        iqr = q75 - q25
+
+        # Prevent division by zero if the file is a complete flatline
+        if iqr == 0:
+            iqr = np.finfo(float).eps
+
+        # 3. Scale by the IQR
+        # Often, we divide by (IQR / 1.349) to make the scale roughly
+        # equivalent to standard deviation for normally distributed data,
+        # but just dividing by IQR is fine as long as you do it in training too.
+        normalized_data = centered_data / iqr
+
+        info = data.info.copy()
+        out = mne.io.RawArray(normalized_data, info, verbose="error")
+        return out
+
+    def get_id(self):
+        return self.__class__.__name__
+
+
+class SoftClip(Preprocess):
+    """Applies a hyperbolic tangent (tanh) soft-clip to the normalized data.
+    Smoothly squishes extreme outliers (artifacts) to a maximum bound without
+    creating the artificial high-frequency 'square waves' caused by hard clipping.
+    Must be applied AFTER Z-Score or IQR Normalization.
+    """
+    def __init__(self, max_bound=10.0):
+        self.max_bound = max_bound
+
+    def func(self, data):
+        # Extract the numpy array
+        data_only = data.get_data()
+
+        # Apply the tanh squish
+        # Formula: bound * tanh(x / bound)
+        squished_data = self.max_bound * np.tanh(data_only / self.max_bound)
+
+        # Wrap back into MNE RawArray
+        info = data.info.copy()
+        out = mne.io.RawArray(squished_data, info, verbose="error")
+        return out
+
+    def get_id(self):
+        return f"{self.__class__.__name__}_{self.max_bound}"
+
+
 class Pipeline(Preprocess):
     """Pipeline class defines the preprocessing pipeline for the EEG data.
     Keeps the pipeline for preprocessing the data
@@ -865,7 +953,12 @@ def get_nmt_pipeline():
     pipeline = Pipeline()
     pipeline.add(PaddedCropData(60, 60 + 10 * 60, reverse=False))
     pipeline.add(ReduceChannels(channels=NMT_CHANNELS))
+    pipeline.add(AverageRef())
+    pipeline.add(BandPassFilter(l_freq=0.5, h_freq=40.0))
     pipeline.add(ResampleData(100))
     pipeline.add(ClipAbsData(800))
     pipeline.add(Scale(1e6))
+    pipeline.add(IQRNormalization())
+    pipeline.add(SoftClip())
     return pipeline
+

@@ -6,7 +6,7 @@ on:
 
 jobs:
   migrate:
-    name: Apply Supabase Schema
+    name: Reset & Seed Supabase
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,22 +21,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # DATABASE_URL must be the Session Pooler URL (port 5432 on pooler host) — not the
-      # direct connection. GitHub Actions is IPv4-only; the direct connection requires IPv6.
-      # In Supabase dashboard: Connect → Session pooler → copy the connection string.
-      # Format: postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
-      - name: Apply schema
+      # migrate.py drops all tables, recreates the schema, seeds demo data,
+      # and ensures the dev superuser exists — all in one idempotent run.
+      - name: Drop, recreate, seed & ensure superuser
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        run: python migrate.py
-
-      - name: Ensure dev superuser exists
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           SUPERUSER_USERNAME: admin
           SUPERUSER_PASSWORD: ceresignal123
-        run: python -m scripts.ensure_superuser
+        run: python migrate.py
