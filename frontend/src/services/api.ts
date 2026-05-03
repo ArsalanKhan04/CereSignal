@@ -193,6 +193,11 @@ class ApiClient {
     return { data: response.data, status: response.status };
   }
 
+  async deleteInvitation(invitationId: number): Promise<ApiResponse<{ message: string }>> {
+    const response = await this.client.delete(`/admin/invitations/${invitationId}`);
+    return { data: response.data, status: response.status };
+  }
+
   // Patient management methods
   async getPatients(
     includeUnassigned?: boolean,

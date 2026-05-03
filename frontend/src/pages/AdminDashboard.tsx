@@ -43,6 +43,7 @@ import {
   PersonAdd as PersonAddIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as PendingIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
@@ -112,6 +113,28 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const refreshInvitations = async () => {
+    try {
+      const invitesRes = await apiClient.getInvitations();
+      setInvitations(invitesRes.data);
+    } catch (err) {
+      console.error('Failed to refresh invitations', err);
+    }
+  };
+
+  const handleDeleteInvitation = async (inviteId: number) => {
+    if (!window.confirm('Are you sure you want to delete this invitation?')) return;
+    try {
+      await apiClient.deleteInvitation(inviteId);
+      await refreshInvitations();
+      if (stats) {
+        setStats({ ...stats, pending_invitations: Math.max(0, stats.pending_invitations - 1) });
+      }
+    } catch (err: any) {
+      console.error('Failed to delete invitation', err);
+    }
+  };
+
   const handleSendInvite = async () => {
     setInviteError('');
     setInviteSuccess('');
@@ -133,10 +156,7 @@ const AdminDashboard: React.FC = () => {
       }
       setInviteSuccess(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
-      // Refresh invitations list
-      const invitesRes = await apiClient.getInvitations();
-      setInvitations(invitesRes.data);
-      // Update pending count in stats
+      await refreshInvitations();
       if (stats) {
         setStats({ ...stats, pending_invitations: stats.pending_invitations + 1 });
       }
@@ -471,6 +491,15 @@ const AdminDashboard: React.FC = () => {
                                   />
                                 }
                               />
+                              {!inv.used_at && (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDeleteInvitation(inv.id)}
+                                  sx={{ color: 'error.main', ml: 1 }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              )}
                             </ListItem>
                           </React.Fragment>
                         ))}

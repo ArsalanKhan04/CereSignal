@@ -41,6 +41,7 @@ import {
   History as HistoryIcon,
   MarkEmailRead as MarkSentIcon,
   Email as EmailIcon,
+  Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
 import {
@@ -1242,20 +1243,48 @@ const Patients: React.FC<{
                     </Button>
                   )}
                   {(isReadOnly || user?.user_type === 'technician') && report && (
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<DownloadIcon fontSize="small" />}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleDownloadReport(report.id, file?.original_filename || report.file_name);
-                      }}
-                      disabled={!hasPdf}
-                      sx={{ minWidth: 140, height: 28, fontSize: '0.75rem', px: 1 }}
-                    >
-                      Download Report
-                    </Button>
+                    <Tooltip title={hasPdf ? 'Download Report' : 'PDF not yet generated'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDownloadReport(report.id, file?.original_filename || report.file_name);
+                          }}
+                          disabled={!hasPdf}
+                        >
+                          <DownloadIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   )}
+                  {user?.user_type === 'technician' && hasReportAndLabel && (
+                    <Tooltip title={!patient.email ? 'Patient email is unavailable' : 'Email Report'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={(event) => handleSendPortalEmail(patient.id, event)}
+                          disabled={!patient.email || actionLoadingId === patient.id}
+                        >
+                          <EmailIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+                  <Tooltip title="View EEG">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleFilePreview(patient.id);
+                        }}
+                        disabled={!file}
+                      >
+                        <ViewIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                   {user?.user_type === 'technician' && hasReportAndLabel && (
                     <Button
                       variant="outlined"
@@ -1268,35 +1297,6 @@ const Patients: React.FC<{
                       {patient.report_sent ? 'Sent' : 'Report Sent'}
                     </Button>
                   )}
-                  {user?.user_type === 'technician' && hasReportAndLabel && (
-                    <Tooltip title={!patient.email ? 'Patient email is unavailable' : ''}>
-                      <span>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<EmailIcon fontSize="small" />}
-                          onClick={(event) => handleSendPortalEmail(patient.id, event)}
-                          disabled={!patient.email || actionLoadingId === patient.id}
-                          sx={{ minWidth: 130, height: 28, fontSize: '0.75rem', px: 1 }}
-                        >
-                          Email Report
-                        </Button>
-                      </span>
-                    </Tooltip>
-                  )}
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<FileIcon fontSize="small" />}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleFilePreview(patient.id);
-                    }}
-                    disabled={!file}
-                    sx={{ minWidth: 86, height: 28, fontSize: '0.75rem', px: 1 }}
-                  >
-                    View EEG
-                  </Button>
                 </Box>
               </Paper>
             );

@@ -42,10 +42,32 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { isActive: isDemoActive, demoData, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, currentStepId, demoData, jumpToStep } = useDemo();
 
   const autofillDemo = (username: string, password: string) => {
     setFormData({ username, password });
+  };
+
+  const handleContinueAs = async (username: string, password: string, nextStep: string) => {
+    setIsLoading(true);
+    setError('');
+    setFieldErrors({});
+    try {
+      await login({ username, password });
+      jumpToStep(nextStep);
+      navigate('/dashboard');
+    } catch (err: any) {
+      const responseData = err.response?.data;
+      const { general, fields } = extractApiErrors(responseData?.errors ?? responseData?.detail);
+      if (fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(general || 'Login failed.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDismiss = () => {
@@ -215,6 +237,26 @@ const LoginPage: React.FC = () => {
 
             {isDemoActive && (
               <Box sx={{ width: '100%', mt: 3 }}>
+                {currentStepId === '3.0' && (
+                  <DemoButton
+                    label="Continue as Admin →"
+                    fullWidth
+                    onClick={() => {
+                      handleContinueAs(demoData.adminUsername, demoData.adminPassword, '3.1');
+                    }}
+                  />
+                )}
+                {currentStepId === '5.0' && (
+                  <DemoButton
+                    label="Continue as Technician →"
+                    fullWidth
+                    onClick={() => {
+                      handleContinueAs(demoData.techUsername, demoData.techPassword, '5.1');
+                    }}
+                  />
+                )}
+                {currentStepId !== '3.0' && currentStepId !== '5.0' && (
+                  <>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: 'block', mb: 1 }}>
                   DEMO QUICK-LOGIN
                 </Typography>
@@ -244,6 +286,8 @@ const LoginPage: React.FC = () => {
                     }}
                   />
                 </Stack>
+                  </>
+                )}
               </Box>
             )}
 

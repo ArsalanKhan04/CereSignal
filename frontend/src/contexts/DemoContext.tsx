@@ -195,6 +195,7 @@ interface DemoContextValue {
   setDemoData: (updater: (prev: DemoRuntimeData) => DemoRuntimeData) => void;
   startDemo: () => void;
   advanceStep: () => void;
+  retreatStep: () => void;
   jumpToStep: (id: string) => void;
   endDemo: () => void;
 }
@@ -251,6 +252,13 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentStepId, persistStep]);
 
+  const retreatStep = useCallback(() => {
+    const idx = DEMO_STEPS.findIndex((s) => s.id === currentStepId);
+    if (idx > 0) {
+      persistStep(DEMO_STEPS[idx - 1].id);
+    }
+  }, [currentStepId, persistStep]);
+
   const jumpToStep = useCallback((id: string) => {
     persistStep(id);
   }, [persistStep]);
@@ -279,6 +287,7 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setDemoData,
         startDemo,
         advanceStep,
+        retreatStep,
         jumpToStep,
         endDemo,
       }}

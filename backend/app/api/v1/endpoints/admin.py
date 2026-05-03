@@ -180,3 +180,23 @@ async def list_invitations(
         StaffInvitation.hospital_id == current_user.hospital_id,
     ).order_by(StaffInvitation.created_at.desc()).all()
     return invitations
+
+
+@router.delete("/invitations/{invitation_id}")
+async def delete_invitation(
+    invitation_id: int,
+    current_user: AuthUser = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a pending invitation (cannot delete already-used invitations)"""
+    invitation = db.query(StaffInvitation).filter(
+        StaffInvitation.id == invitation_id,
+        StaffInvitation.hospital_id == current_user.hospital_id,
+    ).first()
+    if not invitation:
+        raise HTTPException(404, detail="Invitation not found")
+    if invitation.used_at is not None:
+        raise HTTPException(400, detail="Cannot delete an invitation that has already been accepted")
+    db.delete(invitation)
+    db.commit()
+    return {"message": "Invitation deleted"}

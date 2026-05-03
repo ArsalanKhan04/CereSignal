@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  SkipNext as SkipIcon,
+  ArrowBack as BackIcon,
   ArrowForward as NextIcon,
   PlayCircle as PlayIcon,
   ExpandLess,
@@ -21,7 +21,7 @@ import {
 import { useDemo, DEMO_STEPS } from '../contexts/DemoContext';
 
 const DemoGuide: React.FC = () => {
-  const { isActive, currentStep, currentStepId, advanceStep, endDemo } = useDemo();
+  const { isActive, currentStep, currentStepId, advanceStep, retreatStep, endDemo } = useDemo();
   const [collapsed, setCollapsed] = useState(false);
 
   if (!isActive || !currentStep) return null;
@@ -29,6 +29,7 @@ const DemoGuide: React.FC = () => {
   const stepIndex = DEMO_STEPS.findIndex((s) => s.id === currentStepId);
   const totalSteps = DEMO_STEPS.length;
   const progress = ((stepIndex + 1) / totalSteps) * 100;
+  const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === totalSteps - 1;
 
   const phaseLabels: Record<number, string> = {
@@ -126,11 +127,11 @@ const DemoGuide: React.FC = () => {
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-              {!isLastStep && (
+              {!isFirstStep && (
                 <Button
                   size="small"
-                  startIcon={<SkipIcon />}
-                  onClick={advanceStep}
+                  startIcon={<BackIcon />}
+                  onClick={retreatStep}
                   sx={{
                     color: '#92400e',
                     fontSize: 12,
@@ -138,9 +139,10 @@ const DemoGuide: React.FC = () => {
                     '&:hover': { bgcolor: 'rgba(245,158,11,0.1)' },
                   }}
                 >
-                  Skip
+                  Previous
                 </Button>
               )}
+              <Box sx={{ flex: 1 }} />
               {isLastStep ? (
                 <Button
                   size="small"
