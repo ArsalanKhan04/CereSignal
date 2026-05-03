@@ -31,14 +31,14 @@ const TechnicianDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
   const navigate = useNavigate();
-  const { isActive: isDemoActive, currentStepId, jumpToStep, seededData } = useDemo();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData } = useDemo();
 
   const technicianName = user?.first_name ? `${user.first_name} ${user.last_name}` : 'Technician';
 
   useEffect(() => {
-    if (isDemoActive && (currentStepId === '1.4' || currentStepId === '1.3')) {
+    if (isDemoActive && currentStepId === '1.3') {
       jumpToStep('2.0');
-    } else if (isDemoActive && currentStepId === '5.0') {
+    } else if (isDemoActive && currentStepId === '5.1') {
       setStatusFilter('examined');
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -163,34 +163,34 @@ const TechnicianDashboard: React.FC = () => {
               />
               {isDemoActive && (currentStepId === '2.4' || currentStepId === '2.3' || currentStepId === '2.2') && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <DemoButton
-                    label="Show Full Workload →"
-                    onClick={() => {
-                      jumpToStep('2.4');
-                      setStatusFilter('all');
-                    }}
-                  />
-                </Box>
-              )}
-              {isDemoActive && (currentStepId === '5.0' || currentStepId === '5.1' || currentStepId === '5.2') && (
-                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {(currentStepId === '5.0' || currentStepId === '5.1') && (
+                  {(currentStepId === '2.2' || currentStepId === '2.3') && (
                     <DemoButton
-                      label="Continue as Dr. Chen (Doctor) →"
+                      label="Show Full Workload →"
+                      onClick={() => {
+                        jumpToStep('2.4');
+                        setStatusFilter('all');
+                      }}
+                    />
+                  )}
+                  {currentStepId === '2.4' && (
+                    <DemoButton
+                      label="Continue as Admin →"
                       onClick={() => {
                         jumpToStep('3.0');
-                        logout();
                         navigate('/login');
                       }}
                     />
                   )}
-                  {currentStepId === '5.2' && (
+                </Box>
+              )}
+              {isDemoActive && (currentStepId === '5.1' || currentStepId === '5.2') && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {currentStepId === '5.2' && demoData.portalToken && (
                     <DemoButton
-                      label="Open Patient Portal (Emily) →"
+                      label="Open Patient Portal →"
                       onClick={() => {
                         jumpToStep('6.0');
-                        logout();
-                        navigate(`/patient/portal/${seededData.patients[0].portalToken}`);
+                        navigate(`/patient/portal/${demoData.portalToken}`);
                       }}
                     />
                   )}

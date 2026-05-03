@@ -49,7 +49,7 @@ const HospitalSignupPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { isActive: isDemoActive, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, jumpToStep, demoData } = useDemo();
 
   const [formData, setFormData] = useState<HospitalAdminRegisterRequest>({
     hospital_name: '',
@@ -105,8 +105,8 @@ const HospitalSignupPage: React.FC = () => {
     try {
       await apiClient.registerHospital(formData);
       setSuccess('Registration successful! Redirecting...');
-      // Log in immediately after registration
       await login({ username: formData.username, password: formData.password });
+      jumpToStep('1.1');
       navigate('/dashboard');
     } catch (err: any) {
       const responseData = err.response?.data;
@@ -328,16 +328,16 @@ const HospitalSignupPage: React.FC = () => {
                       fullWidth
                       onClick={() => {
                         setFormData({
-                          hospital_name: 'Neurolink Diagnostics',
-                          hospital_address: '221B Baker Street, London',
-                          hospital_phone: '+44 20 7946 0958',
-                          hospital_email: 'admin@neurolink.demo.local',
-                          first_name: 'Sarah',
-                          last_name: 'Mitchell',
-                          username: 'admin_nl',
-                          email: 'admin@neurolink.demo.local',
-                          password: 'Demo@2025!',
-                          confirm_password: 'Demo@2025!',
+                          hospital_name: demoData.hospitalName,
+                          hospital_address: '1000 Medical Plaza Drive, Chicago, IL',
+                          hospital_phone: '+1 (312) 555-0142',
+                          hospital_email: `admin.${demoData.suffix}@demo.local`,
+                          first_name: 'Alex',
+                          last_name: 'Morgan',
+                          username: demoData.adminUsername,
+                          email: `admin.${demoData.suffix}@demo.local`,
+                          password: demoData.adminPassword,
+                          confirm_password: demoData.adminPassword,
                         });
                         jumpToStep('1.0');
                       }}

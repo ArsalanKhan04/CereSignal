@@ -42,7 +42,7 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { isActive: isDemoActive, seededData, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, demoData, jumpToStep } = useDemo();
 
   const autofillDemo = (username: string, password: string) => {
     setFormData({ username, password });
@@ -220,22 +220,28 @@ const LoginPage: React.FC = () => {
                 </Typography>
                 <Stack spacing={1}>
                   <DemoButton
-                    label="🔑 Login as Dr. David Chen"
+                    label="🔑 Login as Admin"
                     fullWidth
                     onClick={() => {
-                      autofillDemo(seededData.doctorCreds.username, seededData.doctorCreds.password);
-                      jumpToStep('3.0');
+                      autofillDemo(demoData.adminUsername, demoData.adminPassword);
+                      jumpToStep('3.1');
                     }}
                   />
                   <DemoButton
-                    label="🔑 Login as Jenny Park (Technician)"
+                    label="🔑 Login as Technician"
                     fullWidth
-                    onClick={() => autofillDemo(seededData.technicianCreds.username, seededData.technicianCreds.password)}
+                    onClick={() => {
+                      autofillDemo(demoData.techUsername, demoData.techPassword);
+                      jumpToStep('5.1');
+                    }}
                   />
                   <DemoButton
-                    label="🔑 Login as Admin (Sarah Mitchell)"
+                    label="🔑 Login as Doctor"
                     fullWidth
-                    onClick={() => autofillDemo(seededData.adminCreds.username, seededData.adminCreds.password)}
+                    onClick={() => {
+                      autofillDemo(demoData.docUsername, demoData.docPassword);
+                      jumpToStep('4.0');
+                    }}
                   />
                 </Stack>
               </Box>

@@ -57,7 +57,7 @@ const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
   const navigate = useNavigate();
-  const { isActive: isDemoActive, currentStepId, jumpToStep, setTechnicianInviteToken } = useDemo();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData, setDemoData } = useDemo();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -101,10 +101,6 @@ const AdminDashboard: React.FC = () => {
       }
     };
     loadData();
-    // Advance demo to admin dashboard intro step on mount
-    if (isDemoActive && (currentStepId === '1.0')) {
-      jumpToStep('1.1');
-    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleActive = async (userId: number) => {
@@ -129,7 +125,12 @@ const AdminDashboard: React.FC = () => {
       const inviteRes = await apiClient.sendInvitation({ email: inviteEmail, role: inviteRole });
       const token = inviteRes.data?.token ?? null;
       setLastInviteToken(token);
-      if (token) setTechnicianInviteToken(token);
+      if (token) {
+        setDemoData(prev => inviteRole === 'technician'
+          ? { ...prev, techInviteToken: token }
+          : { ...prev, docInviteToken: token }
+        );
+      }
       setInviteSuccess(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
       // Refresh invitations list
@@ -356,15 +357,30 @@ const AdminDashboard: React.FC = () => {
                     </Typography>
                     <Stack spacing={2}>
                       {isDemoActive && (
-                        <DemoButton
-                          label="⚡ Autofill Jenny's Email"
-                          fullWidth
-                          onClick={() => {
-                            setInviteEmail('jenny.tech@demo.local');
-                            setInviteRole('technician');
-                            jumpToStep('1.2');
-                          }}
-                        />
+                        <>
+                          {currentStepId === '1.1' && (
+                            <DemoButton
+                              label="⚡ Autofill Technician Invite"
+                              fullWidth
+                              onClick={() => {
+                                setInviteEmail(demoData.techEmail);
+                                setInviteRole('technician');
+                                jumpToStep('1.1');
+                              }}
+                            />
+                          )}
+                          {currentStepId === '3.1' && (
+                            <DemoButton
+                              label="⚡ Autofill Doctor Invite"
+                              fullWidth
+                              onClick={() => {
+                                setInviteEmail(demoData.docEmail);
+                                setInviteRole('doctor');
+                                jumpToStep('3.1');
+                              }}
+                            />
+                          )}
+                        </>
                       )}
                       <FormTextField
                         size="small" label="Email address" type="email"
@@ -389,10 +405,11 @@ const AdminDashboard: React.FC = () => {
                       <FormAlert error={inviteError} success={inviteSuccess} onDismiss={() => { setInviteError(''); setInviteSuccess(''); }} />
                       {isDemoActive && inviteSuccess && lastInviteToken && (
                         <DemoButton
-                          label="Go to Jenny's Invitation →"
+                          label={inviteRole === 'technician' ? "Go to Technician's Registration →" : "Go to Doctor's Registration →"}
                           fullWidth
                           onClick={() => {
-                            jumpToStep('1.4');
+                            const nextStep = inviteRole === 'technician' ? '1.3' : '3.3';
+                            jumpToStep(nextStep);
                             navigate(`/register/invite/${lastInviteToken}`);
                           }}
                         />

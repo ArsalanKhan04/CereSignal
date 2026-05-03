@@ -53,7 +53,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>();
   const { login } = useAuth();
-  const { isActive: isDemoActive, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, demoData, currentStepId, jumpToStep } = useDemo();
 
   const [tokenInfo, setTokenInfo] = useState<InviteTokenInfo | null>(null);
   const [tokenError, setTokenError] = useState<string>('');
@@ -425,22 +425,23 @@ const StaffInviteRegistrationPage: React.FC = () => {
                 {isDemoActive && (
                   <Box sx={{ mb: 2 }}>
                     <DemoButton
-                      label="⚡ Autofill Jenny's Details"
+                      label={currentStepId === '1.3' ? "⚡ Autofill Technician Details" : "⚡ Autofill Doctor Details"}
                       fullWidth
                       onClick={() => {
+                        const isTech = currentStepId === '1.3';
                         setFormData((prev: any) => ({
                           ...prev,
-                          first_name: 'Jennifer',
-                          last_name: 'Park',
-                          username: 'jenny_tech',
-                          password: 'Demo@2025!',
-                          confirm_password: 'Demo@2025!',
-                          title: '',
-                          specialization: 'EEG Technology',
-                          license_number: 'TECH-2025-0042',
-                          phone: '+44 7700 900100',
+                          first_name: isTech ? 'Jordan' : 'Dr. Sam',
+                          last_name: isTech ? 'Lee' : 'Rivera',
+                          username: isTech ? demoData.techUsername : demoData.docUsername,
+                          password: isTech ? demoData.techPassword : demoData.docPassword,
+                          confirm_password: isTech ? demoData.techPassword : demoData.docPassword,
+                          title: isTech ? '' : 'Dr.',
+                          specialization: isTech ? 'EEG Technology' : 'Clinical Neurophysiology',
+                          license_number: isTech ? `TECH-${demoData.suffix.toUpperCase()}-001` : `DOC-${demoData.suffix.toUpperCase()}-001`,
+                          phone: isTech ? '+1 (312) 555-0180' : '+1 (312) 555-0190',
                         }));
-                        jumpToStep('1.4');
+                        jumpToStep(currentStepId);
                       }}
                     />
                   </Box>

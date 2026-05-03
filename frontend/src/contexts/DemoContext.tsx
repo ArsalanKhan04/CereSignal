@@ -25,180 +25,191 @@ export const DEMO_STEPS: DemoStep[] = [
     id: '1.1',
     phase: 1,
     route: '/dashboard',
-    instruction: 'Welcome Sarah! This is the Admin Dashboard. Here you can see your hospital\'s key metrics: active doctors, technicians, total patients, and pending reports. Below you manage your staff and send invitations.',
+    instruction: 'Welcome! This is the Admin Dashboard. Here you can see your hospital\'s key metrics. Now let\'s invite a technician to the workspace. Click the autofill button, select Technician, and send the invitation.',
   },
   {
     id: '1.2',
     phase: 1,
     route: '/dashboard',
-    instruction: 'Let\'s invite a technician. Type jenny.tech@demo.local in the email field (or click autofill), select Technician as the role, and click "Send Invitation".',
+    instruction: 'Invitation sent! ✅ Now click "Go to Technician\'s Registration →" to simulate what the technician sees when they click the email link.',
   },
   {
     id: '1.3',
     phase: 1,
-    route: '/dashboard',
-    instruction: 'Invitation sent! ✅ Jenny received an email with a registration link. Click "Go to Jenny\'s Invitation →" below to simulate clicking that email link.',
-  },
-  {
-    id: '1.4',
-    phase: 1,
     route: '/register/invite',
-    instruction: 'This is what Jenny sees when she clicks the email link. The form recognizes the invitation and pre-fills the email. Use the autofill button, then click "Complete Registration".',
+    instruction: 'This is what the technician sees when they click the email link. The email is pre-filled from the invitation. Use the autofill button, then click "Complete Registration".',
   },
   {
     id: '2.0',
     phase: 2,
     route: '/dashboard',
-    instruction: 'Welcome Jenny! This is the Technician Dashboard. Technicians manage patient records, upload EEG files, assign patients to doctors, and send reports. Currently there are no patients — let\'s add one.',
+    instruction: 'Welcome! This is the Technician Dashboard. Technicians manage patient records, upload EEG files, assign patients to doctors, and send reports. Let\'s add a patient — click the "+ Add Patient" button.',
   },
   {
     id: '2.1',
     phase: 2,
     route: '/dashboard',
-    instruction: 'Click the "+ Add Patient" button. Fill in the patient details using the autofill button, then click "Save". In a real clinic, you\'d also assign a doctor from the dropdown.',
+    instruction: 'Click "Add Normal Details" to autofill the form with random patient data and a normal EEG file. Then click "Save" to create the patient and start AI processing.',
   },
   {
     id: '2.2',
     phase: 2,
     route: '/dashboard',
-    instruction: 'After saving, Emily\'s patient card appears. Now click "Upload EEG File" on her card. This triggers the AI pipeline: EDF parsing → NeuroGate classification → NeuroTransformer analysis → Topomap generation → LLM report drafting.',
+    instruction: 'Good! Now let\'s add one more. Click "+ Add Patient" again, then click "Add Abnormal Details" this time. This patient has seizure indicators — the AI will detect these.',
   },
   {
     id: '2.3',
     phase: 2,
     route: '/dashboard',
-    instruction: 'The EEG is processing. CereSignal\'s AI models analyze the signals in about 15-30 seconds. Watch the status chip change from "processing" to "completed". The other tabs — Examined and Report Sent — show patients at different workflow stages.',
+    instruction: 'The EEG is processing. CereSignal\'s AI models analyze the signals (typically under 5 minutes). Watch the status chip change from "processing" to "completed".',
   },
   {
     id: '2.4',
     phase: 2,
     route: '/dashboard',
-    instruction: 'Jenny often manages multiple patients. Click "Show Full Workload →" to view all her patients at different stages: pending review, examined, and report sent.',
+    instruction: 'Click "Show Full Workload →" to view all patients at different stages: pending review, examined, and report sent. Now let\'s add a doctor to review the EEGs.',
   },
   {
     id: '3.0',
     phase: 3,
     route: '/login',
-    instruction: 'Now let\'s see the doctor\'s perspective. Notice the demo autofill buttons on the login page. Click "🔑 Login as Dr. David Chen" to auto-fill the doctor credentials, then click "Sign In".',
+    instruction: 'Click "Continue as Admin →" to log out and return to the admin account. Then log in using the autofill button to add a doctor to the workspace.',
+  },
+  {
+    id: '3.1',
+    phase: 3,
+    route: '/dashboard',
+    instruction: 'Back in the Admin Dashboard. Now invite a doctor — click autofill, select Doctor as the role, and send the invitation.',
+  },
+  {
+    id: '3.2',
+    phase: 3,
+    route: '/dashboard',
+    instruction: 'Invitation sent! ✅ Click "Go to Doctor\'s Registration →" to switch to the doctor\'s registration view.',
+  },
+  {
+    id: '3.3',
+    phase: 3,
+    route: '/register/invite',
+    instruction: 'This is what the doctor sees. The email is pre-filled. Use the autofill button, then click "Complete Registration" to create the doctor account.',
   },
   {
     id: '4.0',
     phase: 4,
     route: '/dashboard',
-    instruction: 'Welcome Dr. Chen! Notice the notification bell 🔔 with 3 unread alerts — these tell you when new patients are assigned and when reports are ready. The toggle lets you switch between "Assigned to me" and "All patients". 2 patients are pending your review.',
+    instruction: 'Welcome Doctor! This is your dashboard. Review the patients assigned to you, view their EEGs, and create clinical reports. Click on a patient card to get started.',
   },
   {
     id: '4.1',
     phase: 4,
     route: '/dashboard',
-    instruction: 'Click on Emily Richardson\'s patient card to open the full detail view. Here you can see her profile, EEG files, and processing results. Notice the "View EEG" and "Normal / Abnormal" label buttons.',
+    instruction: 'This is the EEG viewer with Plotly.js. Explore channel groups, adjust sensitivity, scroll through time, and bookmark notable segments. When ready, create a report.',
   },
   {
     id: '4.2',
     phase: 4,
     route: '/dashboard',
-    instruction: 'This is the EEG viewer with Plotly.js. Key features: (1) Channel groups — toggle between bipolar montage, average reference. (2) Sensitivity slider — zoom in/out. (3) Time navigation — scroll through the recording. (4) Bookmarks — save notable segments.',
+    instruction: 'Click "Create Report". The form is pre-populated with AI-generated content: factual report, impression, and PDR values. Review, edit if needed, then save.',
   },
   {
     id: '4.3',
     phase: 4,
     route: '/dashboard',
-    instruction: 'After reviewing the EEG, click "Create Report" (or "Edit Report" if one exists). The form is pre-populated with AI-generated content: factual report text, impression, and PDR values. Review, edit if needed, then click "Save Report".',
-  },
-  {
-    id: '4.4',
-    phase: 4,
-    route: '/dashboard',
-    instruction: 'Reports support version history — every edit creates a snapshot you can restore later. Click the history icon to view versions. When ready, click "Download Report" to generate and download the PDF.',
-  },
-  {
-    id: '4.5',
-    phase: 4,
-    route: '/dashboard',
-    instruction: 'Other powerful features include the Topographic Map — a heatmap of brain activity across the scalp, automatically generated from EEG data. Doctors can also mark files as Normal or Abnormal with a single click using the label buttons.',
-  },
-  {
-    id: '4.6',
-    phase: 4,
-    route: '/dashboard',
-    instruction: 'Great work! Dr. Chen has completed his review. Now let\'s switch back to the technician\'s view to send the report to the patient. Click "Continue as Jenny (Technician) →" below.',
+    instruction: 'Reports support version history — every edit creates a snapshot. Click the history icon to view versions. When ready, download the report as PDF. Now let\'s switch back to the technician.',
   },
   {
     id: '5.0',
     phase: 5,
-    route: '/dashboard',
-    instruction: 'Back as Jenny! The Examined tab shows patients whose EEGs have been reviewed. Notice Emily\'s card now shows the report created by Dr. Chen. Technicians finalize the workflow by sending reports to patients.',
+    route: '/login',
+    instruction: 'Click "Continue as Technician →" to log out and return to the technician account. The technician finalizes the workflow by sending the report to the patient.',
   },
   {
     id: '5.1',
     phase: 5,
     route: '/dashboard',
-    instruction: 'Click "Report Sent" on Emily\'s card. This marks the report as delivered in the system and updates the patient\'s status. Emily moves to the "Report Sent" tab.',
+    instruction: 'Back as the technician! Find the patient with the completed report in the Examined tab. Click "Report Sent" to mark it as delivered, then click "Email Report" to send the portal link.',
   },
   {
     id: '5.2',
     phase: 5,
     route: '/dashboard',
-    instruction: 'Now click "Email Report" on Emily\'s card. This generates a secure portal link and emails it to the patient. The patient doesn\'t need to create an account — they just click the link in their email.',
+    instruction: 'Email sent! ✅ The patient received a secure portal link. Now click "Open Patient Portal →" to see what the patient sees.',
   },
   {
     id: '6.0',
     phase: 6,
     route: '/patient/portal',
-    instruction: 'This is what Emily sees when she clicks the link in her email. No login required — the secure token exchanges for a session automatically. The portal loads her reports.',
+    instruction: 'This is the Patient Portal — no login required. The secure token from the email link authenticates automatically. The patient can view their report and download the PDF.',
   },
   {
     id: '6.1',
     phase: 6,
     route: '/dashboard',
-    instruction: 'This is the Patient Portal. Emily can see her profile, latest report with clinical findings, EEG bookmarks saved by the doctor (useful for understanding the diagnosis visually), and all previous reports. Click "Download PDF" to save the report.',
-  },
-  {
-    id: '6.2',
-    phase: 6,
-    route: '/dashboard',
-    instruction: '🎉 That\'s CereSignal in ~3 minutes! We\'ve covered the complete workflow: Admin setup → Technician patient management & EEG upload → AI processing → Doctor review & reporting → Report delivery → Patient portal. Feel free to explore or click "Return to Start" to begin again.',
+    instruction: '🎉 That\'s CereSignal in a few minutes! We covered the complete workflow: Admin setup → Technician patient management & EEG upload → AI processing → Doctor review & reporting → Report delivery → Patient portal. Feel free to explore or click "Return to Start".',
   },
 ];
 
-export interface DemoSeededData {
-  hospitalId: number;
-  adminCreds: { username: string; password: string };
-  technicianCreds: { username: string; password: string };
-  doctorCreds: { username: string; password: string };
-  technicianInviteToken: string | null;
-  patients: Array<{ id: number; portalToken: string }>;
+export interface DemoRuntimeData {
+  suffix: string;
+  hospitalName: string;
+  adminUsername: string;
+  adminPassword: string;
+  techEmail: string;
+  techUsername: string;
+  techPassword: string;
+  techInviteToken: string | null;
+  docEmail: string;
+  docUsername: string;
+  docPassword: string;
+  docInviteToken: string | null;
+  portalToken: string | null;
 }
 
-const DEFAULT_SEEDED_DATA: DemoSeededData = {
-  hospitalId: 1,
-  adminCreds: { username: 'admin_nl', password: 'Demo@2025!' },
-  technicianCreds: { username: 'jenny_tech', password: 'Demo@2025!' },
-  doctorCreds: { username: 'dr_chen', password: 'Demo@2025!' },
-  technicianInviteToken: null,
-  patients: [
-    { id: 1, portalToken: 'portal-demo-emily-001' },
-    { id: 2, portalToken: 'portal-demo-james-002' },
-    { id: 3, portalToken: 'portal-demo-aisha-003' },
-  ],
-};
+const RUNTIME_KEY = 'ceresignal_demo_runtime';
+
+function generateRuntimeData(): DemoRuntimeData {
+  const suffix = Math.random().toString(36).substring(2, 6);
+  return {
+    suffix,
+    hospitalName: `CereSignal Demo ${suffix.toUpperCase()}`,
+    adminUsername: `admin_${suffix}`,
+    adminPassword: 'Demo@2025!',
+    techEmail: `tech.${suffix}@demo.local`,
+    techUsername: `tech_${suffix}`,
+    techPassword: 'Demo@2025!',
+    techInviteToken: null,
+    docEmail: `doc.${suffix}@demo.local`,
+    docUsername: `doc_${suffix}`,
+    docPassword: 'Demo@2025!',
+    docInviteToken: null,
+    portalToken: null,
+  };
+}
 
 interface DemoContextValue {
   isActive: boolean;
   currentStepId: string;
   currentPhase: number;
   currentStep: DemoStep | undefined;
-  seededData: DemoSeededData;
+  demoData: DemoRuntimeData;
+  setDemoData: (updater: (prev: DemoRuntimeData) => DemoRuntimeData) => void;
   startDemo: () => void;
   advanceStep: () => void;
   jumpToStep: (id: string) => void;
   endDemo: () => void;
-  setTechnicianInviteToken: (token: string) => void;
 }
 
 const DemoContext = createContext<DemoContextValue | null>(null);
 
 const SESSION_KEY = 'ceresignal_demo_step';
+
+function loadRuntimeData(): DemoRuntimeData {
+  try {
+    const raw = sessionStorage.getItem(RUNTIME_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return generateRuntimeData();
+}
 
 export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isActive, setIsActive] = useState(() => {
@@ -207,7 +218,7 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentStepId, setCurrentStepId] = useState(() => {
     return sessionStorage.getItem(SESSION_KEY) ?? '0.1';
   });
-  const [seededData, setSeededData] = useState<DemoSeededData>(DEFAULT_SEEDED_DATA);
+  const [demoData, setDemoDataState] = useState<DemoRuntimeData>(loadRuntimeData);
 
   const currentStep = DEMO_STEPS.find((s) => s.id === currentStepId);
   const currentPhase = currentStep?.phase ?? 0;
@@ -217,7 +228,18 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentStepId(id);
   }, []);
 
+  const setDemoData = useCallback((updater: (prev: DemoRuntimeData) => DemoRuntimeData) => {
+    setDemoDataState((prev) => {
+      const next = updater(prev);
+      sessionStorage.setItem(RUNTIME_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const startDemo = useCallback(() => {
+    const fresh = generateRuntimeData();
+    sessionStorage.setItem(RUNTIME_KEY, JSON.stringify(fresh));
+    setDemoDataState(fresh);
     setIsActive(true);
     persistStep('1.0');
   }, [persistStep]);
@@ -235,12 +257,9 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const endDemo = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(RUNTIME_KEY);
     setIsActive(false);
     setCurrentStepId('0.1');
-  }, []);
-
-  const setTechnicianInviteToken = useCallback((token: string) => {
-    setSeededData((prev) => ({ ...prev, technicianInviteToken: token }));
   }, []);
 
   useEffect(() => {
@@ -256,12 +275,12 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentStepId,
         currentPhase,
         currentStep,
-        seededData,
+        demoData,
+        setDemoData,
         startDemo,
         advanceStep,
         jumpToStep,
         endDemo,
-        setTechnicianInviteToken,
       }}
     >
       {children}

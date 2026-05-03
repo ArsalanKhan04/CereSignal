@@ -43,7 +43,7 @@ const DoctorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
   const navigate = useNavigate();
-  const { isActive: isDemoActive, currentStepId, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData } = useDemo();
 
   // Helper to get initials for the Avatar
   const getInitials = (first?: string, last?: string) => {
@@ -72,7 +72,7 @@ const DoctorDashboard: React.FC = () => {
     };
 
     loadNotifications();
-    if (isDemoActive && (currentStepId === '3.0')) {
+    if (isDemoActive && (currentStepId === '3.3')) {
       jumpToStep('4.0');
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -303,7 +303,7 @@ const DoctorDashboard: React.FC = () => {
               {isDemoActive && (
                 <Box sx={{ mt: 2 }}>
                   <DemoButton
-                    label="Continue as Jenny (Technician) →"
+                    label="Continue as Technician →"
                     onClick={() => {
                       jumpToStep('5.0');
                       navigate('/login');
