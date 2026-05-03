@@ -4,9 +4,9 @@ import {
   Button,
   Typography,
   LinearProgress,
-  Alert,
 } from '@mui/material';
 import { Upload as UploadIcon } from '@mui/icons-material';
+import FormAlert from './FormAlert';
 
 interface FileUploadProps {
   patientId: number;
@@ -78,17 +78,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ patientId, onUpload }) => {
       
       {uploading && <LinearProgress sx={{ mt: 1 }} />}
       
-      {error && (
-        <Alert severity="error" sx={{ mt: 1 }}>
-          {error}
-        </Alert>
-      )}
-      
-      {success && (
-        <Alert severity="success" sx={{ mt: 1 }}>
-          {success}
-        </Alert>
-      )}
+      <FormAlert
+        error={error}
+        success={success}
+        onDismiss={() => { setError(''); setSuccess(''); }}
+      />
       
       <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 1 }}>
         Supported format: EDF files only (max 100MB)

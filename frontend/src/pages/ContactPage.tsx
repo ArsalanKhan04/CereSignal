@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
+import { validateName, validateEmail, validateRequired, collectErrors, extractApiErrors } from '../utils/validation';
+import FormAlert from '../components/FormAlert';
 import './LandingPage.css';
 import './ContactPage.css';
 
@@ -36,6 +38,9 @@ const ContactPage: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
   const [form, setForm] = useState<ContactForm>({
     firstName: '',
     lastName: '',
@@ -61,6 +66,25 @@ const ContactPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
+    setFormError('');
+    setFormSuccess('');
+
+    const errors = collectErrors(
+      validateName(form.firstName, 'firstName', 'First name'),
+      validateName(form.lastName, 'lastName', 'Last name'),
+      validateEmail(form.email),
+      validateRequired(form.role, 'role', 'Role'),
+      validateRequired(form.hospital, 'hospital', 'Hospital'),
+      validateRequired(form.country, 'country', 'Country'),
+    );
+    if (errors.length > 0) {
+      const errMap: Record<string, string> = {};
+      errors.forEach((e) => { errMap[e.field] = e.message; });
+      setFieldErrors(errMap);
+      return;
+    }
+
     setSubmitting(true);
     try {
       await apiClient.submitContact({
@@ -74,10 +98,19 @@ const ContactPage: React.FC = () => {
         interest: form.interest,
         message: form.message,
       });
+      setFormSuccess('Your message has been sent. We\'ll be in touch within one business day.');
       setSubmitted(true);
-    } catch (err) {
-      // fallback: show success even on error for UX
-      setSubmitted(true);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message;
+      const parsed = extractApiErrors(detail);
+      if (parsed.general) {
+        setFormError(parsed.general);
+      }
+      if (parsed.fields.length > 0) {
+        const fieldMap: Record<string, string> = {};
+        parsed.fields.forEach((f) => { fieldMap[f.field] = f.message; });
+        setFieldErrors(fieldMap);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -134,6 +167,8 @@ const ContactPage: React.FC = () => {
                 All fields are confidential. We never share your hospital information with third parties.
               </p>
 
+              <FormAlert error={formError} success={formSuccess} onDismiss={() => { setFormError(''); setFormSuccess(''); }} />
+
               <form onSubmit={handleSubmit}>
                 <div className="lp-form-field">
                   <label>What can we help you with?</label>
@@ -159,6 +194,7 @@ const ContactPage: React.FC = () => {
                       onChange={(e) => update('firstName', e.target.value)}
                       placeholder="Sarah"
                     />
+                    {fieldErrors.firstName && <span className="lp-field-error">{fieldErrors.firstName}</span>}
                   </div>
                   <div className="lp-form-field">
                     <label>Last name</label>
@@ -168,6 +204,7 @@ const ContactPage: React.FC = () => {
                       onChange={(e) => update('lastName', e.target.value)}
                       placeholder="Khan"
                     />
+                    {fieldErrors.lastName && <span className="lp-field-error">{fieldErrors.lastName}</span>}
                   </div>
                 </div>
 
@@ -181,6 +218,7 @@ const ContactPage: React.FC = () => {
                       onChange={(e) => update('email', e.target.value)}
                       placeholder="sarah.khan@hospital.com"
                     />
+                    {fieldErrors.email && <span className="lp-field-error">{fieldErrors.email}</span>}
                   </div>
                   <div className="lp-form-field">
                     <label>Your role</label>
@@ -193,6 +231,7 @@ const ContactPage: React.FC = () => {
                       <option>IT / procurement</option>
                       <option>Other</option>
                     </select>
+                    {fieldErrors.role && <span className="lp-field-error">{fieldErrors.role}</span>}
                   </div>
                 </div>
 
@@ -205,6 +244,7 @@ const ContactPage: React.FC = () => {
                       onChange={(e) => update('hospital', e.target.value)}
                       placeholder="Aga Khan University Hospital"
                     />
+                    {fieldErrors.hospital && <span className="lp-field-error">{fieldErrors.hospital}</span>}
                   </div>
                   <div className="lp-form-field">
                     <label>Country</label>
@@ -214,6 +254,7 @@ const ContactPage: React.FC = () => {
                       onChange={(e) => update('country', e.target.value)}
                       placeholder="Pakistan"
                     />
+                    {fieldErrors.country && <span className="lp-field-error">{fieldErrors.country}</span>}
                   </div>
                 </div>
 

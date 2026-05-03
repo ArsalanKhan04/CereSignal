@@ -14,7 +14,6 @@ import {
   Tooltip,
   Stack,
   Grid,
-  TextField,
   Button,
   Select,
   MenuItem,
@@ -26,7 +25,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Alert,
   CircularProgress,
   Tabs,
   Tab,
@@ -48,6 +46,9 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
 import { AdminStats, StaffInvitation, StaffMember } from '../types';
+import { validateEmail, collectErrors } from '../utils/validation';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -108,8 +109,9 @@ const AdminDashboard: React.FC = () => {
   const handleSendInvite = async () => {
     setInviteError('');
     setInviteSuccess('');
-    if (!inviteEmail) {
-      setInviteError('Please enter an email address.');
+    const errors = collectErrors(validateEmail(inviteEmail));
+    if (errors.length > 0) {
+      setInviteError(errors[0].message);
       return;
     }
     setInviteLoading(true);
@@ -340,11 +342,12 @@ const AdminDashboard: React.FC = () => {
                       <PersonAddIcon color="primary" fontSize="small" /> Invite Staff
                     </Typography>
                     <Stack spacing={2}>
-                      <TextField
-                        fullWidth size="small" label="Email address" type="email"
+                      <FormTextField
+                        size="small" label="Email address" type="email"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}
                         disabled={inviteLoading}
+                        fieldError={inviteError}
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendInvite(); } }}
                       />
                       <FormControl fullWidth size="small">
@@ -359,8 +362,7 @@ const AdminDashboard: React.FC = () => {
                           <MenuItem value="technician">Technician</MenuItem>
                         </Select>
                       </FormControl>
-                      {inviteError && <Alert severity="error" sx={{ borderRadius: 2 }}>{inviteError}</Alert>}
-                      {inviteSuccess && <Alert severity="success" sx={{ borderRadius: 2 }}>{inviteSuccess}</Alert>}
+                      <FormAlert error={inviteError} success={inviteSuccess} onDismiss={() => { setInviteError(''); setInviteSuccess(''); }} />
                       <Button
                         variant="contained"
                         fullWidth

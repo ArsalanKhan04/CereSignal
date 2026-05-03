@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
-  TextField,
   Button,
   Typography,
   Link,
-  Alert,
   CircularProgress,
   Grid, // MUI v6 Grid (Grid2)
   InputAdornment,
@@ -37,6 +35,13 @@ import {
   Speed as SpeedIcon,
   CloudDone as CloudIcon
 } from '@mui/icons-material';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
+import {
+  validateUsername, validateEmail, validatePassword, validateConfirmPassword,
+  validateName, validatePhone, validateYearsExperience, validateMaxLength,
+  collectErrors, extractApiErrors,
+} from '../utils/validation';
 import { useAuth } from '../contexts/AuthContext';
 import { RegisterRequest } from '../types';
 
@@ -52,36 +57,63 @@ const DoctorRegistrationPage: React.FC = () => {
     phone: '', about: '', hospital_affiliation: '', years_experience: 0,
   });
   
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    const { name, type } = e.target;
+    const value = type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
+    setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => { const next = {...prev}; delete next[name]; return next; });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
-    // Basic Client-side Validation
-    if (!formData.username || !formData.email || !formData.password || !formData.confirm_password) {
-      setError('Please complete all required account fields.');
+    const errors = collectErrors(
+      validateUsername(formData.username),
+      validateEmail(formData.email),
+      validatePassword(formData.password),
+      validateConfirmPassword(formData.password, formData.confirm_password),
+      validateName(formData.first_name, 'first_name', 'First name'),
+      validateName(formData.last_name, 'last_name', 'Last name'),
+      validatePhone(formData.phone),
+      validateYearsExperience(formData.years_experience?.toString()),
+      validateMaxLength(formData.title, 'title', 'Title', 50),
+      validateMaxLength(formData.specialization, 'specialization', 'Specialization', 100),
+      validateMaxLength(formData.license_number, 'license_number', 'License number', 50),
+      validateMaxLength(formData.hospital_affiliation, 'hospital_affiliation', 'Hospital affiliation', 200),
+      validateMaxLength(formData.about, 'about', 'Bio', 500),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
       return;
     }
-    if (formData.password !== formData.confirm_password) {
-      setError('Passwords do not match.');
-      return;
-    }
+    setFieldErrors({});
 
     setIsLoading(true);
 
     try {
       await register(formData);
+      setSuccess('Registration successful! Redirecting...');
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Registration failed.';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      const responseData = err.response?.data;
+      const extracted = extractApiErrors(responseData?.detail || responseData?.errors);
+      if (extracted.fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        extracted.fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(extracted.general || 'Registration failed.');
     } finally {
       setIsLoading(false);
     }
@@ -179,9 +211,7 @@ const DoctorRegistrationPage: React.FC = () => {
               <Chip label="Professional Access" color="primary" variant="outlined" size="small" sx={{ fontWeight: 600, display: { xs: 'none', sm: 'flex' } }} />
             </Box>
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 4, borderRadius: 2 }}>{error}</Alert>
-            )}
+            <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} autoHideMs={3000} />
 
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={4}>
@@ -193,20 +223,24 @@ const DoctorRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth label="Username" name="username" value={formData.username} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth label="Username" name="username" value={formData.username} onChange={handleChange}
+                           fieldError={fieldErrors.username}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth label="Email Address" name="email" value={formData.email} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth label="Email Address" name="email" value={formData.email} onChange={handleChange}
+                           fieldError={fieldErrors.email}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth type="password" label="Password" name="password" value={formData.password} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth type="password" label="Password" name="password" value={formData.password} onChange={handleChange}
+                           fieldError={fieldErrors.password}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth type="password" label="Confirm Password" name="confirm_password" value={formData.confirm_password} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth type="password" label="Confirm Password" name="confirm_password" value={formData.confirm_password} onChange={handleChange}
+                           fieldError={fieldErrors.confirm_password}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>
                 </Paper>
@@ -218,17 +252,21 @@ const DoctorRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 2 }}>
-                        <TextField fullWidth label="Title" name="title" placeholder="Dr." value={formData.title} onChange={handleChange} />
+                         <FormTextField fullWidth label="Title" name="title" placeholder="Dr." value={formData.title} onChange={handleChange}
+                           fieldError={fieldErrors.title} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 5 }}>
-                        <TextField required fullWidth label="First Name" name="first_name" value={formData.first_name} onChange={handleChange} />
+                         <FormTextField required fullWidth label="First Name" name="first_name" value={formData.first_name} onChange={handleChange}
+                           fieldError={fieldErrors.first_name} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 5 }}>
-                        <TextField required fullWidth label="Last Name" name="last_name" value={formData.last_name} onChange={handleChange} />
+                         <FormTextField required fullWidth label="Last Name" name="last_name" value={formData.last_name} onChange={handleChange}
+                           fieldError={fieldErrors.last_name} />
                      </Grid>
                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth label="Phone Number" name="phone" value={formData.phone} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Phone Number" name="phone" value={formData.phone} onChange={handleChange}
+                           fieldError={fieldErrors.phone}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>
                 </Paper>
@@ -240,23 +278,28 @@ const DoctorRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField fullWidth label="License Number" name="license_number" value={formData.license_number} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="License Number" name="license_number" value={formData.license_number} onChange={handleChange}
+                           fieldError={fieldErrors.license_number}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField fullWidth label="Specialization" name="specialization" value={formData.specialization} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Specialization" name="specialization" value={formData.specialization} onChange={handleChange}
+                           fieldError={fieldErrors.specialization}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 8 }}>
-                        <TextField fullWidth label="Hospital Affiliation" name="hospital_affiliation" value={formData.hospital_affiliation} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><HospitalIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Hospital Affiliation" name="hospital_affiliation" value={formData.hospital_affiliation} onChange={handleChange}
+                           fieldError={fieldErrors.hospital_affiliation}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><HospitalIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 4 }}>
-                        <TextField fullWidth type="number" label="Years Experience" name="years_experience" value={formData.years_experience} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth type="number" label="Years Experience" name="years_experience" value={formData.years_experience} onChange={handleChange}
+                           fieldError={fieldErrors.years_experience}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth multiline rows={3} label="Professional Bio" name="about" placeholder="Tell us about your background..." value={formData.about} onChange={handleChange} 
+                         <FormTextField fullWidth multiline rows={3} label="Professional Bio" name="about" placeholder="Tell us about your background..." value={formData.about} onChange={handleChange}
+                           fieldError={fieldErrors.about}
                            InputProps={{ startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><BioIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>

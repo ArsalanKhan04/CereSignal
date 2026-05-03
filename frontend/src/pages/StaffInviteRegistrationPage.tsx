@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
-  TextField,
   Button,
   Typography,
   Link,
@@ -36,6 +35,13 @@ import {
   VerifiedUser as VerifiedIcon,
   Error as ErrorIcon,
 } from '@mui/icons-material';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
+import {
+  validateUsername, validatePassword, validateConfirmPassword,
+  validateName, validatePhone, validateYearsExperience, validateMaxLength,
+  collectErrors, extractApiErrors,
+} from '../utils/validation';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
 import { InviteTokenInfo, StaffInviteRegisterRequest } from '../types';
@@ -64,7 +70,9 @@ const StaffInviteRegistrationPage: React.FC = () => {
     years_experience: undefined,
   });
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -97,33 +105,57 @@ const StaffInviteRegistrationPage: React.FC = () => {
   }, [token]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.type === 'number'
+    const { name, type } = e.target;
+    const value = type === 'number'
       ? (e.target.value ? parseInt(e.target.value) : undefined)
       : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => { const next = {...prev}; delete next[name]; return next; });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
-    if (!formData.first_name || !formData.last_name || !formData.username) {
-      setError('Please fill in all required fields.');
+    const errors = collectErrors(
+      validateName(formData.first_name, 'first_name', 'First name'),
+      validateName(formData.last_name, 'last_name', 'Last name'),
+      validateUsername(formData.username),
+      validatePassword(formData.password),
+      validateConfirmPassword(formData.password, formData.confirm_password),
+      validatePhone(formData.phone),
+      validateYearsExperience(formData.years_experience?.toString()),
+      validateMaxLength(formData.title, 'title', 'Title', 50),
+      validateMaxLength(formData.specialization, 'specialization', 'Specialization', 100),
+      validateMaxLength(formData.license_number, 'license_number', 'License number', 50),
+      validateMaxLength(formData.about, 'about', 'Bio', 500),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
       return;
     }
-    if (formData.password !== formData.confirm_password) {
-      setError('Passwords do not match.');
-      return;
-    }
+    setFieldErrors({});
 
     setIsLoading(true);
     try {
       await apiClient.registerFromInvite(token!, formData);
+      setSuccess('Registration successful! Redirecting...');
       await login({ username: formData.username, password: formData.password });
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Registration failed.';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      const responseData = err.response?.data;
+      const extracted = extractApiErrors(responseData?.detail || responseData?.errors);
+      if (extracted.fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        extracted.fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(extracted.general || 'Registration failed.');
     } finally {
       setIsLoading(false);
     }
@@ -251,9 +283,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
               Registering with invited email: <strong>{tokenInfo?.email}</strong>
             </Alert>
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 4, borderRadius: 2 }}>{error}</Alert>
-            )}
+            <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} autoHideMs={3000} />
 
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={4}>
@@ -265,33 +295,36 @@ const StaffInviteRegistrationPage: React.FC = () => {
                   </Typography>
                   <Grid container spacing={3}>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField
+                      <FormTextField
                         required fullWidth label="Username" name="username"
                         value={formData.username} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.username}
                         InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth label="Email" value={tokenInfo?.email || ''} disabled
                         InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }}
                         helperText="Set by your invitation"
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField
+                      <FormTextField
                         required fullWidth type="password" label="Password" name="password"
                         value={formData.password} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.password}
                         InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField
+                      <FormTextField
                         required fullWidth type="password" label="Confirm Password" name="confirm_password"
                         value={formData.confirm_password} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.confirm_password}
                         InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
@@ -305,31 +338,35 @@ const StaffInviteRegistrationPage: React.FC = () => {
                   </Typography>
                   <Grid container spacing={3}>
                     <Grid size={{ xs: 12, sm: 2 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth label="Title" name="title" placeholder="Dr."
                         value={formData.title} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.title}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 5 }}>
-                      <TextField
+                      <FormTextField
                         required fullWidth label="First Name" name="first_name"
                         value={formData.first_name} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.first_name}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 5 }}>
-                      <TextField
+                      <FormTextField
                         required fullWidth label="Last Name" name="last_name"
                         value={formData.last_name} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.last_name}
                       />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth label="Phone Number" name="phone"
                         value={formData.phone} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.phone}
                         InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
@@ -343,35 +380,39 @@ const StaffInviteRegistrationPage: React.FC = () => {
                   </Typography>
                   <Grid container spacing={3}>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth label="License Number" name="license_number"
                         value={formData.license_number} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.license_number}
                         InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth label="Specialization" name="specialization"
                         value={formData.specialization} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.specialization}
                         InputProps={{ startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth type="number" label="Years Experience" name="years_experience"
                         value={formData.years_experience ?? ''} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.years_experience}
                         InputProps={{ startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
-                      <TextField
+                      <FormTextField
                         fullWidth multiline rows={3} label="Professional Bio" name="about"
                         placeholder="Tell us about your background..."
                         value={formData.about} onChange={handleChange}
                         disabled={isLoading}
+                        fieldError={fieldErrors.about}
                         InputProps={{ startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><BioIcon color="action" /></InputAdornment> }}
                       />
                     </Grid>

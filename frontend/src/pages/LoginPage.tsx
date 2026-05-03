@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
-  TextField,
   Button,
   Typography,
   Link,
-  Alert,
   CircularProgress,
   Divider,
   InputAdornment,
@@ -26,6 +24,9 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginRequest } from '../types';
+import { validateUsername, validatePassword, collectErrors, extractApiErrors } from '../utils/validation';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
 
 const LoginPage: React.FC = () => {
   const theme = useTheme();
@@ -34,9 +35,17 @@ const LoginPage: React.FC = () => {
     password: '',
   });
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleDismiss = () => {
+    setError('');
+    setSuccess('');
+    setFieldErrors({});
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -45,13 +54,33 @@ const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
+    setSuccess('');
+
+    const errors = collectErrors(
+      validateUsername(formData.username),
+      validatePassword(formData.password),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
+      return;
+    }
+
     setIsLoading(true);
     try {
       await login(formData);
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Login failed.';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      const responseData = err.response?.data;
+      const { general, fields } = extractApiErrors(responseData?.errors ?? responseData?.detail);
+      if (fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(general || 'Login failed.');
     } finally {
       setIsLoading(false);
     }
@@ -103,15 +132,11 @@ const LoginPage: React.FC = () => {
               </Typography>
             </Box>
 
-            {error && (
-              <Alert severity="error" sx={{ width: '100%', mb: 3, borderRadius: 2 }}>
-                {error}
-              </Alert>
-            )}
+            <FormAlert error={error} success={success} onDismiss={handleDismiss} />
 
             <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
               <Stack spacing={3}>
-                <TextField
+                <FormTextField
                   required
                   fullWidth
                   id="username"
@@ -122,6 +147,7 @@ const LoginPage: React.FC = () => {
                   value={formData.username}
                   onChange={handleChange}
                   disabled={isLoading}
+                  fieldError={fieldErrors.username}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -132,7 +158,7 @@ const LoginPage: React.FC = () => {
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' } }}
                 />
 
-                <TextField
+                <FormTextField
                   required
                   fullWidth
                   name="password"
@@ -143,6 +169,7 @@ const LoginPage: React.FC = () => {
                   value={formData.password}
                   onChange={handleChange}
                   disabled={isLoading}
+                  fieldError={fieldErrors.password}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">

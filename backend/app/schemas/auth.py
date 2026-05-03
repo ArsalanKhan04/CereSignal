@@ -29,7 +29,12 @@ class UserRegister(BaseModel):
     title: Optional[str] = Field(None, max_length=50)
     specialization: Optional[str] = Field(None, max_length=100)
     license_number: Optional[str] = Field(None, max_length=100)
-    phone: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Phone number in international format (7-20 digits, + allowed)",
+    )
     about: Optional[str] = None
     hospital_affiliation: Optional[str] = Field(None, max_length=255)
     years_experience: Optional[int] = Field(None, ge=0, le=100)
@@ -44,7 +49,12 @@ class PatientRegister(BaseModel):
     confirm_password: str = Field(..., min_length=6)
     # Patient information
     name: str = Field(..., min_length=1, max_length=255)
-    phone: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Phone number in international format (7-20 digits, + allowed)",
+    )
     date_of_birth: Optional[datetime] = None
     age: Optional[int] = Field(None, ge=0, le=130)
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
@@ -52,7 +62,12 @@ class PatientRegister(BaseModel):
     address: Optional[str] = None
     referred_by: Optional[str] = Field(None, max_length=255)
     emergency_contact_name: Optional[str] = Field(None, max_length=255)
-    emergency_contact_phone: Optional[str] = Field(None, max_length=50)
+    emergency_contact_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Emergency contact phone number",
+    )
     blood_type: Optional[str] = Field(
         None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$"
     )
@@ -114,5 +129,9 @@ class PasswordChange(BaseModel):
     """Schema for password change"""
 
     current_password: str
-    new_password: str = Field(..., min_length=6)
-    confirm_new_password: str = Field(..., min_length=6)
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        description="New password (at least 8 characters)",
+    )
+    confirm_new_password: str = Field(..., min_length=8)

@@ -12,7 +12,12 @@ class UserBase(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255, description="User's full name")
     email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Phone number in international format",
+    )
     date_of_birth: Optional[datetime] = None
     age: Optional[int] = Field(None, ge=0, le=130)
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
@@ -22,7 +27,12 @@ class UserBase(BaseModel):
     referred_by: Optional[str] = Field(None, max_length=255)
     emergency_contact_name: Optional[str] = Field(None, max_length=255)
 
-    emergency_contact_phone: Optional[str] = Field(None, max_length=50)
+    emergency_contact_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Emergency contact phone number",
+    )
     blood_type: Optional[str] = Field(
         None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$"
     )
@@ -46,7 +56,12 @@ class UserUpdate(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Phone number in international format",
+    )
     date_of_birth: Optional[datetime] = None
     age: Optional[int] = Field(None, ge=0, le=130)
     gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
@@ -54,7 +69,12 @@ class UserUpdate(BaseModel):
     address: Optional[str] = None
     referred_by: Optional[str] = Field(None, max_length=255)
     emergency_contact_name: Optional[str] = Field(None, max_length=255)
-    emergency_contact_phone: Optional[str] = Field(None, max_length=50)
+    emergency_contact_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
+        description="Emergency contact phone number",
+    )
     blood_type: Optional[str] = Field(
         None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$"
     )

@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
-  TextField,
   Button,
   Typography,
   Link,
-  Alert,
   CircularProgress,
   Grid, // MUI v6 Grid (Grid2)
   InputAdornment,
@@ -22,7 +20,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  FormHelperText,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -42,6 +41,14 @@ import {
   History as HistoryIcon,
   Description as ReportIcon
 } from '@mui/icons-material';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
+import {
+  validateUsername, validateEmail, validatePassword, validateConfirmPassword,
+  validateName, validatePhone, validateDateOfBirth, validateGender,
+  validateBloodType, validateMaxLength,
+  collectErrors, extractApiErrors,
+} from '../utils/validation';
 import { useAuth } from '../contexts/AuthContext';
 import { PatientRegisterRequest } from '../types';
 
@@ -58,39 +65,73 @@ const PatientRegistrationPage: React.FC = () => {
     allergies: '', medical_conditions: '', current_medications: '',
   });
   
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => { const next = {...prev}; delete next[name]; return next; });
+    }
   };
 
   const handleSelectChange = (e: any) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value === '' ? undefined : value });
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => { const next = {...prev}; delete next[name]; return next; });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
-    if (!formData.username || !formData.email || !formData.password || !formData.confirm_password || !formData.name) {
-      setError('Please fill in all required fields.');
+    const errors = collectErrors(
+      validateUsername(formData.username),
+      validateEmail(formData.email),
+      validatePassword(formData.password),
+      validateConfirmPassword(formData.password, formData.confirm_password),
+      validateName(formData.name, 'name', 'Full name', 255),
+      validatePhone(formData.phone),
+      validateDateOfBirth(formData.date_of_birth),
+      validateGender(formData.gender),
+      validateBloodType(formData.blood_type),
+      validateName(formData.emergency_contact_name, 'emergency_contact_name', 'Emergency contact name'),
+      validatePhone(formData.emergency_contact_phone, 'emergency_contact_phone'),
+      validateMaxLength(formData.medical_id, 'medical_id', 'Medical ID', 50),
+      validateMaxLength(formData.address, 'address', 'Address', 500),
+      validateMaxLength(formData.allergies, 'allergies', 'Allergies', 500),
+      validateMaxLength(formData.medical_conditions, 'medical_conditions', 'Medical conditions', 500),
+      validateMaxLength(formData.current_medications, 'current_medications', 'Current medications', 500),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
       return;
     }
-    if (formData.password !== formData.confirm_password) {
-      setError('Passwords do not match.');
-      return;
-    }
+    setFieldErrors({});
 
     setIsLoading(true);
 
     try {
       await registerPatient(formData);
+      setSuccess('Registration successful! Redirecting...');
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Registration failed.';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      const responseData = err.response?.data;
+      const extracted = extractApiErrors(responseData?.detail || responseData?.errors);
+      if (extracted.fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        extracted.fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(extracted.general || 'Registration failed.');
     } finally {
       setIsLoading(false);
     }
@@ -187,7 +228,7 @@ const PatientRegistrationPage: React.FC = () => {
               <Chip label="Secure Sign-up" color="primary" variant="outlined" size="small" sx={{ fontWeight: 600, display: { xs: 'none', sm: 'flex' } }} />
             </Box>
 
-            {error && <Alert severity="error" sx={{ mb: 4, borderRadius: 2 }}>{error}</Alert>}
+            <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} autoHideMs={3000} />
 
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={4}>
@@ -199,20 +240,24 @@ const PatientRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth label="Username" name="username" value={formData.username} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth label="Username" name="username" value={formData.username} onChange={handleChange}
+                           fieldError={fieldErrors.username}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth label="Email Address" name="email" value={formData.email} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth label="Email Address" name="email" value={formData.email} onChange={handleChange}
+                           fieldError={fieldErrors.email}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth type="password" label="Password" name="password" value={formData.password} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth type="password" label="Password" name="password" value={formData.password} onChange={handleChange}
+                           fieldError={fieldErrors.password}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField required fullWidth type="password" label="Confirm Password" name="confirm_password" value={formData.confirm_password} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
+                         <FormTextField required fullWidth type="password" label="Confirm Password" name="confirm_password" value={formData.confirm_password} onChange={handleChange}
+                           fieldError={fieldErrors.confirm_password}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>
                 </Paper>
@@ -224,25 +269,29 @@ const PatientRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12 }}>
-                        <TextField required fullWidth label="Full Name" name="name" value={formData.name} onChange={handleChange} />
+                         <FormTextField required fullWidth label="Full Name" name="name" value={formData.name} onChange={handleChange}
+                           fieldError={fieldErrors.name} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField fullWidth type="date" label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange} 
-                          InputLabelProps={{ shrink: true }} InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth type="date" label="Date of Birth" name="date_of_birth" value={formData.date_of_birth} onChange={handleChange}
+                           fieldError={fieldErrors.date_of_birth}
+                           InputLabelProps={{ shrink: true }} InputProps={{ startAdornment: <InputAdornment position="start"><CalendarIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                       <FormControl fullWidth>
-                          <InputLabel>Gender</InputLabel>
-                          <Select name="gender" value={formData.gender || ''} label="Gender" onChange={handleSelectChange}>
-                            <MenuItem value="M">Male</MenuItem>
-                            <MenuItem value="F">Female</MenuItem>
-                            <MenuItem value="Other">Other</MenuItem>
-                          </Select>
+                       <FormControl fullWidth error={!!fieldErrors.gender}>
+                           <InputLabel>Gender</InputLabel>
+                           <Select name="gender" value={formData.gender || ''} label="Gender" onChange={handleSelectChange}>
+                             <MenuItem value="M">Male</MenuItem>
+                             <MenuItem value="F">Female</MenuItem>
+                             <MenuItem value="Other">Other</MenuItem>
+                           </Select>
+                           {fieldErrors.gender && <FormHelperText error>{fieldErrors.gender}</FormHelperText>}
                        </FormControl>
                      </Grid>
                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth multiline rows={2} label="Address" name="address" value={formData.address} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><HomeIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth multiline rows={2} label="Address" name="address" value={formData.address} onChange={handleChange}
+                           fieldError={fieldErrors.address}
+                           InputProps={{ startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><HomeIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>
                 </Paper>
@@ -254,30 +303,35 @@ const PatientRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField fullWidth label="Medical ID (Optional)" name="medical_id" value={formData.medical_id} onChange={handleChange} />
+                         <FormTextField fullWidth label="Medical ID (Optional)" name="medical_id" value={formData.medical_id} onChange={handleChange}
+                           fieldError={fieldErrors.medical_id} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                       <FormControl fullWidth>
-                          <InputLabel>Blood Type</InputLabel>
-                          <Select name="blood_type" value={formData.blood_type || ''} label="Blood Type" onChange={handleSelectChange} startAdornment={<InputAdornment position="start" sx={{ml: 1}}><BloodIcon fontSize="small" color="action" /></InputAdornment>}>
-                            <MenuItem value="A+">A+</MenuItem><MenuItem value="A-">A-</MenuItem>
-                            <MenuItem value="B+">B+</MenuItem><MenuItem value="B-">B-</MenuItem>
-                            <MenuItem value="O+">O+</MenuItem><MenuItem value="O-">O-</MenuItem>
-                            <MenuItem value="AB+">AB+</MenuItem><MenuItem value="AB-">AB-</MenuItem>
-                          </Select>
+                       <FormControl fullWidth error={!!fieldErrors.blood_type}>
+                           <InputLabel>Blood Type</InputLabel>
+                           <Select name="blood_type" value={formData.blood_type || ''} label="Blood Type" onChange={handleSelectChange} startAdornment={<InputAdornment position="start" sx={{ml: 1}}><BloodIcon fontSize="small" color="action" /></InputAdornment>}>
+                             <MenuItem value="A+">A+</MenuItem><MenuItem value="A-">A-</MenuItem>
+                             <MenuItem value="B+">B+</MenuItem><MenuItem value="B-">B-</MenuItem>
+                             <MenuItem value="O+">O+</MenuItem><MenuItem value="O-">O-</MenuItem>
+                             <MenuItem value="AB+">AB+</MenuItem><MenuItem value="AB-">AB-</MenuItem>
+                           </Select>
+                           {fieldErrors.blood_type && <FormHelperText error>{fieldErrors.blood_type}</FormHelperText>}
                        </FormControl>
                      </Grid>
                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth label="Allergies" name="allergies" value={formData.allergies} onChange={handleChange} placeholder="e.g. Penicillin, Peanuts"
-                          InputProps={{ startAdornment: <InputAdornment position="start"><AllergyIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Allergies" name="allergies" value={formData.allergies} onChange={handleChange} placeholder="e.g. Penicillin, Peanuts"
+                           fieldError={fieldErrors.allergies}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><AllergyIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth label="Medical Conditions" name="medical_conditions" value={formData.medical_conditions} onChange={handleChange} placeholder="e.g. Asthma, Diabetes"
-                          InputProps={{ startAdornment: <InputAdornment position="start"><ConditionIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Medical Conditions" name="medical_conditions" value={formData.medical_conditions} onChange={handleChange} placeholder="e.g. Asthma, Diabetes"
+                           fieldError={fieldErrors.medical_conditions}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><ConditionIcon color="action" /></InputAdornment> }} />
                      </Grid>
                      <Grid size={{ xs: 12 }}>
-                        <TextField fullWidth label="Current Medications" name="current_medications" value={formData.current_medications} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><MedsIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Current Medications" name="current_medications" value={formData.current_medications} onChange={handleChange}
+                           fieldError={fieldErrors.current_medications}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><MedsIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>
                 </Paper>
@@ -289,11 +343,13 @@ const PatientRegistrationPage: React.FC = () => {
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField fullWidth label="Contact Name" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} />
+                         <FormTextField fullWidth label="Contact Name" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange}
+                           fieldError={fieldErrors.emergency_contact_name} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField fullWidth label="Contact Phone" name="emergency_contact_phone" value={formData.emergency_contact_phone} onChange={handleChange} 
-                          InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }} />
+                         <FormTextField fullWidth label="Contact Phone" name="emergency_contact_phone" value={formData.emergency_contact_phone} onChange={handleChange}
+                           fieldError={fieldErrors.emergency_contact_phone}
+                           InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }} />
                      </Grid>
                    </Grid>
                 </Paper>

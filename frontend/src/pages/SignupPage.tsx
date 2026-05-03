@@ -4,11 +4,9 @@ import {
   Container,
   Paper,
   Box,
-  TextField,
   Button,
   Typography,
   Link,
-  Alert,
   CircularProgress,
   Grid,
   FormControl,
@@ -18,6 +16,9 @@ import {
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { RegisterRequest } from '../types';
+import { validateUsername, validateEmail, validatePassword, validateConfirmPassword, validateName, validateYearsExperience, collectErrors, extractApiErrors } from '../utils/validation';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
 
 const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState<RegisterRequest>({
@@ -37,9 +38,17 @@ const SignupPage: React.FC = () => {
     years_experience: 0,
   });
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  const handleDismiss = () => {
+    setError('');
+    setSuccess('');
+    setFieldErrors({});
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
@@ -52,21 +61,22 @@ const SignupPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
+    setSuccess('');
 
-    // Validation
-    if (!formData.username || !formData.email || !formData.password || !formData.confirm_password || 
-        !formData.first_name || !formData.last_name) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    if (formData.password !== formData.confirm_password) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    const errors = collectErrors(
+      validateUsername(formData.username),
+      validateEmail(formData.email),
+      validatePassword(formData.password),
+      validateConfirmPassword(formData.password, formData.confirm_password),
+      validateName(formData.first_name, 'first_name', 'First name', 100),
+      validateName(formData.last_name, 'last_name', 'Last name', 100),
+      validateYearsExperience(String(formData.years_experience)),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
       return;
     }
 
@@ -76,8 +86,14 @@ const SignupPage: React.FC = () => {
       await register(formData);
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Registration failed. Please try again.';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      const responseData = err.response?.data;
+      const { general, fields } = extractApiErrors(responseData?.errors ?? responseData?.detail);
+      if (fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(general || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -108,19 +124,14 @@ const SignupPage: React.FC = () => {
               Doctor Registration
             </Typography>
 
-            {error && (
-              <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-                {error}
-              </Alert>
-            )}
+            <FormAlert error={error} success={success} onDismiss={handleDismiss} />
 
             <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
               <Grid container spacing={2}>
                 <Grid sx={{ xs: 12, sm: 6 }}>
-                  <TextField
+                <FormTextField
                     margin="normal"
                     required
-                    fullWidth
                     id="first_name"
                     label="First Name"
                     name="first_name"
@@ -129,13 +140,13 @@ const SignupPage: React.FC = () => {
                     value={formData.first_name}
                     onChange={handleChange}
                     disabled={isLoading}
+                    fieldError={fieldErrors.first_name}
                   />
                 </Grid>
                 <Grid sx={{ xs: 12, sm: 6 }}>
-                  <TextField
+                <FormTextField
                     margin="normal"
                     required
-                    fullWidth
                     id="last_name"
                     label="Last Name"
                     name="last_name"
@@ -143,14 +154,14 @@ const SignupPage: React.FC = () => {
                     value={formData.last_name}
                     onChange={handleChange}
                     disabled={isLoading}
+                    fieldError={fieldErrors.last_name}
                   />
                 </Grid>
               </Grid>
               
-              <TextField
+              <FormTextField
                 margin="normal"
                 required
-                fullWidth
                 id="username"
                 label="Username"
                 name="username"
@@ -158,11 +169,11 @@ const SignupPage: React.FC = () => {
                 value={formData.username}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.username}
               />
-              <TextField
+              <FormTextField
                 margin="normal"
                 required
-                fullWidth
                 id="email"
                 label="Email Address"
                 name="email"
@@ -171,49 +182,49 @@ const SignupPage: React.FC = () => {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.email}
               />
               
               <Grid container spacing={2}>
                 <Grid sx={{ xs: 12, sm: 6 }}>
-                  <TextField
+                <FormTextField
                     margin="normal"
-                    fullWidth
                     id="title"
                     label="Title (Dr., Prof., etc.)"
                     name="title"
                     value={formData.title}
                     onChange={handleChange}
                     disabled={isLoading}
+                    fieldError={fieldErrors.title}
                   />
                 </Grid>
                 <Grid sx={{ xs: 12, sm: 6 }}>
-                  <TextField
+                <FormTextField
                     margin="normal"
-                    fullWidth
                     id="specialization"
                     label="Specialization"
                     name="specialization"
                     value={formData.specialization}
                     onChange={handleChange}
                     disabled={isLoading}
+                    fieldError={fieldErrors.specialization}
                   />
                 </Grid>
               </Grid>
               
-              <TextField
+              <FormTextField
                 margin="normal"
-                fullWidth
                 id="license_number"
                 label="License Number"
                 name="license_number"
                 value={formData.license_number}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.license_number}
               />
               
-              <TextField
+              <FormTextField
                 margin="normal"
-                fullWidth
                 id="phone"
                 label="Phone Number"
                 name="phone"
@@ -221,22 +232,22 @@ const SignupPage: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.phone}
               />
               
-              <TextField
+              <FormTextField
                 margin="normal"
-                fullWidth
                 id="hospital_affiliation"
                 label="Hospital/Affiliation"
                 name="hospital_affiliation"
                 value={formData.hospital_affiliation}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.hospital_affiliation}
               />
               
-              <TextField
+              <FormTextField
                 margin="normal"
-                fullWidth
                 id="years_experience"
                 label="Years of Experience"
                 name="years_experience"
@@ -244,12 +255,12 @@ const SignupPage: React.FC = () => {
                 value={formData.years_experience}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.years_experience}
                 inputProps={{ min: 0, max: 100 }}
               />
               
-              <TextField
+              <FormTextField
                 margin="normal"
-                fullWidth
                 id="about"
                 label="About (Professional Bio)"
                 name="about"
@@ -258,12 +269,12 @@ const SignupPage: React.FC = () => {
                 value={formData.about}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.about}
               />
               
-              <TextField
+              <FormTextField
                 margin="normal"
                 required
-                fullWidth
                 name="password"
                 label="Password"
                 type="password"
@@ -272,11 +283,11 @@ const SignupPage: React.FC = () => {
                 value={formData.password}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.password}
               />
-              <TextField
+              <FormTextField
                 margin="normal"
                 required
-                fullWidth
                 name="confirm_password"
                 label="Confirm Password"
                 type="password"
@@ -285,6 +296,7 @@ const SignupPage: React.FC = () => {
                 value={formData.confirm_password}
                 onChange={handleChange}
                 disabled={isLoading}
+                fieldError={fieldErrors.confirm_password}
               />
               <Button
                 type="submit"

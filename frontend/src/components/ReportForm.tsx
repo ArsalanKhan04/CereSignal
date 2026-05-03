@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   CardContent,
-  Alert,
   CircularProgress,
   Dialog,
   DialogTitle,
@@ -14,6 +13,7 @@ import {
   DialogActions,
   Chip,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -29,6 +29,17 @@ import {
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  validateName,
+  validateRequired,
+  validateGender,
+  validateMaxLength,
+  validateInteger,
+  collectErrors,
+  extractApiErrors,
+} from '../utils/validation';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
 
 interface ReportFormProps {
   fileId?: number;
@@ -84,6 +95,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
   const pollingIntervalRef = useRef<number | null>(null);
   const pollCountRef = useRef(0);
   const MAX_POLL_ATTEMPTS = 30; // 30 attempts * 2 seconds = 60 seconds max wait
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [doctorProfiles, setDoctorProfiles] = useState<DoctorProfile[]>([]);
   const [selectedDoctorProfileId, setSelectedDoctorProfileId] = useState<string>('');
@@ -400,6 +413,19 @@ const ReportForm: React.FC<ReportFormProps> = ({
       ...prev,
       [field]: value,
     }));
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const handleCancel = () => {
+    setFieldErrors({});
+    setError('');
+    if (onCancel) onCancel();
   };
 
   const handleSave = async () => {
@@ -407,6 +433,21 @@ const ReportForm: React.FC<ReportFormProps> = ({
       setError('No file selected for report');
       return;
     }
+
+    const errors = collectErrors(
+      validateName(formData.patient_name, 'patient_name', 'Patient name', 255),
+      ...(formData.patient_age != null ? [validateInteger(String(formData.patient_age), 'patient_age', 'Patient age', 0, 150)] : []),
+      ...(formData.patient_gender ? [validateGender(formData.patient_gender, 'patient_gender')] : []),
+      ...(formData.ref_physician ? [validateMaxLength(formData.ref_physician, 'ref_physician', 'Referring physician', 255)] : []),
+      validateRequired(formData.factual_report, 'factual_report', 'Factual report'),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
+      return;
+    }
+    setFieldErrors({});
 
     setSaving(true);
     setError('');
@@ -444,8 +485,15 @@ const ReportForm: React.FC<ReportFormProps> = ({
         }
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Error saving report';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      const { fields, general } = extractApiErrors(err.response?.data?.detail, 'Error saving report');
+      if (fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        fields.forEach(e => { fieldErrMap[e.field] = e.message; });
+        setFieldErrors(prev => ({ ...prev, ...fieldErrMap }));
+      }
+      if (general) {
+        setError(general);
+      }
     } finally {
       setSaving(false);
     }
@@ -453,8 +501,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   const formContent = (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} />
       
       <Box sx={{ maxWidth: 800, mx: 'auto' }}>
         {/* Patient Information Section */}
@@ -464,37 +511,38 @@ const ReportForm: React.FC<ReportFormProps> = ({
               Patient Information
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <TextField
-                fullWidth
+              <FormTextField
                 label="Patient Name"
                 value={formData.patient_name}
                 onChange={handleChange('patient_name')}
                 required
-                variant="outlined"
+                fieldError={fieldErrors.patient_name}
               />
               
               <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
+                <FormTextField
                   label="Age"
                   type="number"
                   value={formData.patient_age || ''}
                   onChange={handleChange('patient_age')}
                   inputProps={{ min: 0, max: 150 }}
-                  variant="outlined"
                   sx={{ width: 120 }}
+                  fieldError={fieldErrors.patient_age}
                 />
                 
-                <FormControl sx={{ minWidth: 120 }}>
+                <FormControl sx={{ minWidth: 120 }} error={!!fieldErrors.patient_gender}>
                   <InputLabel>Gender</InputLabel>
                   <Select
                     value={formData.patient_gender || 'M'}
                     onChange={handleChange('patient_gender')}
                     label="Gender"
                   >
+                    <MenuItem value="">None</MenuItem>
                     <MenuItem value="M">Male</MenuItem>
                     <MenuItem value="F">Female</MenuItem>
                     <MenuItem value="Other">Other</MenuItem>
                   </Select>
+                  {fieldErrors.patient_gender && <FormHelperText error>{fieldErrors.patient_gender}</FormHelperText>}
                 </FormControl>
               </Box>
             </Box>
@@ -514,9 +562,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                   type="date"
                   value={new Date().toISOString().split('T')[0]}
                   onChange={(e) => {
-                    // Allow date editing - you can add validation here if needed
                     if (e.target.value) {
-                      // Date is editable now
                     }
                   }}
                   InputLabelProps={{ shrink: true }}
@@ -524,40 +570,34 @@ const ReportForm: React.FC<ReportFormProps> = ({
                   sx={{ minWidth: 200 }}
                 />
                 
-                <TextField
-                  fullWidth
+                <FormTextField
                   label="Ref Physician"
                   value={formData.ref_physician}
                   onChange={handleChange('ref_physician')}
-                  variant="outlined"
                   placeholder="Referring physician name"
+                  fieldError={fieldErrors.ref_physician}
                 />
               </Box>
               
-              <TextField
-                fullWidth
+              <FormTextField
                 label="Indications"
                 multiline
                 rows={4}
                 value={formData.indications}
                 onChange={handleChange('indications')}
                 placeholder="Clinical indications for the EEG study..."
-                variant="outlined"
               />
               
-              <TextField
-                fullWidth
+              <FormTextField
                 label="Technique"
                 multiline
                 rows={4}
                 value={formData.technique}
                 onChange={handleChange('technique')}
                 placeholder="EEG recording technique and parameters..."
-                variant="outlined"
               />
               
-              <TextField
-                fullWidth
+              <FormTextField
                 label="Factual Report"
                 multiline
                 rows={8}
@@ -565,18 +605,16 @@ const ReportForm: React.FC<ReportFormProps> = ({
                 onChange={handleChange('factual_report')}
                 placeholder="Detailed factual findings from the EEG analysis..."
                 required
-                variant="outlined"
+                fieldError={fieldErrors.factual_report}
               />
               
-              <TextField
-                fullWidth
+              <FormTextField
                 label="Impression"
                 multiline
                 rows={6}
                 value={formData.impression}
                 onChange={handleChange('impression')}
                 placeholder="Clinical impression and interpretation of findings..."
-                variant="outlined"
               />
             </Box>
           </CardContent>
@@ -706,7 +744,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   if (isDialog) {
     return (
-      <Dialog open={true} onClose={onCancel} maxWidth="md" fullWidth>
+      <Dialog open={true} onClose={handleCancel} maxWidth="md" fullWidth>
         <DialogTitle>
           {isEditing ? 'Edit EEG Report' : 'Create EEG Report'}
           {existingReport && (
@@ -722,7 +760,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
           {formContent}
         </DialogContent>
         <DialogActions>
-          <Button onClick={onCancel} disabled={saving}>
+          <Button onClick={handleCancel} disabled={saving}>
             Cancel
           </Button>
           <Button
@@ -757,7 +795,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
         
         <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
           {onCancel && (
-            <Button onClick={onCancel} disabled={saving}>
+            <Button onClick={handleCancel} disabled={saving}>
               Cancel
             </Button>
           )}

@@ -27,6 +27,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  FormHelperText,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -42,6 +43,14 @@ import {
   Email as EmailIcon,
 } from '@mui/icons-material';
 import { apiClient } from '../services/api';
+import {
+  validateName, validateRequired, validatePhone, validateEmail,
+  validateAge, validateDateOfBirth, validateGender, validateBloodType,
+  validateMaxLength,
+  collectErrors, extractApiErrors
+} from '../utils/validation';
+import FormAlert from '../components/FormAlert';
+import FormTextField from '../components/FormTextField';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData, EEGReport } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -83,6 +92,7 @@ const Patients: React.FC<{
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [openDialog, setOpenDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [patientFiles, setPatientFiles] = useState<Record<number, SignalFile[]>>({});
@@ -344,6 +354,9 @@ const Patients: React.FC<{
     setEditingPatient(null);
     setSelectedFile(null);
     setFileError('');
+    setError('');
+    setSuccess('');
+    setFieldErrors({});
     setOpenDialog(true);
   };
 
@@ -407,6 +420,9 @@ const Patients: React.FC<{
     setOpenDialog(true);
     setSelectedFile(null);
     setFileError('');
+    setError('');
+    setSuccess('');
+    setFieldErrors({});
   };
 
   const handleCloseDialog = () => {
@@ -414,6 +430,9 @@ const Patients: React.FC<{
     setEditingPatient(null);
     setSelectedFile(null);
     setFileError('');
+    setError('');
+    setSuccess('');
+    setFieldErrors({});
     setFormData({
       name: '',
       email: '',
@@ -435,36 +454,45 @@ const Patients: React.FC<{
     });
   };
 
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const handleSubmit = async () => {
-    if (!formData.name.trim()) {
-      setError('Name is required');
+    const errors = collectErrors(
+      validateName(formData.name, 'name', 'Full name', 255),
+      validatePhone(formData.phone),
+      validateRequired(formData.gender, 'gender', 'Gender'),
+      ...(formData.date_of_birth ? [validateDateOfBirth(formData.date_of_birth)] : []),
+      ...(formData.email ? [validateEmail(formData.email)] : []),
+      ...(formData.age != null ? [validateAge(String(formData.age))] : []),
+      ...(formData.emergency_contact_name ? [validateName(formData.emergency_contact_name, 'emergency_contact_name', 'Emergency contact name', 255)] : []),
+      ...(formData.emergency_contact_phone ? [validatePhone(formData.emergency_contact_phone, 'emergency_contact_phone')] : []),
+      ...(formData.blood_type ? [validateBloodType(formData.blood_type)] : []),
+      ...(formData.medical_id ? [validateMaxLength(formData.medical_id, 'medical_id', 'Medical ID', 100)] : []),
+      ...(formData.referred_by ? [validateMaxLength(formData.referred_by, 'referred_by', 'Referred by', 255)] : []),
+    );
+    if (errors.length > 0) {
+      const fieldErrMap: Record<string, string> = {};
+      errors.forEach(e => { fieldErrMap[e.field] = e.message; });
+      setFieldErrors(fieldErrMap);
       return;
     }
-    if (!formData.phone?.trim()) {
-      setError('Phone is required');
-      return;
-    }
-    if (!formData.gender) {
-      setError('Gender is required');
-      return;
-    }
+    setFieldErrors({});
+
     if (formData.date_of_birth) {
       const calculatedAge = calculateAge(formData.date_of_birth);
-      if (calculatedAge === undefined) {
-        setError('Date of birth cannot be in the future');
-        return;
-      }
-      if (formData.age !== calculatedAge) {
-        setError('Age must match the date of birth');
+      if (calculatedAge === undefined || formData.age !== calculatedAge) {
+        setFieldErrors({ age: 'Age must match the date of birth' });
         return;
       }
     }
     if (formData.age === undefined || Number.isNaN(Number(formData.age)) || Number(formData.age) < 0) {
-      setError('Age is required');
-      return;
-    }
-    if (formData.age !== undefined && formData.age > 130) {
-      setError('Age must be 130 or less');
+      setFieldErrors({ age: 'Age is required' });
       return;
     }
 
@@ -536,11 +564,15 @@ const Patients: React.FC<{
       handleCloseDialog();
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      const errorMessage = err && typeof err === 'object'
-        ? ((err as any).response?.data?.detail || (err as any).message)
-        : undefined;
-      setError(typeof errorMessage === 'string' ? errorMessage : 'Failed to save patient');
+    } catch (err: any) {
+      const responseData = err.response?.data;
+      const extracted = extractApiErrors(responseData?.errors ?? responseData?.detail);
+      if (extracted.fields.length > 0) {
+        const fieldErrMap: Record<string, string> = {};
+        extracted.fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });
+        setFieldErrors(fieldErrMap);
+      }
+      setError(extracted.general || 'Failed to save patient');
     } finally {
       setSubmitting(false);
     }
@@ -1567,11 +1599,7 @@ const Patients: React.FC<{
             <Alert severity="info">
               Date of birth is optional. If provided, age will sync to the calculated value.
             </Alert>
-            {error && (
-              <Alert severity="error" onClose={() => setError('')}>
-                {error}
-              </Alert>
-            )}
+            <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} />
             {(!editingPatient || allowDesktopCreate) && (
               <Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
@@ -1616,63 +1644,63 @@ const Patients: React.FC<{
               </Typography>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearFieldError('name'); }}
                     required
+                    fieldError={fieldErrors.name}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); clearFieldError('phone'); }}
                     required
+                    fieldError={fieldErrors.phone}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Age"
                     type="number"
                     value={formData.age ?? ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        age: e.target.value === '' ? undefined : Number(e.target.value),
-                      })
-                    }
+                    onChange={(e) => {
+                      setFormData({ ...formData, age: e.target.value === '' ? undefined : Number(e.target.value) });
+                      clearFieldError('age');
+                    }}
                     required
                     inputProps={{ min: 0, max: 130 }}
                     disabled={Boolean(formData.date_of_birth)}
+                    fieldError={fieldErrors.age}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Gender</InputLabel>
+                  <FormControl fullWidth required error={!!fieldErrors.gender}>
+                    <InputLabel id="gender-label">Gender</InputLabel>
                     <Select
+                      labelId="gender-label"
                       value={formData.gender}
-                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'Other' })}
+                      onChange={(e) => { setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'Other' }); clearFieldError('gender'); }}
                       label="Gender"
                     >
                       <MenuItem value="M">Male</MenuItem>
                       <MenuItem value="F">Female</MenuItem>
                       <MenuItem value="Other">Other</MenuItem>
                     </Select>
+                    {fieldErrors.gender && <FormHelperText error>{fieldErrors.gender}</FormHelperText>}
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Date of Birth"
                     type="date"
                     value={formData.date_of_birth}
-                    onChange={(e) => handleDateOfBirthChange(e.target.value)}
+                    onChange={(e) => { handleDateOfBirthChange(e.target.value); clearFieldError('date_of_birth'); clearFieldError('age'); }}
                     InputLabelProps={{ shrink: true }}
                     inputProps={{ max: maxBirthDate }}
+                    fieldError={fieldErrors.date_of_birth}
                   />
                 </Grid>
               </Grid>
@@ -1686,37 +1714,38 @@ const Patients: React.FC<{
               </Typography>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, email: e.target.value }); clearFieldError('email'); }}
+                    fieldError={fieldErrors.email}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Medical ID"
                     value={formData.medical_id}
-                    onChange={(e) => setFormData({ ...formData, medical_id: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, medical_id: e.target.value }); clearFieldError('medical_id'); }}
+                    fieldError={fieldErrors.medical_id}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Address"
                     multiline
                     rows={2}
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, address: e.target.value }); clearFieldError('address'); }}
+                    fieldError={fieldErrors.address}
                   />
                 </Grid>
                 {user?.user_type === 'technician' && (
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <FormControl fullWidth>
-                      <InputLabel>Assign Doctor</InputLabel>
+                    <FormControl fullWidth error={!!fieldErrors.doctor_id}>
+                      <InputLabel id="doctor-label">Assign Doctor</InputLabel>
                       <Select
+                        labelId="doctor-label"
                         value={formData.doctor_id ?? ''}
                         onChange={(e) => {
                           const value = e.target.value;
@@ -1724,6 +1753,7 @@ const Patients: React.FC<{
                             ...formData,
                             doctor_id: typeof value === 'string' && value === '' ? undefined : Number(value),
                           });
+                          clearFieldError('doctor_id');
                         }}
                         label="Assign Doctor"
                         disabled={loadingDoctors}
@@ -1741,15 +1771,16 @@ const Patients: React.FC<{
                           </MenuItem>
                         ))}
                       </Select>
+                      {fieldErrors.doctor_id && <FormHelperText error>{fieldErrors.doctor_id}</FormHelperText>}
                     </FormControl>
                   </Grid>
                 )}
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Referred By"
                     value={formData.referred_by || ''}
-                    onChange={(e) => setFormData({ ...formData, referred_by: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, referred_by: e.target.value }); clearFieldError('referred_by'); }}
+                    fieldError={fieldErrors.referred_by}
                   />
                 </Grid>
               </Grid>
@@ -1764,27 +1795,28 @@ const Patients: React.FC<{
               </Typography>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Emergency Contact Name"
                     value={formData.emergency_contact_name}
-                    onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, emergency_contact_name: e.target.value }); clearFieldError('emergency_contact_name'); }}
+                    fieldError={fieldErrors.emergency_contact_name}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Emergency Contact Phone"
                     value={formData.emergency_contact_phone}
-                    onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, emergency_contact_phone: e.target.value }); clearFieldError('emergency_contact_phone'); }}
+                    fieldError={fieldErrors.emergency_contact_phone}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Blood Type</InputLabel>
+                  <FormControl fullWidth error={!!fieldErrors.blood_type}>
+                    <InputLabel id="blood-type-label">Blood Type</InputLabel>
                     <Select
+                      labelId="blood-type-label"
                       value={formData.blood_type || 'A+'}
-                      onChange={(e) => setFormData({ ...formData, blood_type: e.target.value as any })}
+                      onChange={(e) => { setFormData({ ...formData, blood_type: e.target.value as any }); clearFieldError('blood_type'); }}
                       label="Blood Type"
                     >
                       <MenuItem value="A+">A+</MenuItem>
@@ -1796,46 +1828,47 @@ const Patients: React.FC<{
                       <MenuItem value="O+">O+</MenuItem>
                       <MenuItem value="O-">O-</MenuItem>
                     </Select>
+                    {fieldErrors.blood_type && <FormHelperText error>{fieldErrors.blood_type}</FormHelperText>}
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, md: 8 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Allergies"
                     multiline
                     rows={2}
                     value={formData.allergies}
-                    onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, allergies: e.target.value }); clearFieldError('allergies'); }}
+                    fieldError={fieldErrors.allergies}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Medical Conditions"
                     multiline
                     rows={2}
                     value={formData.medical_conditions}
-                    onChange={(e) => setFormData({ ...formData, medical_conditions: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, medical_conditions: e.target.value }); clearFieldError('medical_conditions'); }}
+                    fieldError={fieldErrors.medical_conditions}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Current Medications"
                     multiline
                     rows={2}
                     value={formData.current_medications}
-                    onChange={(e) => setFormData({ ...formData, current_medications: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, current_medications: e.target.value }); clearFieldError('current_medications'); }}
+                    fieldError={fieldErrors.current_medications}
                   />
                 </Grid>
                 <Grid size={{ xs: 12 }}>
-                  <TextField
-                    fullWidth
+                  <FormTextField
                     label="Notes"
                     multiline
                     rows={3}
                     value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); clearFieldError('notes'); }}
+                    fieldError={fieldErrors.notes}
                   />
                 </Grid>
               </Grid>
