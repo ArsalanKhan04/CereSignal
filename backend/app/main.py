@@ -115,7 +115,8 @@ def _friendly_msg(error: dict) -> str:
     if etype == "value_error":
         if "email" in str(field).lower() or "not a valid email" in str(msg).lower():
             return "Please enter a valid email address."
-        return type_messages.get(etype, msg)
+
+    return type_messages.get(etype, msg)
 
 
 @asynccontextmanager
