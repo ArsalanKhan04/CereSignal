@@ -1,0 +1,39 @@
+name: Reset Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm dropping ALL data'
+        required: true
+        type: string
+
+jobs:
+  reset:
+    name: Drop, recreate & seed Supabase
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Confirm reset
+        if: inputs.confirm != 'yes'
+        run: |
+          echo "You must type 'yes' to confirm the database reset."
+          exit 1
+
+      - name: Drop all tables, recreate schema & ensure superuser
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPERUSER_USERNAME: admin
+          SUPERUSER_PASSWORD: ceresignal123
+        run: python migrate.py --reset
