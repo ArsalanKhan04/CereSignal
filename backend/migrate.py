@@ -1,30 +1,11 @@
 """
 Database migration script.
-Drops all tables, recreates the schema, and ensures the dev superuser
-exists. Safe to run repeatedly — everything is rebuilt from scratch.
+Creates any missing tables and ensures the dev superuser exists.
+Safe to run repeatedly — idempotent (preserves existing data).
 """
 
 from app.core.database import engine, Base, SessionLocal
 from app.models import *  # noqa: F401,F403 — register all models
-from sqlalchemy import text
-
-# Drop order: dependent tables first so FK constraints don't block the DROP.
-# PostgreSQL uses CASCADE; SQLite requires ordered drops.
-TABLES = [
-    "eeg_report_versions",
-    "eeg_bookmarks",
-    "eeg_reports",
-    "processing_results",
-    "signals",
-    "signal_files",
-    "notifications",
-    "user_sessions",
-    "contact_submissions",
-    "staff_invitations",
-    "users",
-    "auth_users",
-    "hospitals",
-]
 
 
 def _ensure_superuser():
@@ -71,25 +52,11 @@ def _ensure_superuser():
 
 
 def run():
-    # 1. Drop all tables
-    with engine.connect() as conn:
-        is_postgres = "postgresql" in str(engine.url)
-        for table in TABLES:
-            if is_postgres:
-                conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
-            else:
-                try:
-                    conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
-                except Exception as e:
-                    print(f"  WARN {table}: {e}")
-        conn.commit()
-        print("All tables dropped.")
-
-    # 2. Recreate tables
+    # Create tables that don't exist yet (idempotent — skips existing ones)
     Base.metadata.create_all(bind=engine)
-    print("Tables recreated.")
+    print("Tables ensured.")
 
-    # 3. Ensure dev superuser
+    # Ensure dev superuser
     _ensure_superuser()
 
 

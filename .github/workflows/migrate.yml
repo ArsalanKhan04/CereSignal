@@ -21,9 +21,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # migrate.py drops all tables, recreates the schema, seeds demo data,
-      # and ensures the dev superuser exists — all in one idempotent run.
-      - name: Drop, recreate, seed & ensure superuser
+      # migrate.py creates missing tables and ensures the dev superuser exists.
+      # Existing data is preserved (no drop).
+      - name: Create missing tables & ensure superuser
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPERUSER_USERNAME: admin
