@@ -51,6 +51,11 @@ class EEGCacheService:
 
             return meta
 
+    def evict(self, file_id: int) -> None:
+        """Remove a cached file so the next load_file call re-reads from storage."""
+        with self._lock:
+            self._cache.pop(file_id, None)
+
     def get_segment(
         self,
         file_id: int,

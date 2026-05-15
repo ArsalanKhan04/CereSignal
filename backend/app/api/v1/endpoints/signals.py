@@ -1029,6 +1029,11 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                     # Store focus points if available
                     if "focus_points" in result and result["focus_points"]:
                         file.focus_points = result["focus_points"]
+
+                    # Switch to processed EDF for viewing if conversion succeeded
+                    if result.get("processed_file_path"):
+                        file.file_path = result["processed_file_path"]
+                        eeg_cache.evict(file_id)
                 else:
                     file.condition = "failed"
             else:  # failed

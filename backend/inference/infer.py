@@ -362,6 +362,8 @@ def infer(self, mne_file_path):
     from app.services.storage_service import storage_service, SIGNALS_BUCKET
     start_time = time.time()
 
+    processed_path = None
+
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         import tempfile
         from external.edf_preprocess import process_edf
@@ -371,6 +373,14 @@ def infer(self, mne_file_path):
         tmp_processed.close()
         try:
             process_edf(local_path, tmp_processed.name)
+
+            base_name = os.path.splitext(os.path.basename(mne_file_path))[0]
+            processed_name = f"{base_name}_processed.edf"
+            processed_path = f"signals/{processed_name}"
+            with open(tmp_processed.name, "rb") as pf:
+                storage_service.upload(SIGNALS_BUCKET, processed_path, pf.read())
+            print(f"Inference: uploaded processed EDF to {processed_path}")
+
             mne_data = mne.io.read_raw_edf(tmp_processed.name, preload=True)
             print("Inference: EDF conversion succeeded")
         except Exception as e:
@@ -423,6 +433,7 @@ def infer(self, mne_file_path):
         "inference_time": end_time - start_time,
         "topomap_path": out_path,
         "report_task_id": report_task.id,
+        "processed_file_path": processed_path,
     }
 
 
