@@ -363,7 +363,24 @@ def infer(self, mne_file_path):
     start_time = time.time()
 
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
-        mne_data = mne.io.read_raw_edf(local_path, preload=True)
+        import tempfile
+        from external.edf_preprocess import process_edf
+
+        print("Inference: running EDF preprocessing conversion...")
+        tmp_processed = tempfile.NamedTemporaryFile(suffix="_processed.edf", delete=False)
+        tmp_processed.close()
+        try:
+            process_edf(local_path, tmp_processed.name)
+            mne_data = mne.io.read_raw_edf(tmp_processed.name, preload=True)
+            print("Inference: EDF conversion succeeded")
+        except Exception as e:
+            print(f"Inference: EDF conversion failed ({e}), falling back to raw file")
+            mne_data = mne.io.read_raw_edf(local_path, preload=True)
+        finally:
+            try:
+                os.unlink(tmp_processed.name)
+            except OSError:
+                pass
 
         condition, ab_prob = _process_neurogate(mne_data)
         print(f"Inference: neurogate done — condition={condition}, ab_prob={ab_prob:.3f}")
