@@ -1007,6 +1007,30 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
         if task_status["status"] in ["completed", "failed"]:
             if task_status["status"] == "completed":
                 result = task_status.get("result", {})
+
+                if isinstance(result, dict) and result.get("stage") == "preprocessed":
+                    # EDF conversion finished — swap file path and chain to infer
+                    if result.get("processed_file_path"):
+                        file.file_path = result["processed_file_path"]
+                        eeg_cache.evict(file_id)
+
+                    inference_id = result.get("inference_task_id")
+                    report_id = result.get("report_task_id")
+                    if inference_id:
+                        file.task_id = inference_id
+                    if report_id and not file.report_task_id:
+                        file.report_task_id = report_id
+                    db.commit()
+
+                    return {
+                        "file_id": file_id,
+                        "condition": file.condition,
+                        "inference_status": "processing",
+                        "message": "EDF converted, inference in progress",
+                        "task_id": file.task_id,
+                        "report_task_id": file.report_task_id,
+                    }
+
                 report_task_id = result.get("report_task_id")
 
                 # Store the report task ID for later polling
@@ -1029,11 +1053,6 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                     # Store focus points if available
                     if "focus_points" in result and result["focus_points"]:
                         file.focus_points = result["focus_points"]
-
-                    # Switch to processed EDF for viewing if conversion succeeded
-                    if result.get("processed_file_path"):
-                        file.file_path = result["processed_file_path"]
-                        eeg_cache.evict(file_id)
                 else:
                     file.condition = "failed"
             else:  # failed

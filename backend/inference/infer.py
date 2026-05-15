@@ -357,20 +357,19 @@ def _generate_report(ab_prob, region_report, pdr_text):
     return factual_report, impression
 
 
-@app.task(name="infer", bind=True)
-def infer(self, mne_file_path):
+@app.task(name="preprocess_edf")
+def preprocess_edf(mne_file_path):
     from app.services.storage_service import storage_service, SIGNALS_BUCKET
     start_time = time.time()
 
-    processed_path = None
-
+    print("Preprocess: starting EDF conversion...")
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         import tempfile
         from external.edf_preprocess import process_edf
 
-        print("Inference: running EDF preprocessing conversion...")
         tmp_processed = tempfile.NamedTemporaryFile(suffix="_processed.edf", delete=False)
         tmp_processed.close()
+        processed_path = None
         try:
             process_edf(local_path, tmp_processed.name)
 
@@ -379,13 +378,36 @@ def infer(self, mne_file_path):
             processed_path = f"signals/{processed_name}"
             with open(tmp_processed.name, "rb") as pf:
                 storage_service.upload(SIGNALS_BUCKET, processed_path, pf.read())
-            print(f"Inference: uploaded processed EDF to {processed_path}")
+            print(f"Preprocess: uploaded processed EDF to {processed_path}")
 
-            mne_data = mne.io.read_raw_edf(tmp_processed.name, preload=True)
-            print("Inference: EDF conversion succeeded")
+            inference_task = infer.delay(processed_path)
         except Exception as e:
-            print(f"Inference: EDF conversion failed ({e}), falling back to raw file")
-            mne_data = mne.io.read_raw_edf(local_path, preload=True)
+            print(f"Preprocess: EDF conversion failed ({e}), chaining with raw file")
+            processed_path = None
+            inference_task = infer.delay(mne_file_path)
+        finally:
+            try:
+                os.unlink(tmp_processed.name)
+            except OSError:
+                pass
+
+    end_time = time.time()
+    print(f"Preprocess: finished in {end_time - start_time:.1f}s, chained infer={inference_task.id}")
+
+    return {
+        "stage": "preprocessed",
+        "processed_file_path": processed_path,
+        "inference_task_id": inference_task.id,
+    }
+
+
+@app.task(name="infer", bind=True)
+def infer(self, mne_file_path):
+    from app.services.storage_service import storage_service, SIGNALS_BUCKET
+    start_time = time.time()
+
+    with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
+        mne_data = mne.io.read_raw_edf(local_path, preload=True)
 
         condition, ab_prob = _process_neurogate(mne_data)
         print(f"Inference: neurogate done — condition={condition}, ab_prob={ab_prob:.3f}")
@@ -395,14 +417,8 @@ def infer(self, mne_file_path):
         print(f"Inference: computed {len(focus_points)} focus point(s)")
         pdr_text = _compute_pdr(mne_data)
         print(f"Inference: PDR computed ({pdr_text})")
-
-        try:
-            os.unlink(tmp_processed.name)
-        except OSError:
-            pass
     region_report = _get_region_report(raw_events, 0)
     print(f"Inference: region report done — {len(region_report)} regions")
-    # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
 
     # Attempt to generate a topomap image for this inference
     try:
@@ -421,7 +437,6 @@ def infer(self, mne_file_path):
 
     report_task = generate_report.delay(float(ab_prob), region_report, pdr_text)
     print(f"Inference: report task queued ({report_task.id})")
-    ## Now doing processing steps for neurotransformer
 
     end_time = time.time()
     print(f"Inference: finished in {end_time - start_time:.1f}s")
@@ -433,7 +448,6 @@ def infer(self, mne_file_path):
         "inference_time": end_time - start_time,
         "topomap_path": out_path,
         "report_task_id": report_task.id,
-        "processed_file_path": processed_path,
     }
 
 

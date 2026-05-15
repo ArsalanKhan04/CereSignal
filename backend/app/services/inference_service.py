@@ -37,11 +37,11 @@ class InferenceService:
             task_id: Celery task ID
         """
         try:
-            # Import the inference task from the inference module
-            from inference.infer import infer
+            # Import the preprocessing task from the inference module
+            from inference.infer import preprocess_edf
             
-            # Queue the inference task
-            task = infer.delay(file_path)
+            # Queue the EDF preprocessing task (chains to infer after conversion)
+            task = preprocess_edf.delay(file_path)
             
             return task.id
         except Exception as e:
