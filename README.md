@@ -1,6 +1,6 @@
 # CereSignal API
 
-A FastAPI-based backend for brain signal processing and analysis.
+A FastAPI-based backend for brain signal processing and analysis. :)
 
 ## Features
 
