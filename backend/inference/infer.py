@@ -376,11 +376,6 @@ def infer(self, mne_file_path):
         except Exception as e:
             print(f"Inference: EDF conversion failed ({e}), falling back to raw file")
             mne_data = mne.io.read_raw_edf(local_path, preload=True)
-        finally:
-            try:
-                os.unlink(tmp_processed.name)
-            except OSError:
-                pass
 
         condition, ab_prob = _process_neurogate(mne_data)
         print(f"Inference: neurogate done — condition={condition}, ab_prob={ab_prob:.3f}")
@@ -390,6 +385,11 @@ def infer(self, mne_file_path):
         print(f"Inference: computed {len(focus_points)} focus point(s)")
         pdr_text = _compute_pdr(mne_data)
         print(f"Inference: PDR computed ({pdr_text})")
+
+        try:
+            os.unlink(tmp_processed.name)
+        except OSError:
+            pass
     region_report = _get_region_report(raw_events, 0)
     print(f"Inference: region report done — {len(region_report)} regions")
     # factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
