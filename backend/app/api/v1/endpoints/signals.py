@@ -198,6 +198,57 @@ async def upload_signal_file(
         # Extract the actual saved filename from the path
         saved_filename = os.path.basename(file_path)
 
+        # --- EDF MATLAB preprocessing conversion ---
+        if file_extension == ".edf":
+            try:
+                from external.edf_preprocess import process_edf
+                import tempfile
+
+                logger.info(
+                    "Starting EDF conversion via MATLAB preprocessing script",
+                    extra={"original_path": file_path, "filename": saved_filename},
+                )
+
+                with storage_service.temp_local_file(
+                    SIGNALS_BUCKET, file_path, suffix=".edf"
+                ) as local_input:
+                    tmp_out = tempfile.NamedTemporaryFile(
+                        suffix="_processed.edf", delete=False
+                    )
+                    tmp_out.close()
+                    try:
+                        process_edf(local_input, tmp_out.name)
+
+                        processed_name = (
+                            os.path.splitext(saved_filename)[0] + "_processed.edf"
+                        )
+                        processed_path = f"signals/{processed_name}"
+                        with open(tmp_out.name, "rb") as pf:
+                            storage_service.upload(
+                                SIGNALS_BUCKET, processed_path, pf.read()
+                            )
+
+                        file_path = processed_path
+                        matlab_applied = True
+
+                        logger.info(
+                            "EDF conversion completed successfully",
+                            extra={
+                                "converted_path": processed_path,
+                                "original_filename": saved_filename,
+                            },
+                        )
+                    finally:
+                        try:
+                            os.unlink(tmp_out.name)
+                        except OSError:
+                            pass
+            except Exception as e:
+                logger.warning(
+                    "EDF conversion failed, falling back to raw file for inference",
+                    extra={"file_path": file_path, "error": str(e)},
+                )
+
         # Create database record
         db_file = SignalFile(
             user_id=user.id,
