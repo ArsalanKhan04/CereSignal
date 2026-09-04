@@ -46,11 +46,6 @@ CereSignal/
 │       ├── __init__.py
 │       ├── file_processing.py    # File handling utilities
 │       └── signal_processing.py  # Signal processing utilities
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py            # Test configuration
-│   ├── test_main.py           # Main app tests
-│   └── test_signals.py        # Signal endpoint tests
 ├── requirements.txt           # Python dependencies
 ├── .env.example              # Environment variables template
 ├── .gitignore               # Git ignore rules
@@ -59,28 +54,32 @@ CereSignal/
 
 ## Installation
 
-1. **Activate your environment**:
-   ```bash
-   pyenv activate cere_env
-   ```
+From the repository root:
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+./scripts/setup.sh
+```
 
-3. **Set up environment variables**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+This creates the `backend/cere_env` virtualenv, installs dependencies, writes
+`backend/.env` from the example and generates a `SECRET_KEY`. It is safe to
+re-run.
 
-4. **Run the application**:
-   ```bash
-   python -m app.main
-   # or
-   uvicorn app.main:app --reload
-   ```
+Then start the backend (it migrates the schema and seeds demo data first):
+
+```bash
+./scripts/start-backend.sh
+```
+
+The full four-component setup — Redis, backend, Celery worker and frontend —
+is documented in [HOWTORUN.md](HOWTORUN.md).
+
+To run things by hand, use the virtualenv's binaries directly; there is no
+`cere_env` pyenv virtualenv:
+
+```bash
+cd backend
+./cere_env/bin/uvicorn app.main:app --reload
+```
 
 ## API Documentation
 
@@ -140,23 +139,27 @@ Once the server is running, you can access:
 
 ## Development
 
-### Running Tests
+### Database
+
+No Alembic — `backend/migrate.py` is the whole migration system.
 
 ```bash
-pytest
+cd backend
+./cere_env/bin/python migrate.py            # create missing tables
+./cere_env/bin/python migrate.py --reset    # DESTRUCTIVE: drop and recreate
+./cere_env/bin/python -m scripts.seed_demo  # demo data (idempotent)
 ```
 
-### Code Formatting
+Or `./scripts/start-backend.sh --fresh` to reset, re-seed and serve in one step.
 
-```bash
-black app/ tests/
-```
+### Tests and linting
 
-### Type Checking
+There is currently **no backend test suite and no linter configuration** — no
+`tests/` directory, and no pytest/black/mypy in any requirements file. Earlier
+versions of this README documented `pytest`, `black app/ tests/` and `mypy app/`;
+none of those work today.
 
-```bash
-mypy app/
-```
+The frontend has tests: `npm --prefix frontend test`.
 
 ## Configuration
 

@@ -1,6 +1,6 @@
 # How to Run CereSignal in Development Mode
 
-CereSignal requires **4 components** running simultaneously:
+CereSignal runs as **4 components**:
 
 | Component | Purpose | Port |
 |-----------|---------|------|
@@ -11,62 +11,65 @@ CereSignal requires **4 components** running simultaneously:
 
 ## Prerequisites
 
-- Python 3.11+ with `cere_env` pyenv environment
+- Python 3.11
 - Node.js and npm
-- Docker (for Redis) or Redis installed locally
+- Docker (for Redis) — or a local `redis-server` on 6379
+
+## First-time setup
+
+```bash
+./scripts/setup.sh
+```
+
+Creates the `backend/cere_env` virtualenv, installs backend and frontend
+dependencies, creates `backend/.env` from the example, and generates a random
+`SECRET_KEY`. It is safe to re-run — every step is skipped if already done.
 
 ## Quick Start
 
-Open **4 separate terminal windows** and run the following commands:
-
-### Terminal 1: Redis
-
-Using Docker (recommended):
-```bash
-docker run -d --name redis_dev -p 6379:6379 redis:7-alpine
-```
-
-Or if Redis is installed locally:
-```bash
-redis-server
-```
-
-### Terminal 2: FastAPI Backend
+Four terminals, one command each:
 
 ```bash
-cd backend
-pyenv activate cere_env
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Terminal 1 — Redis
+./scripts/start-redis.sh
+
+# Terminal 2 — Backend (prepares the DB, seeds demo data, then serves)
+./scripts/start-backend.sh
+
+# Terminal 3 — Celery worker
+./scripts/start-worker.sh
+
+# Terminal 4 — Frontend
+npm --prefix frontend run dev
 ```
 
-### Terminal 3: Celery Worker
+Log in with the seeded demo account: **`admin_nl`** / **`Demo@2025!`**
+
+### Starting over
 
 ```bash
-cd backend
-pyenv activate cere_env
-celery -A inference.infer worker -l info
+./scripts/start-backend.sh --fresh
 ```
 
-### Terminal 4: React Frontend
+Drops every table, deletes uploaded files, generated plots and logs, then
+recreates and re-seeds. It asks for typed confirmation first; add `--yes` to
+skip the prompt in a script.
 
-```bash
-cd frontend
-npm start
-```
+Without `--fresh` the backend continues from the last run: missing tables are
+created, existing rows are left alone, and seeding is a no-op if the demo data
+is already there.
 
 ## Verification
 
-Once all components are running, verify with:
-
 ```bash
 # Redis
-docker ps | grep redis
+docker exec redis_dev redis-cli ping                 # expect PONG
 
 # Backend API
 curl http://localhost:8000/api/v1/docs
 
-# Celery Worker
-celery -A inference.infer inspect ping
+# Celery worker
+cd backend && ./cere_env/bin/celery -A inference.infer inspect ping
 
 # Frontend
 curl http://localhost:3000
@@ -81,58 +84,95 @@ curl http://localhost:3000
 ## Stopping the Application
 
 ```bash
-# Stop Redis container
-docker stop redis_dev && docker rm redis_dev
-
-# Stop Celery worker (Ctrl+C in terminal or)
-pkill -f "celery.*worker"
-
-# Stop Backend and Frontend with Ctrl+C in their respective terminals
+./scripts/stop.sh
 ```
+
+Stops the backend, the Celery worker (waiting out Celery's warm shutdown), and
+the Redis container. The frontend dev server is not managed by the script —
+Ctrl-C it in its own terminal.
+
+## Running commands by hand
+
+The scripts call the virtualenv's binaries directly, which needs no activation.
+To run something yourself:
+
+```bash
+cd backend
+./cere_env/bin/python migrate.py            # create missing tables
+./cere_env/bin/python migrate.py --reset    # DESTRUCTIVE: drop and recreate
+./cere_env/bin/python -m scripts.seed_demo  # demo data (idempotent)
+```
+
+To get an activated shell instead:
+
+```bash
+source backend/cere_env/bin/activate
+```
+
+> **Note:** older versions of these docs said `pyenv activate cere_env`. There is
+> no such pyenv virtualenv — the environment lives at `backend/cere_env/`.
+
+**The backend and worker must run with `backend/` as the working directory.**
+`inference/infer.py` resolves the model weights relative to the current
+directory, and `DATABASE_URL` is `sqlite:///./cere_signal.db`. Run either from
+somewhere else and you get missing weights or a second, empty database. The
+scripts handle this for you.
 
 ## Troubleshooting
 
 ### Port already in use
 
-Check what's using the port:
 ```bash
-lsof -i :8000  # Backend
-lsof -i :3000  # Frontend
-lsof -i :6379  # Redis
+lsof -i :8000   # Backend
+lsof -i :3000   # Frontend
+lsof -i :6379   # Redis
 ```
 
-Kill the process if needed:
-```bash
-kill -9 <PID>
-```
+Then `kill <PID>`, or just run `./scripts/stop.sh`.
 
 ### Celery worker not connecting
 
-Ensure Redis is running first:
+Redis must be running first — `./scripts/start-redis.sh` waits for it to accept
+connections before returning, so start it before the worker.
+
 ```bash
-docker ps | grep redis
+docker ps | grep redis_dev
+cd backend && ./cere_env/bin/celery -A inference.infer inspect ping
 ```
 
-Check Celery can connect:
+### Frontend out of memory
+
+The production build and dev server both run with a raised Node heap
+(`--max-old-space-size=6144`, set in `frontend/package.json`). If you invoke
+`react-scripts` directly you will hit the 2 GB default and see
+`JavaScript heap out of memory`. Use the npm scripts.
+
+### Reports come out blank
+
+Report drafting calls OpenAI. Without `OPENAI_API_KEY` in `backend/.env`,
+inference still completes and the report text is simply left empty for manual
+entry.
+
+## Frontend commands
+
+Run from the repo root:
+
 ```bash
-cd backend
-pyenv activate cere_env
-celery -A inference.infer inspect ping
+npm --prefix frontend run dev            # dev server with hot reload
+npm --prefix frontend run build          # production build
+npm --prefix frontend start              # serve the built output on :3000
+npm --prefix frontend test               # tests
 ```
 
-### Frontend compilation errors
-
-If npm packages are missing:
-```bash
-cd frontend
-npm install
-```
+Each has a `:desktop` variant (`dev:desktop`, `build:desktop`, `start:desktop`)
+that sets `REACT_APP_DESKTOP=true`.
 
 ## Alternative: Docker Compose
 
-To run everything with Docker Compose:
 ```bash
 docker-compose up
 ```
 
-Note: This is better for production-like environments but slower for development due to reduced hot-reload capabilities.
+> **Known issue:** the `frontend` service's build context points at
+> `./frontend-r`, which does not exist in this repo. Compose will fail until
+> that is corrected to `./frontend`.

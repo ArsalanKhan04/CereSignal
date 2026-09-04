@@ -4,46 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CereSignal is a full-stack medical EEG analysis platform. It processes EDF files through two pre-trained PyTorch models (NeuroGate + NeuroTransformer) and generates clinical reports via a local Ollama LLM. The app runs as both a web app (Docker) and a Windows desktop app (Electron + PyInstaller).
+CereSignal is a full-stack medical EEG analysis platform. It processes EDF files through two pre-trained PyTorch models (NeuroGate + NeuroTransformer) and drafts clinical reports with the OpenAI API. The app runs as both a web app (Docker) and a Windows desktop app (Electron + PyInstaller).
 
 ## Development Setup
 
-Four components must run simultaneously:
+One-time: `./scripts/setup.sh` (creates `backend/cere_env`, installs deps, writes `backend/.env`). Idempotent.
+
+Four components must run simultaneously, one per terminal:
 
 ```bash
-# Terminal 1 — Redis (message broker)
-docker run -d --name redis_dev -p 6379:6379 redis:7-alpine
-
-# Terminal 2 — FastAPI backend
-cd backend && pyenv activate cere_env
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Terminal 3 — Celery worker (ML inference)
-cd backend && pyenv activate cere_env
-celery -A inference.infer worker -l info
-
-# Terminal 4 — React frontend
-cd frontend && npm start
+./scripts/start-redis.sh         # Redis broker
+./scripts/start-backend.sh       # migrates + seeds demo data, then uvicorn on :8000
+./scripts/start-worker.sh        # Celery worker (ML inference)
+npm --prefix frontend run dev    # React frontend on :3000
 ```
 
-Or use Docker Compose: `docker-compose up`
+`./scripts/stop.sh` stops all three backend components. `./scripts/start-backend.sh --fresh` drops every table, clears uploaded files/plots/logs, and re-seeds (typed confirmation; `--yes` to skip).
+
+Seeded demo login: `admin_nl` / `Demo@2025!`
+
+There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere_env/`, and the scripts call its binaries directly rather than activating anything. The backend and worker must run with `backend/` as cwd: `inference/infer.py` resolves model weights relative to the current directory and `DATABASE_URL` is cwd-relative.
+
+Docker Compose (`docker-compose up`) is currently broken — the `frontend` service's build context points at a nonexistent `./frontend-r`.
 
 Access points: Frontend → `localhost:3000`, API → `localhost:8000`, Docs → `localhost:8000/api/v1/docs`
 
 ## Common Commands
 
 ```bash
-# Backend tests
-cd backend && pytest
+# Frontend (from repo root)
+npm --prefix frontend run dev            # dev server
+npm --prefix frontend run build          # web production build
+npm --prefix frontend run build:desktop  # Electron desktop build
+npm --prefix frontend test
 
-# Frontend
-cd frontend && npm test
-cd frontend && npm run build          # Web production build
-cd frontend && npm run build:desktop  # Electron desktop build (Windows)
+# Database (from backend/)
+./cere_env/bin/python migrate.py            # create missing tables
+./cere_env/bin/python migrate.py --reset    # DESTRUCTIVE: drop and recreate
+./cere_env/bin/python -m scripts.seed_demo  # demo data, idempotent
 
-# Verify Celery worker is alive
-celery -A inference.infer inspect ping
+# Verify Celery worker is alive (from backend/)
+./cere_env/bin/celery -A inference.infer inspect ping
 ```
+
+The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `react-scripts` directly hits Node's 2 GB default and runs out of heap.
+
+**There are no backend tests or linters.** No `tests/` directory, no pytest/black/mypy in any requirements file. Do not suggest `pytest`, `black` or `mypy` commands for the backend until that changes.
 
 ## Architecture
 
@@ -54,7 +60,7 @@ celery -A inference.infer inspect ping
 4. Celery worker (`backend/inference/infer.py`) runs two models in parallel:
    - **NeuroGate** — 21-channel binary classifier (Normal/Abnormal + probability)
    - **NeuroTransformer** — per-channel 3-class classifier (normal/spike/slow wave)
-5. Worker computes PDR, generates topomap image, then queues an Ollama (`qwen3:8b`) task for clinical report text
+5. Worker computes PDR, generates topomap image, then queues an OpenAI task (`OPENAI_MODEL`, default `gpt-4o-mini`) for clinical report text. Without `OPENAI_API_KEY` set, inference still completes and the report text is left blank.
 6. Results saved to SQLite; frontend polls and displays EEG visualization + report
 
 ### Authentication
@@ -70,6 +76,9 @@ celery -A inference.infer inspect ping
 
 | Path | Purpose |
 |------|---------|
+| `scripts/` | Dev workflow — `setup.sh`, `start-redis.sh`, `start-backend.sh`, `start-worker.sh`, `stop.sh` |
+| `backend/migrate.py` | Schema creation and `--reset`. No Alembic — this is the whole migration system |
+| `backend/scripts/seed_demo.py` | Demo/test data seeder, idempotent |
 | `backend/app/main.py` | FastAPI app, router registration, CORS config |
 | `backend/app/models/` | SQLAlchemy ORM models |
 | `backend/app/routers/` | Route handlers (auth, users, signals, processing, reports) |
@@ -93,5 +102,5 @@ Copy `.env.example` to `.env` in `backend/`. Key variables:
 
 - **Frontend:** React 19 + TypeScript, MUI v7, React Router v7, Plotly.js, Recharts
 - **Backend:** FastAPI, SQLAlchemy + SQLite, Celery, PyJWT
-- **ML:** PyTorch, MNE-Python, Ollama (`qwen3:8b`)
+- **ML:** PyTorch, MNE-Python, OpenAI API (`gpt-4o-mini` by default)
 - **Desktop:** Electron 28, PyInstaller, electron-builder (NSIS installer)
