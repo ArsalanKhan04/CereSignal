@@ -41,10 +41,10 @@ services:
       - backend
 
 
-  # 4. React Frontend Service (Development Mode) - REVISED
+  # 4. React Frontend Service (Development Mode)
   frontend:
     build:
-      context: ./frontend-r
+      context: ./frontend
       dockerfile: Dockerfile.dev # Use the simple dev Dockerfile
     container_name: react_frontend
     # Map host port 3000 to container port 3000 (where Node dev server runs)
@@ -54,6 +54,6 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules # Prevents host's node_modules from overriding the container's
-    command: npm start # Starts the React development server
+    command: npm run dev # Dev server. `npm start` serves the production build instead.
     depends_on:
       - backend
