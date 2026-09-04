@@ -113,6 +113,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+cere_env/
+
+# Local-mode file storage (backend/local_storage)
+local_storage/
 
 # Spyder project settings
 .spyderproject

@@ -115,7 +115,11 @@ async def send_patient_portal_email(
     patient_name: str,
     portal_url: str,
 ) -> None:
-    """Send a patient portal access email. Raises on failure."""
+    """Send a patient portal access email.
+
+    Raises if a transport is configured but delivery fails. With no transport
+    configured at all, logs the link and returns (local development).
+    """
     subject = "Your CereSignal EEG Report is Ready"
     html_body = _build_portal_html(patient_name, portal_url)
 
@@ -164,8 +168,18 @@ async def send_patient_portal_email(
         except Exception:
             raise
 
-    raise RuntimeError(
-        "Email not configured — set RESEND_API_KEY or MAIL_FROM + MAIL_SERVER."
+    # A transport was configured but every attempt failed — surface that, rather
+    # than reporting a delivery that did not happen.
+    if settings.RESEND_API_KEY or (settings.MAIL_FROM and settings.MAIL_SERVER):
+        raise RuntimeError("Email delivery failed — all configured transports errored.")
+
+    # Nothing configured at all (typical in local development): log the link instead
+    # of failing, so the portal flow stays usable without an email provider.
+    logger.warning(
+        "Email not configured — portal link for %s not sent. Open it directly: %s "
+        "(set RESEND_API_KEY or MAIL_FROM + MAIL_SERVER to enable emails.)",
+        to_email,
+        portal_url,
     )
 
 
@@ -175,7 +189,11 @@ async def send_invitation_email(
     role: str,
     token: str,
 ) -> None:
-    """Send a staff invitation email. Raises on failure — callers should catch and log."""
+    """Send a staff invitation email.
+
+    Raises if a transport is configured but delivery fails — callers should catch
+    and log. With no transport configured at all, logs the link and returns.
+    """
     # HashRouter requires /#/ in the URL
     invite_url = f"{settings.FRONTEND_URL}/#/register/invite/{token}"
     role_display = role.capitalize()
@@ -229,7 +247,16 @@ async def send_invitation_email(
         except Exception as e:
             raise
 
+    # A transport was configured but every attempt failed — surface that, rather
+    # than reporting a delivery that did not happen.
+    if settings.RESEND_API_KEY or (settings.MAIL_FROM and settings.MAIL_SERVER):
+        raise RuntimeError("Email delivery failed — all configured transports errored.")
+
+    # Nothing configured at all (typical in local development): log the link so the
+    # invite can still be completed by hand.
     logger.warning(
-        "Email not configured — skipping invite send. "
-        "Set RESEND_API_KEY or MAIL_FROM + MAIL_SERVER to enable emails."
+        "Email not configured — invite for %s not sent. Open it directly: %s "
+        "(set RESEND_API_KEY or MAIL_FROM + MAIL_SERVER to enable emails.)",
+        to_email,
+        invite_url,
     )
