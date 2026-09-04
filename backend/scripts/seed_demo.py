@@ -32,8 +32,11 @@ def seed_demo(db: Session) -> None:
     # ── Hospital ──────────────────────────────────────────────
     hospital = db.query(Hospital).filter(Hospital.code == "neur").first()
     if not hospital:
+        # Pin id=1 only on an empty table. Seeding into a database that already
+        # has a hospital at id 1 must let the DB assign the next id instead of
+        # colliding on the primary key.
         hospital = Hospital(
-            id=1,
+            id=1 if db.query(Hospital).count() == 0 else None,
             name="Neurolink Diagnostics",
             code="neur",
             address="221B Baker Street, London",
@@ -153,10 +156,14 @@ def seed_demo(db: Session) -> None:
         ),
     ]
     patients = {}
+    # The ids above double as the local lookup keys used further down. Use them
+    # as real primary keys only on an empty table, for the same reason as the
+    # hospital above.
+    _pin_ids = db.query(User).count() == 0
     for pd in patient_data:
         p = db.query(User).filter(User.medical_id == pd["medical_id"]).first()
         if not p:
-            p = User(**pd)
+            p = User(**(pd if _pin_ids else {k: v for k, v in pd.items() if k != "id"}))
             db.add(p)
             db.flush()
         patients[pd["id"]] = p
@@ -252,10 +259,12 @@ def seed_demo(db: Session) -> None:
     # Explicit IDs (e.g. hospital=1) don't advance PostgreSQL
     # sequences — new INSERTs would collide. Set each sequence past
     # the current MAX so auto-generated IDs don't conflict.
-    _tables_with_ids = ["hospitals", "auth_users", "users", "signal_files", "eeg_reports", "staff_invitations"]
-    for t in _tables_with_ids:
-        db.execute(text(f"SELECT setval('{t}_id_seq', COALESCE((SELECT MAX(id) FROM {t}), 1), true)"))
-    db.commit()
+    # SQLite has no sequences (and no setval), so this is Postgres-only.
+    if db.get_bind().dialect.name == "postgresql":
+        _tables_with_ids = ["hospitals", "auth_users", "users", "signal_files", "eeg_reports", "staff_invitations"]
+        for t in _tables_with_ids:
+            db.execute(text(f"SELECT setval('{t}_id_seq', COALESCE((SELECT MAX(id) FROM {t}), 1), true)"))
+        db.commit()
 
     print("Demo seed complete.")
 
