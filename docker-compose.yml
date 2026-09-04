@@ -15,12 +15,16 @@ services:
     build:
       context: ./backend # Path to your FastAPI directory
       dockerfile: Dockerfile.backend
+      args:
+        # Set INSTALL_AI=false (and AI_INFERENCE_ENABLED=False) for a manual-entry-only stack
+        INSTALL_AI: ${INSTALL_AI:-true}
     container_name: fastapi_backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 # Your ASGI server command
     ports:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - AI_INFERENCE_ENABLED=${AI_INFERENCE_ENABLED:-True}
     depends_on:
       - redis
 
@@ -29,11 +33,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.backend
+      args:
+        INSTALL_AI: ${INSTALL_AI:-true}
     container_name: celery_worker
     command: celery -A inference.infer worker -l info
     environment:
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AI_INFERENCE_ENABLED=${AI_INFERENCE_ENABLED:-True}
     volumes:
       - ./backend:/usr/src/app
     depends_on:

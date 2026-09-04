@@ -35,6 +35,7 @@ import {
   DevAdminHospitalDetail,
   DevAdminContact,
   DevAdminContactListResponse,
+  AppConfig,
 } from '../types';
 
 class ApiClient {
@@ -319,6 +320,12 @@ class ApiClient {
 
   async deleteBookmark(fileId: number, bookmarkId: number): Promise<ApiResponse<{ message: string }>> {
     const response = await this.client.delete(`/signals/files/${fileId}/bookmarks/${bookmarkId}`);
+    return { data: response.data, status: response.status };
+  }
+
+  // Public runtime config — feature flags for this deployment (no auth required)
+  async getConfig(): Promise<ApiResponse<AppConfig>> {
+    const response = await this.client.get('/config');
     return { data: response.data, status: response.status };
   }
 

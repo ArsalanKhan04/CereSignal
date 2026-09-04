@@ -1120,7 +1120,9 @@ const Patients: React.FC<{
                                 ? 'Abnormal'
                                 : normalizedCondition === 'failed'
                                   ? 'Failed'
-                                  : 'Processing'}
+                                  : normalizedCondition === 'pending_review'
+                                    ? 'Needs Review'
+                                    : 'Processing'}
                             size="small"
                             color={normalizedCondition === 'normal'
                               ? 'success'
@@ -1128,7 +1130,9 @@ const Patients: React.FC<{
                                 ? 'error'
                                 : normalizedCondition === 'failed'
                                   ? 'warning'
-                                  : 'info'}
+                                  : normalizedCondition === 'pending_review'
+                                    ? 'default'
+                                    : 'info'}
                           />
                         );
                       })()

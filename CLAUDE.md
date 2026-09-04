@@ -85,9 +85,31 @@ Copy `.env.example` to `.env` in `backend/`. Key variables:
 - `DATABASE_URL` — defaults to `sqlite:///./cere_signal.db`
 - `SECRET_KEY` — must be set for JWT signing
 - `REDIS_URL` — defaults to `redis://localhost:6379`
+- `AI_INFERENCE_ENABLED` — defaults to `True`. Set `False` for a manual-entry-only
+  deployment (see "No-AI Mode" below)
 - `DESKTOP_MODE` — set `True` to bypass auth and async queue
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
+
+## No-AI Mode
+
+Setting `AI_INFERENCE_ENABLED=False` runs CereSignal as a manual-entry-only platform:
+NeuroGate, NeuroTransformer and the LLM report step are all skipped. Files still upload,
+still go through `preprocess_edf` (channel conversion for the EEG viewer), and land in the
+`pending_review` condition awaiting a manual normal/abnormal label from the existing
+`PATCH /signals/files/{id}/label` flow. Reports are typed by hand.
+
+Because `inference/infer.py` imports `torch`, `openai` and everything under `external/`
+lazily, a no-AI deployment can skip the ML stack entirely:
+
+```bash
+pip install -r backend/requirements.txt          # no torch, no openai
+docker compose build --build-arg INSTALL_AI=false
+```
+
+The frontend discovers the mode at runtime via `GET /api/v1/config`
+(`frontend/src/contexts/ConfigContext.tsx`), so one build serves both modes. Redis and the
+Celery worker are still required — `preprocess_edf` runs in both modes.
 
 ## Tech Stack
 

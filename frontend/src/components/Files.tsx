@@ -141,9 +141,15 @@ const Files: React.FC = () => {
       case 'abnormal': return '❌';
       case 'processing': return '⏳';
       case 'failed': return '❌';
+      case 'pending_review': return '📝';
       default: return '⏳';
     }
   };
+
+  // 'pending_review' means the file processed fine but has no automated label —
+  // it is waiting on a manual read (AI inference disabled).
+  const getConditionLabel = (condition: string) =>
+    condition === 'pending_review' ? 'NEEDS REVIEW' : condition.toUpperCase();
 
   const filteredFiles = files.filter(file => {
     if (filter === 'all') return true;
@@ -439,7 +445,7 @@ const FileCard: React.FC<FileCardProps> = ({
             </Typography>
             <Box sx={{ mt: 1 }}>
               <Chip
-                label={`${getConditionIcon(file.condition)} ${file.condition.toUpperCase()}`}
+                label={`${getConditionIcon(file.condition)} ${getConditionLabel(file.condition)}`}
                 size="small"
                 color={getConditionColor(file.condition)}
               />

@@ -1,25 +1,16 @@
 import json
 import os
 import re
+import sys
 import time
 
 import mne
 import numpy as np
-import openai
-import torch
-import torch.nn.functional as F
-from app.services.brain_viz_service import generate_topomap_from_events
 from celery import Celery
-from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
-from external.CereProcess.datasets.pipeline import (
-    get_nmt_pipeline,
-    neurotransformer_pipeline,
-    resample,
-)
-import sys
-from external.models.neurogate import NeuroGate
-from external.models.neurotransformer import Neurotransformer
-from external.pdr import PDREstimator
+
+# NOTE: torch, openai and everything under external/ are imported lazily inside the
+# functions that need them. With AI_INFERENCE_ENABLED=False the worker must be able to
+# start without the ML stack installed at all (see backend/requirements-ai.txt).
 
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -37,12 +28,43 @@ _MODEL_WEIGHTS = {
     "neurotransformer": get_resource_path(os.path.join("external", "models", "neurotransformer_wgts.pth")),
 }
 _MODEL_CACHE = {}
-_DEVICE = torch.device("cpu")
-_PIPELINES = {
-    "neurogate": get_nmt_pipeline(),
-    "neurotransformer": neurotransformer_pipeline("NMT"),
-    "pdr": resample(),
-}
+_PIPELINE_CACHE = {}
+
+
+def _get_device():
+    import torch
+
+    return torch.device("cpu")
+
+
+def _get_pipeline(name):
+    """Build and memoize a preprocessing pipeline on first use.
+
+    Kept lazy so importing this module never pulls in the ML stack; mirrors the
+    _MODEL_CACHE pattern in load_model below.
+    """
+    if name in _PIPELINE_CACHE:
+        return _PIPELINE_CACHE[name]
+
+    from external.CereProcess.datasets.pipeline import (
+        get_nmt_pipeline,
+        neurotransformer_pipeline,
+        resample,
+    )
+
+    if name == "neurogate":
+        pipeline = get_nmt_pipeline()
+    elif name == "neurotransformer":
+        pipeline = neurotransformer_pipeline("NMT")
+    elif name == "pdr":
+        pipeline = resample()
+    else:
+        raise ValueError(f"Pipeline {name} not recognized.")
+
+    _PIPELINE_CACHE[name] = pipeline
+    return pipeline
+
+
 _CHANNEL_REGIONS = {
     "Frontal": ["FP1", "FP2", "F3", "F4", "FZ"],
     "Left Temporal": ["F7", "T3", "T5"],
@@ -57,15 +79,22 @@ def load_model(model_name):
     if model_name in _MODEL_CACHE:
         return _MODEL_CACHE[model_name]
 
+    import torch
+
     if model_name == "neurogate":
+        from external.models.neurogate import NeuroGate
+
         model = NeuroGate(21)
     elif model_name == "neurotransformer":
+        from external.models.neurotransformer import Neurotransformer
+
         model = Neurotransformer()
     else:
         raise ValueError(f"Model {model_name} not recognized.")
 
-    model.to(_DEVICE)
-    model.load_state_dict(torch.load(_MODEL_WEIGHTS[model_name], map_location=_DEVICE))
+    device = _get_device()
+    model.to(device)
+    model.load_state_dict(torch.load(_MODEL_WEIGHTS[model_name], map_location=device))
     model.eval()
 
     _MODEL_CACHE[model_name] = model
@@ -158,11 +187,14 @@ def _compute_focus_points(raw_events, threshold=0.5, fallback_n=10):
 
 
 def _process_neurogate(mne_data):
+    import torch
+    import torch.nn.functional as F
+
     ## Starting with processing and inference for neurogate
-    processed_data = _PIPELINES["neurogate"].apply(mne_data)
+    processed_data = _get_pipeline("neurogate").apply(mne_data)
     data = processed_data.get_data()
     data = data[None, :, :]
-    data = torch.from_numpy(data).float().to(_DEVICE)
+    data = torch.from_numpy(data).float().to(_get_device())
 
     model = load_model("neurogate")
 
@@ -190,9 +222,13 @@ def _process_neurogate(mne_data):
 
 
 def _process_neurotransformer(mne_data, threshold=0.5):
+    import torch
+    import torch.nn.functional as F
+    from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
+
     all_events = np.array(["normal wave", "spike wave", "slow wave"])
 
-    processed_data = _PIPELINES["neurotransformer"].apply(mne_data)
+    processed_data = _get_pipeline("neurotransformer").apply(mne_data)
     data = processed_data.get_data()
 
     model = load_model("neurotransformer")
@@ -203,7 +239,7 @@ def _process_neurotransformer(mne_data, threshold=0.5):
 
     for i, ch_name in enumerate(NEUROTRANSFORMER_CHANNELS):
         ch_data = data[:, i : i + 1, :]
-        ch_data = torch.from_numpy(ch_data).float().to(_DEVICE)
+        ch_data = torch.from_numpy(ch_data).float().to(_get_device())
         outputs = None
         with torch.no_grad():
             logits = model(ch_data)
@@ -224,11 +260,14 @@ def _process_neurotransformer(mne_data, threshold=0.5):
 
 
 def _compute_pdr(mne_data):
+    from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
+    from external.pdr import PDREstimator
+
     o1_idx = NEUROTRANSFORMER_CHANNELS.index("O1")
     o2_idx = NEUROTRANSFORMER_CHANNELS.index("O2")
     estimator = PDREstimator(200, o1_idx, o2_idx, 0)
 
-    processed_data = _PIPELINES["pdr"].apply(mne_data)
+    processed_data = _get_pipeline("pdr").apply(mne_data)
     data = processed_data.get_data()
     pdr_res = estimator.fit(data)
 
@@ -336,6 +375,8 @@ def _generate_report(ab_prob, region_report, pdr_text):
             """
 
     try:
+        import openai
+
         client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
             model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
@@ -403,8 +444,34 @@ def preprocess_edf(mne_file_path):
 
 @app.task(name="infer", bind=True)
 def infer(self, mne_file_path):
+    from app.core.config import settings
     from app.services.storage_service import storage_service, SIGNALS_BUCKET
     start_time = time.time()
+
+    if not settings.AI_INFERENCE_ENABLED:
+        # Manual-entry-only deployment: validate the EDF is readable, then hand the
+        # file over for manual labelling and manual report entry. No models, no LLM.
+        with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
+            mne_data = mne.io.read_raw_edf(local_path, preload=False, verbose=False)
+            channel_count = len(mne_data.ch_names)
+            duration = float(mne_data.times[-1]) if len(mne_data.times) > 0 else 0.0
+
+        end_time = time.time()
+        print(
+            f"Inference: AI disabled — validated EDF only "
+            f"({channel_count} channels, {duration:.1f}s) in {end_time - start_time:.1f}s"
+        )
+
+        return {
+            "result": "pending_review",
+            "events": {},
+            "focus_points": [],
+            "inference_time": end_time - start_time,
+            "topomap_path": None,
+            "report_task_id": None,
+            "ai_enabled": False,
+            "file_info": {"channels": channel_count, "duration_seconds": duration},
+        }
 
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         mne_data = mne.io.read_raw_edf(local_path, preload=True)
@@ -422,6 +489,8 @@ def infer(self, mne_file_path):
 
     # Attempt to generate a topomap image for this inference
     try:
+        from app.services.brain_viz_service import generate_topomap_from_events
+
         base = os.path.splitext(os.path.basename(mne_file_path))[0]
         print("Inference: generating topomap...")
         out_path = generate_topomap_from_events(
@@ -453,5 +522,12 @@ def infer(self, mne_file_path):
 
 @app.task(name="generate_report")
 def generate_report(ab_prob, region_report, pdr_text):
+    from app.core.config import settings
+
+    if not settings.AI_INFERENCE_ENABLED:
+        # No task is queued in this mode; guard anyway so a re-queued legacy task ID
+        # cannot pull openai into a worker that does not have it installed.
+        return {"factual_report": "", "impression": "", "ai_enabled": False}
+
     factual_report, impression = _generate_report(ab_prob, region_report, pdr_text)
     return {"factual_report": factual_report, "impression": impression}

@@ -1,0 +1,11 @@
+# ML/AI dependencies — required only when AI_INFERENCE_ENABLED=True.
+#
+# Install on top of requirements.txt:
+#     pip install -r requirements.txt -r requirements-ai.txt
+#
+# A manual-entry-only deployment (AI_INFERENCE_ENABLED=False) can skip this file
+# entirely: inference/infer.py imports torch, openai and everything under external/
+# lazily, so both the API and the Celery worker start without them. The worker still
+# runs preprocess_edf, which needs only mne/numpy from the base requirements.
+torch
+openai
