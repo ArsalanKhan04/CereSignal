@@ -25,7 +25,7 @@ Seeded demo login: `admin_nl` / `Demo@2025!`
 
 There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere_env/`, and the scripts call its binaries directly rather than activating anything. The backend and worker must run with `backend/` as cwd: `inference/infer.py` resolves model weights relative to the current directory and `DATABASE_URL` is cwd-relative.
 
-Docker Compose (`docker-compose up`) is currently broken — the `frontend` service's build context points at a nonexistent `./frontend-r`.
+`docker-compose up redis backend celery_worker` is the containerised equivalent, once `./scripts/setup.sh` has written `backend/.env`. The backend and worker services both bind-mount `./backend`, so they share the same `cere_signal.db` and `local_storage/` as the scripts above — the worker resolves the storage object paths it receives over Redis against its own filesystem, so they must. The compose `frontend` service still cannot build: `frontend/package.json` depends on `"ceresignal-desktop": "file:.."`, which resolves to `/` in that build context. Run the frontend on the host.
 
 Access points: Frontend → `localhost:3000`, API → `localhost:8000`, Docs → `localhost:8000/api/v1/docs`
 

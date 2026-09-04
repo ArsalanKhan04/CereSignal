@@ -169,10 +169,21 @@ that sets `REACT_APP_DESKTOP=true`.
 
 ## Alternative: Docker Compose
 
+Run `./scripts/setup.sh` first — the containers read `backend/.env` for
+`SECRET_KEY`, and compose does not create it.
+
 ```bash
-docker-compose up
+docker-compose up redis backend celery_worker
 ```
 
-> **Known issue:** the `frontend` service's build context points at
-> `./frontend-r`, which does not exist in this repo. Compose will fail until
-> that is corrected to `./frontend`.
+The backend service migrates the schema and seeds the demo data before serving,
+so this needs no separate setup step. Both it and `celery_worker` bind-mount
+`./backend`, so they share one `cere_signal.db` and one `local_storage/` — the
+same files the four-terminal workflow above uses. You can switch between the two
+setups without losing uploads or your login.
+
+> **Known issue:** the `frontend` service still cannot build. `frontend/package.json`
+> depends on `"ceresignal-desktop": "file:.."`, and inside that build context
+> `..` resolves to `/`, so `npm install` fails. Until that entry is removed, run
+> the frontend on the host with `npm --prefix frontend run dev`; it reaches the
+> containerised API on `localhost:8000` as usual.

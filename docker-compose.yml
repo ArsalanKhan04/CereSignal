@@ -1,5 +1,12 @@
 version: '3.8'
 
+# Development stack. The backend and worker both bind-mount ./backend, so they
+# share one database and one local_storage tree — and the same files the
+# scripts/ workflow uses, which makes the two setups interchangeable.
+#
+# Run ./scripts/setup.sh first: it writes backend/.env, which the containers
+# read for SECRET_KEY and the rest. The variables set below override it.
+
 services:
 
   # 1. Message Broker (Redis)
@@ -16,11 +23,25 @@ services:
       context: ./backend # Path to your FastAPI directory
       dockerfile: Dockerfile.backend
     container_name: fastapi_backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 # Your ASGI server command
+    # Both steps are idempotent, so this is safe on every restart. Mirrors
+    # scripts/start-backend.sh, which does the same before serving.
+    command: >
+      sh -c "python migrate.py &&
+             python -m scripts.seed_demo &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379/0
+      # Must stay identical to celery_worker's. Both resolve ./ against WORKDIR
+      # /usr/src/app, which the volume below maps to ./backend on the host. Set
+      # explicitly because the default in app/core/config.py is Postgres.
+      - DATABASE_URL=sqlite:///./cere_signal.db
+    volumes:
+      # Not just for live reload: the worker resolves the object paths it
+      # receives over Redis against its own filesystem, so an upload the API
+      # writes is only visible to the worker if both mount the same directory.
+      - ./backend:/usr/src/app
     depends_on:
       - redis
 
@@ -33,7 +54,9 @@ services:
     command: celery -A inference.infer worker -l info
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=sqlite:///./cere_signal.db
+      # Optional. Without it inference still completes; the report text is blank.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
       - ./backend:/usr/src/app
     depends_on:
@@ -42,6 +65,12 @@ services:
 
 
   # 4. React Frontend Service (Development Mode)
+  #
+  # NOTE: this service cannot build yet — frontend/package.json depends on
+  # "ceresignal-desktop": "file:..", and inside this build context ".."
+  # resolves to "/", so npm install fails. See item 2 in the deferred-cleanups
+  # notes. Bring up redis, backend and celery_worker and run the frontend with
+  # `npm --prefix frontend run dev` until that entry is removed.
   frontend:
     build:
       context: ./frontend
