@@ -7,56 +7,58 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 CereSignal is a full-stack medical EEG analysis platform. It processes EDF files through two
 pre-trained PyTorch models (NeuroGate + NeuroTransformer) and generates clinical report text via
 the OpenAI API. It is a multi-tenant SaaS deployed on Railway, with Supabase for Postgres and file
-storage. A Windows desktop build (Electron + PyInstaller) also exists.
+storage; local development needs no cloud account. A Windows desktop build (Electron + PyInstaller)
+also exists.
 
 ## Development Setup
 
-Four components must run simultaneously. See `HOWTORUN.md` for the full walkthrough, including the
-required `.env` setup.
+One-time: `./scripts/setup.sh` (creates `backend/cere_env`, installs deps, writes `backend/.env`). Idempotent.
+
+Four components must run simultaneously, one per terminal:
 
 ```bash
-# Terminal 1 — Redis (message broker)
-docker run -d --name redis_dev -p 6379:6379 redis:7-alpine
-
-# Terminal 2 — FastAPI backend
-cd backend && source cere_env/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Terminal 3 — Celery worker (preprocessing + ML inference)
-cd backend && source cere_env/bin/activate
-celery -A inference.infer worker -l info
-
-# Terminal 4 — React frontend
-cd frontend && npm start
+./scripts/redis-start.sh         # Redis broker
+./scripts/backend-start.sh       # migrates + seeds demo data, then uvicorn on :8000
+./scripts/worker-start.sh        # Celery worker (preprocessing + ML inference)
+npm --prefix frontend run dev    # React frontend on :3000
 ```
 
-Or use Docker Compose: `docker-compose up`
+`./scripts/stop.sh` stops all three backend components. `./scripts/backend-start.sh --fresh` drops every table, clears uploaded files/plots/logs, and re-seeds (typed confirmation; `--yes` to skip).
+
+Seeded demo login: `admin` / `password`
+
+There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere_env/`, and the scripts call its binaries directly rather than activating anything. The backend and worker must run with `backend/` as cwd: `inference/infer.py` resolves model weights relative to the current directory and `DATABASE_URL` is cwd-relative.
+
+`docker-compose up redis backend celery_worker` is the containerised equivalent, once `./scripts/setup.sh` has written `backend/.env`. The backend and worker services both bind-mount `./backend`, so they share the same `cere_signal.db` and `local_storage/` as the scripts above — the worker resolves the storage object paths it receives over Redis against its own filesystem, so they must. The compose `frontend` service still cannot build: `frontend/package.json` depends on `"ceresignal-desktop": "file:.."`, which resolves to `/` in that build context. Run the frontend on the host.
 
 Access points: Frontend → `localhost:3000`, API → `localhost:8000`, Docs → `localhost:8000/api/v1/docs`
 
 **Storage backend is chosen automatically.** `app/services/storage_service.py` uses Supabase when
 `SUPABASE_URL` is set and local disk (`backend/local_storage/`, served at `/static`) when it isn't,
-so no cloud account is needed for local development. Bootstrap a login with
-`python backend/scripts/create_admin.py`.
+so no cloud account is needed for local development. The seeded `admin` / `password` account is the
+normal way in; `python backend/scripts/create_admin.py` creates a real hospital and admin instead.
 
 ## Common Commands
 
 ```bash
-# Frontend
-cd frontend && npm test
-cd frontend && npm run build          # Web production build
-cd frontend && npm run build:desktop  # Electron desktop build (Windows)
+# Frontend (from repo root)
+npm --prefix frontend run dev            # dev server
+npm --prefix frontend run build          # web production build
+npm --prefix frontend run build:desktop  # Electron desktop build
+npm --prefix frontend test
 
-# Verify Celery worker is alive
-cd backend && celery -A inference.infer inspect ping
+# Database (from backend/)
+./cere_env/bin/python migrate.py            # create missing tables
+./cere_env/bin/python migrate.py --reset    # DESTRUCTIVE: drop and recreate
+./cere_env/bin/python -m scripts.seed_demo  # demo data, idempotent
 
-# Database — create missing tables and ensure the dev superuser exists
-cd backend && python migrate.py
-cd backend && python migrate.py --reset   # drops all tables first (destroys data)
+# Verify Celery worker is alive (from backend/)
+./cere_env/bin/celery -A inference.infer inspect ping
 ```
 
-There is currently no backend test suite (`backend/tests/` does not exist), and no `black`/`mypy`
-configuration.
+The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `react-scripts` directly hits Node's 2 GB default and runs out of heap.
+
+**There are no backend tests or linters.** No `tests/` directory, no pytest/black/mypy in any requirements file. Do not suggest `pytest`, `black` or `mypy` commands for the backend until that changes.
 
 ## Architecture
 
@@ -74,7 +76,8 @@ configuration.
 6. It then computes focus points and PDR, builds a regional report, generates a topomap image, and
    queues the `generate_report` task
 7. `generate_report` calls the OpenAI Chat Completions API (`OPENAI_MODEL`, default `gpt-4o-mini`)
-   to write the factual report and impression
+   to write the factual report and impression. Without `OPENAI_API_KEY` set, inference still
+   completes and the report text is left blank for manual entry
 8. Results are saved to the database; the frontend polls
    `GET /signals/files/{id}/inference-status` and `/report-status`, then displays the EEG
    visualization and report
@@ -93,12 +96,19 @@ triggered by the upload endpoint, not by a separate process call.
 - Four roles in `UserType` (`app/models/auth.py`): `doctor`, `technician`, `patient`, `admin` —
   enforced via JWT middleware, plus the separate `is_superuser` flag above
 - Tokens expire in 30 min (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- Desktop mode does **not** disable auth. `DESKTOP_MODE` is currently inert (see below), so JWT
+  auth is enforced in every mode
 
 ### Desktop Mode
 `main.js` (Electron) spawns the PyInstaller-bundled backend subprocess via `backend/entry_point.py`.
-Logs go to `AppData/Roaming`. Note that the `DESKTOP_MODE` env var is currently vestigial —
-`entry_point.py` reads it into `IS_DESKTOP_MODE` but nothing consumes that value, and it does not
-bypass auth.
+Logs go to `AppData/Roaming`.
+
+**Desktop mode is unimplemented** — every switch for it is currently inert:
+- `DESKTOP_MODE` reaches the backend (`main.js:51`) but `backend/entry_point.py:25` assigns `IS_DESKTOP_MODE` and never reads it. Auth is not bypassed.
+- `REACT_APP_DESKTOP` is never read anywhere in `frontend/src`, and it is a build-time variable, so setting it on `electron .` cannot change an already-built bundle.
+- `frontend/src/pages/DesktopWorkspace.tsx` exists but is never imported or routed, so `/` renders the normal `LoginPage`.
+- `main.js:67-70` skips the Celery worker in desktop mode, but there is no synchronous inference path — `app/services/inference_service.py:44` always dispatches `preprocess_edf.delay(...)`. With no worker consuming the queue, processing would never complete.
+- The unpackaged path spawns `cere-engine.exe` (`main.js:33`, `:76`), so it is Windows-only regardless.
 
 ### Deployment
 Railway, three services, each with its own config:
@@ -116,14 +126,15 @@ CI runs `backend/migrate.py` via `.github/workflows/migrate.yml` (create missing
 
 | Path | Purpose |
 |------|---------|
+| `scripts/` | Dev workflow — `setup.sh`, `redis-start.sh`, `backend-start.sh`, `worker-start.sh`, `stop.sh` |
+| `backend/migrate.py` | Table creation + superuser bootstrap (`--reset` to drop). No Alembic — this is the whole migration system |
+| `backend/scripts/` | Admin/superuser creation, plus `seed_demo.py` (idempotent demo data) |
 | `backend/app/main.py` | FastAPI app, router registration, CORS config |
 | `backend/app/models/` | SQLAlchemy ORM models (auth, user, hospital, signal, report, notification, contact) |
 | `backend/app/api/v1/endpoints/` | Route handlers (auth, users, signals, processing, reports, admin, dev_admin, notifications, logs, contact, config) |
 | `backend/app/services/` | Storage (Supabase or local disk), PDF generation, brain visualization, inference dispatch |
 | `backend/inference/infer.py` | Celery tasks — preprocessing, ML pipeline, LLM report |
 | `backend/external/` | NeuroGate/NeuroTransformer model wrappers, EDF utilities |
-| `backend/migrate.py` | Table creation + superuser bootstrap (`--reset` to drop) |
-| `backend/scripts/` | Admin/superuser creation, demo seeding |
 | `frontend/src/pages/` | Top-level page components |
 | `frontend/src/components/` | Shared UI components |
 | `frontend/src/contexts/` | Auth and demo React contexts |
@@ -131,7 +142,7 @@ CI runs `backend/migrate.py` via `.github/workflows/migrate.yml` (create missing
 
 ## Environment Configuration
 
-Copy `backend/.env.example` to `backend/.env`. Key variables:
+Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this for you). Key variables:
 
 - `DATABASE_URL` — Postgres in deployment; `sqlite:///./cere_signal.db` works locally
   (`app/core/database.py` applies `sslmode=require` only to Postgres URLs)
@@ -142,13 +153,14 @@ Copy `backend/.env.example` to `backend/.env`. Key variables:
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation (default `gpt-4o-mini`)
 - `RESEND_API_KEY` — invitation email; `MAIL_*` variables are the SMTP fallback
 - `FRONTEND_URL` — used to build invitation email links
+- `DESKTOP_MODE` — read only by `entry_point.py:25` and never acted on; currently has no effect
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
 
 ## Tech Stack
 
 - **Frontend:** React 19 + TypeScript, MUI v7, React Router v7, Plotly.js, Recharts
-- **Backend:** FastAPI, SQLAlchemy + Postgres (Supabase), Celery + Redis, PyJWT
+- **Backend:** FastAPI, SQLAlchemy (SQLite locally, Postgres/Supabase in deployment), Celery + Redis, PyJWT
 - **ML:** PyTorch, MNE-Python, OpenAI API (`gpt-4o-mini`)
 - **Storage:** Supabase Storage in deployment; local disk for development
 - **Desktop:** Electron 28, PyInstaller, electron-builder (NSIS installer)

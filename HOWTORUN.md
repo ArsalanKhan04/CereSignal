@@ -1,6 +1,6 @@
 # How to Run CereSignal in Development Mode
 
-CereSignal requires **4 components** running simultaneously:
+CereSignal runs as **4 components**:
 
 | Component | Purpose | Port |
 |-----------|---------|------|
@@ -11,142 +11,88 @@ CereSignal requires **4 components** running simultaneously:
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.11
 - Node.js and npm
-- Docker (for Redis) or Redis installed locally
-- No cloud account required — see First-Time Setup
+- Docker (for Redis) — or a local `redis-server` on 6379
+- No cloud account required
 
-## First-Time Setup
-
-Run these once before the Quick Start below.
-
-### 1. Backend Python environment
+## First-time setup
 
 ```bash
-cd backend
-python3.11 -m venv cere_env
-source cere_env/bin/activate        # Windows: cere_env\Scripts\activate
-pip install -r requirements.txt
+./scripts/setup.sh
 ```
 
-Inference runs on CPU (`inference/infer.py` pins `torch.device("cpu")`), but a plain
-`pip install torch` pulls in several GB of CUDA wheels. On Linux you can install the much
-smaller CPU-only build first:
+Creates the `backend/cere_env` virtualenv, installs backend and frontend
+dependencies, creates `backend/.env` from the example, and generates a random
+`SECRET_KEY`. It is safe to re-run — every step is skipped if already done.
 
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
-```
+The defaults it writes need no cloud account: `DATABASE_URL` is
+`sqlite:///./cere_signal.db`, and with `SUPABASE_URL` unset the backend stores
+uploads on disk under `backend/local_storage/`, serving them from `/static`.
+Set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` and it switches to Supabase Storage
+automatically — that is how the deployed app runs. `OPENAI_API_KEY` is optional
+too; without it inference still runs and the report text is simply left blank.
 
-### 2. Frontend dependencies
-
-```bash
-cd frontend
-npm install
-```
-
-### 3. Environment file
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Then edit `backend/.env` and set at minimum:
-
-```bash
-SECRET_KEY=any-value-for-local-dev
-DATABASE_URL=sqlite:///./cere_signal.db
-REDIS_URL=redis://localhost:6379/0
-
-# Optional — only needed for AI-generated report text
-OPENAI_API_KEY=sk-...
-```
-
-**No cloud account is needed for local development.** Leave `SUPABASE_URL` empty and the
-backend stores uploaded files on disk under `backend/local_storage/`, serving them from
-`/static`. Set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` and it switches to Supabase Storage
-automatically — that is how the deployed app runs.
-
-Likewise, `DATABASE_URL` accepts SQLite locally; `sslmode=require` is applied only for Postgres
-URLs.
-
-Without `OPENAI_API_KEY` everything still works — inference runs and the report form opens, but
-the AI-drafted report text comes back empty and is typed by hand.
-
-Tables are created automatically on first backend startup (`app/main.py` calls
-`Base.metadata.create_all`), so no migration step is needed for a fresh database.
-
-### 4. Create your first account
-
-The app has no public sign-up for staff, so bootstrap a hospital and admin user:
-
-```bash
-cd backend
-source cere_env/bin/activate
-python scripts/create_admin.py
-```
-
-This prompts for the hospital name and admin credentials, which you then use to log in at
-http://localhost:3000.
+> **Tip:** inference runs on CPU (`inference/infer.py` pins `torch.device("cpu")`),
+> but `requirements.txt` pulls in several GB of CUDA wheels. On Linux you can
+> install the much smaller CPU-only build into the virtualenv first, then run
+> `./scripts/setup.sh` as usual:
+>
+> ```bash
+> python3.11 -m venv backend/cere_env
+> backend/cere_env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+> ```
 
 ## Quick Start
 
-Open **4 separate terminal windows** and run the following commands:
-
-### Terminal 1: Redis
-
-Using Docker (recommended):
-```bash
-docker run -d --name redis_dev -p 6379:6379 redis:7-alpine
-```
-
-If the container already exists from a previous run:
-```bash
-docker start redis_dev
-```
-
-Or if Redis is installed locally:
-```bash
-redis-server
-```
-
-### Terminal 2: FastAPI Backend
+Four terminals, one command each:
 
 ```bash
-cd backend
-source cere_env/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Terminal 1 — Redis
+./scripts/redis-start.sh
+
+# Terminal 2 — Backend (prepares the DB, seeds demo data, then serves)
+./scripts/backend-start.sh
+
+# Terminal 3 — Celery worker
+./scripts/worker-start.sh
+
+# Terminal 4 — Frontend
+npm --prefix frontend run dev
 ```
 
-### Terminal 3: Celery Worker
+Log in with the seeded demo account: **`admin`** / **`password`**
+
+To create a real hospital and admin account instead of using the demo data, run
+`backend/cere_env/bin/python backend/scripts/create_admin.py`; it prompts for the
+hospital name and admin credentials.
+
+### Starting over
 
 ```bash
-cd backend
-source cere_env/bin/activate
-celery -A inference.infer worker -l info
+./scripts/backend-start.sh --fresh
 ```
 
-### Terminal 4: React Frontend
+Drops every table, deletes uploaded files, generated plots and logs, then
+recreates and re-seeds. It asks for typed confirmation first; add `--yes` to
+skip the prompt in a script.
 
-```bash
-cd frontend
-npm start
-```
+Without `--fresh` the backend continues from the last run: missing tables are
+created, existing rows are left alone, and seeding is a no-op if the demo data
+is already there.
 
 ## Verification
 
-Once all components are running, verify with:
-
 ```bash
 # Redis
-docker ps | grep redis
+docker exec redis_dev redis-cli ping                 # expect PONG
 
 # Backend API
 curl http://localhost:8000/health          # -> {"status":"healthy",...}
 curl http://localhost:8000/api/v1/docs
 
-# Celery Worker
-cd backend && celery -A inference.infer inspect ping
+# Celery worker
+cd backend && ./cere_env/bin/celery -A inference.infer inspect ping
 
 # Frontend
 curl http://localhost:3000
@@ -161,80 +107,133 @@ curl http://localhost:3000
 ## Stopping the Application
 
 ```bash
-# Stop Redis container
-docker stop redis_dev && docker rm redis_dev
-
-# Stop Celery worker (Ctrl+C in terminal or)
-pkill -f "celery.*worker"
-
-# Stop Backend and Frontend with Ctrl+C in their respective terminals
+./scripts/stop.sh
 ```
+
+Stops the backend, the Celery worker (waiting out Celery's warm shutdown), and
+the Redis container. The frontend dev server is not managed by the script —
+Ctrl-C it in its own terminal.
+
+## Running commands by hand
+
+The scripts call the virtualenv's binaries directly, which needs no activation.
+To run something yourself:
+
+```bash
+cd backend
+./cere_env/bin/python migrate.py            # create missing tables
+./cere_env/bin/python migrate.py --reset    # DESTRUCTIVE: drop and recreate
+./cere_env/bin/python -m scripts.seed_demo  # demo data (idempotent)
+```
+
+To get an activated shell instead:
+
+```bash
+source backend/cere_env/bin/activate
+```
+
+> **Note:** older versions of these docs said `pyenv activate cere_env`. There is
+> no such pyenv virtualenv — the environment lives at `backend/cere_env/`.
+
+**The backend and worker must run with `backend/` as the working directory.**
+`inference/infer.py` resolves the model weights relative to the current
+directory, and `DATABASE_URL` is `sqlite:///./cere_signal.db`. Run either from
+somewhere else and you get missing weights or a second, empty database. The
+scripts handle this for you.
 
 ## Troubleshooting
 
 ### Port already in use
 
-Check what's using the port:
 ```bash
-lsof -i :8000  # Backend
-lsof -i :3000  # Frontend
-lsof -i :6379  # Redis
+lsof -i :8000   # Backend
+lsof -i :3000   # Frontend
+lsof -i :6379   # Redis
 ```
 
-Kill the process if needed:
-```bash
-kill -9 <PID>
-```
+Then `kill <PID>`, or just run `./scripts/stop.sh`.
 
 ### Celery worker not connecting
 
-Ensure Redis is running first:
+Redis must be running first — `./scripts/redis-start.sh` waits for it to accept
+connections before returning, so start it before the worker.
+
 ```bash
-docker ps | grep redis
+docker ps | grep redis_dev
+cd backend && ./cere_env/bin/celery -A inference.infer inspect ping
 ```
 
-Check Celery can connect:
-```bash
-cd backend
-source cere_env/bin/activate
-celery -A inference.infer inspect ping
-```
+### Frontend out of memory
 
-### Frontend compilation errors
+The production build and dev server both run with a raised Node heap
+(`--max-old-space-size=6144`, set in `frontend/package.json`). If you invoke
+`react-scripts` directly you will hit the 2 GB default and see
+`JavaScript heap out of memory`. Use the npm scripts.
 
-If npm packages are missing:
-```bash
-cd frontend
-npm install
-```
+### Reports come out blank
+
+Report drafting calls OpenAI. Without `OPENAI_API_KEY` in `backend/.env`,
+inference still completes and the report text is simply left empty for manual
+entry.
 
 ### Upload or processing fails
 
 Check the backend and Celery worker logs. In local mode, files are written under
 `backend/local_storage/` — confirm that directory is created and writable.
 
-If `SUPABASE_URL` is set, the credentials must be valid and the `eeg-signals` and `eeg-assets`
-buckets must exist. To use local disk instead, leave `SUPABASE_URL` empty.
+If `SUPABASE_URL` is set, the credentials must be valid and the `eeg-signals` and
+`eeg-assets` buckets must exist. To use local disk instead, leave `SUPABASE_URL`
+empty.
 
 ### Database issues
 
 Recreate missing tables (and ensure the dev superuser exists):
+
 ```bash
 cd backend
-python migrate.py
+./cere_env/bin/python migrate.py
 ```
 
 To wipe and start over — **this destroys all data**:
+
 ```bash
-python migrate.py --reset
+cd backend
+./cere_env/bin/python migrate.py --reset
 ```
+
+Or `./scripts/backend-start.sh --fresh` to reset, re-seed and serve in one step.
+
+## Frontend commands
+
+Run from the repo root:
+
+```bash
+npm --prefix frontend run dev            # dev server with hot reload
+npm --prefix frontend run build          # production build
+npm --prefix frontend start              # serve the built output on :3000
+npm --prefix frontend test               # tests
+```
+
+Each has a `:desktop` variant (`dev:desktop`, `build:desktop`, `start:desktop`)
+that sets `REACT_APP_DESKTOP=true`.
 
 ## Alternative: Docker Compose
 
-To run everything with Docker Compose:
+Run `./scripts/setup.sh` first — the containers read `backend/.env` for
+`SECRET_KEY`, and compose does not create it.
+
 ```bash
-docker-compose up
+docker-compose up redis backend celery_worker
 ```
 
-Note: This is better for production-like environments but slower for development due to reduced
-hot-reload capabilities.
+The backend service migrates the schema and seeds the demo data before serving,
+so this needs no separate setup step. Both it and `celery_worker` bind-mount
+`./backend`, so they share one `cere_signal.db` and one `local_storage/` — the
+same files the four-terminal workflow above uses. You can switch between the two
+setups without losing uploads or your login.
+
+> **Known issue:** the `frontend` service still cannot build. `frontend/package.json`
+> depends on `"ceresignal-desktop": "file:.."`, and inside that build context
+> `..` resolves to `/`, so `npm install` fails. Until that entry is removed, run
+> the frontend on the host with `npm --prefix frontend run dev`; it reaches the
+> containerised API on `localhost:8000` as usual.

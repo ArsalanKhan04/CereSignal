@@ -9,8 +9,10 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from contextlib import asynccontextmanager
+import os
 import uvicorn
 from sqlalchemy.exc import OperationalError
 
@@ -172,6 +174,21 @@ def create_application() -> FastAPI:
 
     setup_middleware(app)
     app.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # In local mode (no Supabase configured) files live on disk and must be served
+    # by this app — that is what LocalStorageService.public_url() points at.
+    if not settings.SUPABASE_URL:
+        from app.services.storage_service import (
+            LOCAL_STORAGE_ROOT,
+            LOCAL_STORAGE_URL_PREFIX,
+        )
+
+        os.makedirs(LOCAL_STORAGE_ROOT, exist_ok=True)
+        app.mount(
+            LOCAL_STORAGE_URL_PREFIX,
+            StaticFiles(directory=LOCAL_STORAGE_ROOT),
+            name="local-storage",
+        )
 
     return app
 

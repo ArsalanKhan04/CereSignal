@@ -1,0 +1,29 @@
+# Dockerfile.backend does `COPY . .`, which without this file copies the 6.6 GB
+# cere_env/ virtualenv and the host's database into every image build.
+
+# Local virtualenv — Linux-specific and full of absolute host paths.
+cere_env/
+
+# Python bytecode. Patterns are matched against the whole relative path, so
+# the ** prefix is what makes these apply below the top level.
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Host state. docker-compose bind-mounts ./backend, so the containers get the
+# real ones at runtime; baking a build-time snapshot in only creates a second,
+# stale copy shadowed by the mount.
+cere_signal.db
+cere_signal.db-journal
+local_storage/
+logs/
+.env
+
+# Desktop packaging artifacts — PyInstaller specs and build output, not used
+# by the web image.
+pyinstaller/
+build/
+dist/
+
+# NOTE: external/models/ is deliberately NOT ignored. infer.py loads the
+# .pt/.pth weights (5.7 MB) from there and the image needs them.
