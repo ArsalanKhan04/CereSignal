@@ -67,10 +67,17 @@ The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `rea
 - Two separate tables: `auth_users` (credentials) and `users` (patient/contact info)
 - Three roles: `doctor`, `technician`, `patient` — enforced via JWT middleware
 - Tokens expire in 30 min (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
-- Desktop mode (`DESKTOP_MODE=True`) disables auth entirely
+- Desktop mode does **not** disable auth. `DESKTOP_MODE` is currently inert (see below), so JWT auth is enforced in every mode
 
 ### Desktop Mode
-`main.js` (Electron) spawns the PyInstaller-bundled backend subprocess. No Redis/Celery — inference runs synchronously in-process. Logs go to `AppData/Roaming`.
+`main.js` (Electron) spawns the PyInstaller-bundled backend subprocess. Logs go to `AppData/Roaming`.
+
+**Desktop mode is unimplemented** — every switch for it is currently inert:
+- `DESKTOP_MODE` reaches the backend (`main.js:51`) but `backend/entry_point.py:25` assigns `IS_DESKTOP_MODE` and never reads it. Auth is not bypassed.
+- `REACT_APP_DESKTOP` is never read anywhere in `frontend/src`, and it is a build-time variable, so setting it on `electron .` cannot change an already-built bundle.
+- `frontend/src/pages/DesktopWorkspace.tsx` exists but is never imported or routed, so `/` renders the normal `LoginPage`.
+- `main.js:67-70` skips the Celery worker in desktop mode, but there is no synchronous inference path — `app/services/inference_service.py:44` always dispatches `preprocess_edf.delay(...)`. With no worker consuming the queue, processing would never complete.
+- The unpackaged path spawns `cere-engine.exe` (`main.js:33`, `:76`), so it is Windows-only regardless.
 
 ## Key Files
 
@@ -94,7 +101,7 @@ Copy `.env.example` to `.env` in `backend/`. Key variables:
 - `DATABASE_URL` — defaults to `sqlite:///./cere_signal.db`
 - `SECRET_KEY` — must be set for JWT signing
 - `REDIS_URL` — defaults to `redis://localhost:6379`
-- `DESKTOP_MODE` — set `True` to bypass auth and async queue
+- `DESKTOP_MODE` — read only by `entry_point.py:25` and never acted on; currently has no effect
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
 
