@@ -40,6 +40,13 @@ from sqlalchemy.orm import Session
 router = APIRouter()
 
 
+def _as_utc(value: datetime) -> datetime:
+    """SQLite drops tzinfo on DateTime(timezone=True) columns, so a value read
+    back is naive even though it was stored as UTC. Postgres returns it aware.
+    Normalise both to aware UTC so comparisons don't raise TypeError."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
 @router.post(
     "/register/hospital",
     response_model=AuthUserResponse,
@@ -109,7 +116,7 @@ async def validate_invite_token(token: str, db: Session = Depends(get_db)):
     if invitation.used_at is not None:
         raise HTTPException(status_code=410, detail="This invitation has already been used")
 
-    if invitation.expires_at < datetime.now(timezone.utc):
+    if _as_utc(invitation.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="This invitation has expired")
 
     hospital = db.query(Hospital).filter(Hospital.id == invitation.hospital_id).first()
@@ -139,7 +146,7 @@ async def register_from_invite(
         raise HTTPException(status_code=404, detail="Invitation not found")
     if invitation.used_at is not None:
         raise HTTPException(status_code=410, detail="This invitation has already been used")
-    if invitation.expires_at < datetime.now(timezone.utc):
+    if _as_utc(invitation.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="This invitation has expired")
 
     if db.query(AuthUser).filter(AuthUser.username == data.username).first():

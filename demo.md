@@ -28,9 +28,9 @@ The demo database must contain the following records, inserted via a SQL migrati
 ### Auth Users
 | # | username | password (plain) | user_type | first_name | last_name | email | title | specialization | hospital_id | is_active |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `admin_nl` | `Demo@2025!` | admin | Sarah | Mitchell | admin@neurolink.demo.local | — | — | 1 | true |
-| 2 | `jenny_tech` | `Demo@2025!` | technician | Jennifer | Park | jenny.tech@demo.local | — | EEG Technology | 1 | true |
-| 3 | `dr_chen` | `Demo@2025!` | doctor | David | Chen | david.chen@demo.local | Dr. | Clinical Neurophysiology | 1 | true |
+| 1 | `admin` | `password` | admin | Sarah | Mitchell | admin@neurolink.demo.local | — | — | 1 | true |
+| 2 | `tech` | `password` | technician | Jennifer | Park | jenny.tech@demo.local | — | EEG Technology | 1 | true |
+| 3 | `doc` | `password` | doctor | David | Chen | david.chen@demo.local | Dr. | Clinical Neurophysiology | 1 | true |
 
 ### StaffInvitation (2 invitations — both already "used" in pre-seeded flow)
 | # | hospital_id | invited_email | role | token | used_at |
@@ -45,9 +45,9 @@ If we want the admin to **live-invite** during the demo: keep these as **pending
 ### Patients (User records)
 | # | name | email | phone | medical_id | gender | date_of_birth | blood_type | auth_user_id | doctor_id | hospital_id | report_sent | portal_token |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Emily Richardson | emily.r@demo.local | +44 7700 900001 | MED-2025-0042 | F | 1992-06-15 | A+ | 2 (jenny_tech) | 3 (dr_chen) | 1 | false | `portal-demo-emily-001` |
-| 2 | James Okafor | james.o@demo.local | +44 7700 900002 | MED-2025-0087 | M | 1978-03-22 | O+ | 2 (jenny_tech) | 3 (dr_chen) | 1 | false | `portal-demo-james-002` |
-| 3 | Aisha Patel | aisha.p@demo.local | +44 7700 900003 | MED-2025-0156 | F | 1985-11-08 | B+ | 2 (jenny_tech) | 3 (dr_chen) | 1 | true | `portal-demo-aisha-003` |
+| 1 | Emily Richardson | emily.r@demo.local | +44 7700 900001 | MED-2025-0042 | F | 1992-06-15 | A+ | 2 (tech) | 3 (doc) | 1 | false | `portal-demo-emily-001` |
+| 2 | James Okafor | james.o@demo.local | +44 7700 900002 | MED-2025-0087 | M | 1978-03-22 | O+ | 2 (tech) | 3 (doc) | 1 | false | `portal-demo-james-002` |
+| 3 | Aisha Patel | aisha.p@demo.local | +44 7700 900003 | MED-2025-0156 | F | 1985-11-08 | B+ | 2 (tech) | 3 (doc) | 1 | true | `portal-demo-aisha-003` |
 
 ### Signal Files (pre-processed EEGs with results)
 | # | id | user_id | original_filename | processing_status | condition | neurogate_probability |
@@ -60,14 +60,14 @@ If we want the admin to **live-invite** during the demo: keep these as **pending
 ### EEG Report (pre-generated)
 | # | id | file_id | user_id | doctor_id | factual_report (excerpt) | impression | report_date |
 |---|---|---|---|---|---|---|---|
-| 1 | 5001 | 101 | 1 (Emily) | 3 (dr_chen) | "Background activity shows posterior dominant rhythm at 9 Hz... intermittent left temporal sharp waves noted..." | abnormal | 2025-04-28 |
-| 2 | 5002 | 301 | 3 (Aisha) | 3 (dr_chen) | "Well-regulated 10 Hz alpha rhythm... no epileptiform discharges identified..." | normal | 2025-04-25 |
+| 1 | 5001 | 101 | 1 (Emily) | 3 (doc) | "Background activity shows posterior dominant rhythm at 9 Hz... intermittent left temporal sharp waves noted..." | abnormal | 2025-04-28 |
+| 2 | 5002 | 301 | 3 (Aisha) | 3 (doc) | "Well-regulated 10 Hz alpha rhythm... no epileptiform discharges identified..." | normal | 2025-04-25 |
 
 ### EEG Bookmarks
 | # | file_id | comment | created_by |
 |---|---|---|---|
-| 1 | 101 | "Left temporal sharp wave at ~3s — correlate clinically" | 3 (dr_chen) |
-| 2 | 101 | "Spike-and-wave complex at ~8s" | 3 (dr_chen) |
+| 1 | 101 | "Left temporal sharp wave at ~3s — correlate clinically" | 3 (doc) |
+| 2 | 101 | "Spike-and-wave complex at ~8s" | 3 (doc) |
 
 ### Notifications
 | # | user_id (doctor) | message | patient_id | is_read |
@@ -121,7 +121,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Instruction** | Every CereSignal workspace starts with a hospital. An admin account is created alongside it. **Use the demo autofill button** to pre-populate the form, then click "Create Hospital Workspace". |
 | **UI** | HospitalSignupPage form. A floating demo button "⚡ Autofill Demo Data" sits near the submit button. Clicking it fills all fields with demo values. |
 | **Highlight** | The "Create Hospital Workspace" button pulses. |
-| **Demo Button** | "⚡ Autofill Demo Data" → Fills `HospitalSignupPage` form with: Hospital="Neurolink Diagnostics", First="Sarah", Last="Mitchell", Username="admin_nl", Email="admin@neurolink.demo.local", Password="Demo@2025!", Confirm="Demo@2025!" |
+| **Demo Button** | "⚡ Autofill Demo Data" → Fills `HospitalSignupPage` form with: Hospital="Neurolink Diagnostics", First="Sarah", Last="Mitchell", Username="admin", Email="admin@neurolink.demo.local", Password="password", Confirm="password" |
 | **Files** | `frontend/src/pages/HospitalSignupPage.tsx:46-57` — formData state |
 | **Files** | `frontend/src/pages/HospitalSignupPage.tsx:66-95` — handleSubmit |
 | **Files** | `backend/app/api/v1/endpoints/auth.py:43-99` — `/register/hospital` endpoint |
@@ -173,7 +173,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Instruction** | This is what Jenny sees when she clicks the email link. The form recognizes the invitation and pre-fills the email. Complete the form using the **autofill button**, then click "Complete Registration". |
 | **UI** | StaffInviteRegistrationPage shows "You're Invited!" sidebar, token validation passes, invited email displayed read-only. |
 | **Highlight** | The "Complete Registration" button. |
-| **Demo Button** | "⚡ Autofill Jenny" → Fills first_name="Jennifer", last_name="Park", username="jenny_tech", password="Demo@2025!", confirm="Demo@2025!", title="", specialization="EEG Technology", license_number="TECH-2025-0042", phone="+44 7700 900100" |
+| **Demo Button** | "⚡ Autofill Jenny" → Fills first_name="Jennifer", last_name="Park", username="tech", password="password", confirm="password", title="", specialization="EEG Technology", license_number="TECH-2025-0042", phone="+44 7700 900100" |
 | **Files** | `frontend/src/pages/StaffInviteRegistrationPage.tsx:43-130` — full component |
 | **Files** | `frontend/src/pages/StaffInviteRegistrationPage.tsx:106-130` — handleSubmit |
 | **Files** | `backend/app/api/v1/endpoints/auth.py:101-178` — GET /invite/{token}, POST /register/invite/{token} |
@@ -240,8 +240,8 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Duration** | ~8s |
 | **Instruction** | Jenny often manages multiple patients. Let's see her full workload. Click **"Show Full Workload →"** below to view all her patients at different stages: pending review, examined, and report sent. |
 | **UI** | A demo-only button appears at the bottom of the patient list area. |
-| **Demo Button** | "Show Full Workload →" — Signs out, logs in as `jenny_tech` again, but this time the backend returns the pre-seeded data (3 patients: Emily pending, James pending, Aisha report-sent). Alternatively, this can be implemented as a demo mode toggle that loads pre-seeded patients into the existing technician session. |
-| **Implementation** | Simpler approach: In demo mode, after uploading Emily's file, load the pre-seeded patient data by calling `GET /users/` which now returns the seed data since we're logged in as the same technician. The seed migration should have already created Patients 1, 2, 3 with `auth_user_id=2` (jenny_tech). |
+| **Demo Button** | "Show Full Workload →" — Signs out, logs in as `tech` again, but this time the backend returns the pre-seeded data (3 patients: Emily pending, James pending, Aisha report-sent). Alternatively, this can be implemented as a demo mode toggle that loads pre-seeded patients into the existing technician session. |
+| **Implementation** | Simpler approach: In demo mode, after uploading Emily's file, load the pre-seeded patient data by calling `GET /users/` which now returns the seed data since we're logged in as the same technician. The seed migration should have already created Patients 1, 2, 3 with `auth_user_id=2` (tech). |
 | **Files** | `frontend/src/pages/TechnicianDashboard.tsx:26-27` — statusFilter state |
 | **Files** | `frontend/src/components/Patients.tsx:139-145` — loadPatients effect |
 
@@ -260,7 +260,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 2. "🔑 Login as Jenny Park" (technician)
 3. "🔑 Login as Emily R." (patient, via patient ID) |
 | **Highlight** | The autofill buttons, then the "Sign In" button. |
-| **Demo Button** | "🔑 Login as Dr. David Chen" → Sets `formData.username`="dr_chen", `formData.password`="Demo@2025!". Does NOT auto-submit — user must click "Sign In". |
+| **Demo Button** | "🔑 Login as Dr. David Chen" → Sets `formData.username`="doc", `formData.password`="password". Does NOT auto-submit — user must click "Sign In". |
 | **Files** | `frontend/src/pages/LoginPage.tsx:30-303` — full LoginPage |
 | **Files** | `frontend/src/pages/LoginPage.tsx:32-35` — formData state |
 | **Files** | `frontend/src/pages/LoginPage.tsx:45-57` — handleSubmit |
@@ -353,7 +353,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Route** | `/dashboard` (doctor role) |
 | **Duration** | ~5s |
 | **Instruction** | Great work! Dr. Chen has completed his review. Now let's switch back to the technician's view to send the report to the patient. Click **"Continue as Jenny (Technician) →"** below. |
-| **Demo Button** | "Continue as Jenny (Technician) →" — Logout + login as `jenny_tech` + navigate to `/dashboard` with statusFilter='examined' to show patients with completed reports. |
+| **Demo Button** | "Continue as Jenny (Technician) →" — Logout + login as `tech` + navigate to `/dashboard` with statusFilter='examined' to show patients with completed reports. |
 
 ---
 
@@ -526,7 +526,7 @@ Migration order:
 
 ### Password Hashing for Seed Data
 
-All demo passwords are `Demo@2025!`. The seed script must bcrypt-hash them using the same method as the backend:
+All demo passwords are `password`. The seed script must bcrypt-hash them using the same method as the backend:
 
 ```python
 # backend/app/core/auth.py:8-9
@@ -534,7 +534,7 @@ from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Generate hash:
-hashed = pwd_context.hash("Demo@2025!")
+hashed = pwd_context.hash("password")
 ```
 
 ### Demo EDF File

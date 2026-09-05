@@ -36,6 +36,10 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# ...except the desktop build's own spec, which is hand-maintained source
+# (backend/build-desktop.sh runs it). The rule above comes from the generic
+# Python template and assumes specs are generated.
+!backend/pyinstaller/desktop.spec
 
 # Installer logs
 pip-log.txt
@@ -113,6 +117,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+cere_env/
+
+# Local-mode file storage (backend/local_storage)
+local_storage/
 
 # Spyder project settings
 .spyderproject
@@ -141,4 +149,4 @@ test.db
 node_modules/
 
 backend/app/static/plots/*
-backend/logs
+/backend/logs/

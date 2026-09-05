@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "homepage": "./",
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=6144 react-scripts start",
+    "dev:desktop": "cross-env NODE_OPTIONS=--max-old-space-size=6144 REACT_APP_DESKTOP=true react-scripts start",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=6144 react-scripts build",
+    "build:desktop": "cross-env NODE_OPTIONS=--max-old-space-size=6144 REACT_APP_DESKTOP=true react-scripts build",
+    "start": "npx --yes serve -s build -l 3000",
+    "start:desktop": "npx --yes serve -s build -l 3000",
+    "test": "react-scripts test"
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -39,13 +48,6 @@
     "cross-env": "^10.1.0",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.1"
-  },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "build:desktop": "cross-env REACT_APP_DESKTOP=true react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
