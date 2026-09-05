@@ -6,7 +6,7 @@ CereSignal runs as **4 components**:
 |-----------|---------|------|
 | Redis | Message broker for Celery tasks | 6379 |
 | FastAPI Backend | REST API server | 8000 |
-| Celery Worker | ML inference task processor | N/A |
+| Celery Worker | EDF preprocessing + ML inference | N/A |
 | React Frontend | Web UI | 3000 |
 
 ## Prerequisites
@@ -14,6 +14,7 @@ CereSignal runs as **4 components**:
 - Python 3.11
 - Node.js and npm
 - Docker (for Redis) — or a local `redis-server` on 6379
+- No cloud account required
 
 ## First-time setup
 
@@ -24,6 +25,23 @@ CereSignal runs as **4 components**:
 Creates the `backend/cere_env` virtualenv, installs backend and frontend
 dependencies, creates `backend/.env` from the example, and generates a random
 `SECRET_KEY`. It is safe to re-run — every step is skipped if already done.
+
+The defaults it writes need no cloud account: `DATABASE_URL` is
+`sqlite:///./cere_signal.db`, and with `SUPABASE_URL` unset the backend stores
+uploads on disk under `backend/local_storage/`, serving them from `/static`.
+Set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` and it switches to Supabase Storage
+automatically — that is how the deployed app runs. `OPENAI_API_KEY` is optional
+too; without it inference still runs and the report text is simply left blank.
+
+> **Tip:** inference runs on CPU (`inference/infer.py` pins `torch.device("cpu")`),
+> but `requirements.txt` pulls in several GB of CUDA wheels. On Linux you can
+> install the much smaller CPU-only build into the virtualenv first, then run
+> `./scripts/setup.sh` as usual:
+>
+> ```bash
+> python3.11 -m venv backend/cere_env
+> backend/cere_env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+> ```
 
 ## Quick Start
 
@@ -44,6 +62,10 @@ npm --prefix frontend run dev
 ```
 
 Log in with the seeded demo account: **`admin`** / **`password`**
+
+To create a real hospital and admin account instead of using the demo data, run
+`backend/cere_env/bin/python backend/scripts/create_admin.py`; it prompts for the
+hospital name and admin credentials.
 
 ### Starting over
 
@@ -66,6 +88,7 @@ is already there.
 docker exec redis_dev redis-cli ping                 # expect PONG
 
 # Backend API
+curl http://localhost:8000/health          # -> {"status":"healthy",...}
 curl http://localhost:8000/api/v1/docs
 
 # Celery worker
@@ -152,6 +175,33 @@ The production build and dev server both run with a raised Node heap
 Report drafting calls OpenAI. Without `OPENAI_API_KEY` in `backend/.env`,
 inference still completes and the report text is simply left empty for manual
 entry.
+
+### Upload or processing fails
+
+Check the backend and Celery worker logs. In local mode, files are written under
+`backend/local_storage/` — confirm that directory is created and writable.
+
+If `SUPABASE_URL` is set, the credentials must be valid and the `eeg-signals` and
+`eeg-assets` buckets must exist. To use local disk instead, leave `SUPABASE_URL`
+empty.
+
+### Database issues
+
+Recreate missing tables (and ensure the dev superuser exists):
+
+```bash
+cd backend
+./cere_env/bin/python migrate.py
+```
+
+To wipe and start over — **this destroys all data**:
+
+```bash
+cd backend
+./cere_env/bin/python migrate.py --reset
+```
+
+Or `./scripts/backend-start.sh --fresh` to reset, re-seed and serve in one step.
 
 ## Frontend commands
 

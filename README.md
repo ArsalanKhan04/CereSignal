@@ -1,9 +1,21 @@
-# CereSignal API
+# CereSignal
 
-A FastAPI-based backend for brain signal processing and analysis. :)
+A full-stack medical EEG analysis platform. Clinicians upload EDF recordings; CereSignal runs them
+through two pre-trained PyTorch models, generates clinical report text with an LLM, and presents the
+results alongside an interactive EEG viewer.
+
+It ships as a multi-tenant web application (Railway + Supabase) and as a Windows desktop app
+(Electron + PyInstaller).
 
 ## Features
 
+- **EEG analysis**: NeuroGate (Normal/Abnormal classification) and NeuroTransformer
+  (per-channel spike/slow-wave detection), plus posterior dominant rhythm
+  estimation and topographic maps.
+- **AI report drafting**: Factual report and impression text generated via the
+  OpenAI API, editable by the clinician before sign-off.
+- **Interactive EEG viewer**: Plotly-based waveform display with bookmarks,
+  focus-point navigation and fullscreen review.
 - **Multi-tenant hospitals**: Every staff account carries a `hospital_id`, and
   the API scopes patients, files and reports to the caller's hospital. A hospital
   is created by its first admin through `POST /auth/register/hospital`.
@@ -25,67 +37,80 @@ A FastAPI-based backend for brain signal processing and analysis. :)
 - **Signal Processing**: FFT analysis, filtering, feature extraction, and spectral
   analysis.
 - **Notifications**: In-app notification feed for report and processing events.
-- **Database Storage**: SQLite (Postgres-compatible) for users, hospitals, files,
-  signals, reports and processing results.
+- **Database Storage**: SQLAlchemy over SQLite locally and Postgres (Supabase) in
+  deployment, for users, hospitals, files, signals, reports and processing results.
 - **RESTful API**: Clean REST API with automatic documentation.
 
 ## Project Structure
 
-The FastAPI application lives under `backend/app/`; the paths below are relative
-to `backend/`.
-
 ```
-backend/
-├── app/
-│   ├── main.py                 # FastAPI application entry point
-│   ├── core/
-│   │   ├── auth.py            # JWT and role dependencies
-│   │   ├── config.py          # Configuration management
-│   │   ├── database.py        # Database connection and session
-│   │   ├── logging_config.py  # Logging setup
-│   │   └── middleware.py      # Custom middleware
-│   ├── models/                # SQLAlchemy models
-│   │   ├── auth.py            # auth_users, user_sessions, UserType
-│   │   ├── contact.py         # contact form submissions
-│   │   ├── hospital.py        # hospitals, staff_invitations
-│   │   ├── notification.py    # in-app notifications
-│   │   ├── report.py          # eeg_reports and version history
-│   │   ├── signal.py          # signal_files, signals, results
-│   │   └── user.py            # patient records
-│   ├── schemas/               # Pydantic schemas, one per model area
-│   ├── api/
-│   │   └── v1/
-│   │       ├── api.py         # Main API router
-│   │       └── endpoints/
-│   │           ├── admin.py         # hospital admin: invites, staff, stats
-│   │           ├── auth.py          # login, registration, invites, portal
-│   │           ├── contact.py       # public contact form
-│   │           ├── dev_admin.py     # cross-hospital superuser views
-│   │           ├── logs.py          # client log ingestion
-│   │           ├── notifications.py # notification feed
-│   │           ├── processing.py    # signal processing endpoints
-│   │           ├── reports.py       # reports, versions, PDF export
-│   │           ├── signals.py       # file upload, plots, inference status
-│   │           └── users.py         # patient management
-│   ├── services/
-│   │   ├── brain_viz_service.py   # topomap rendering
-│   │   ├── eeg_cache_service.py   # decoded-signal cache
-│   │   ├── email_service.py       # invitations and portal links
-│   │   ├── inference_service.py   # queues the Celery inference task
-│   │   ├── pdf_service.py         # report PDF generation
-│   │   └── storage_service.py     # Supabase or local-disk file storage
-│   └── utils/
-│       ├── file_processing.py    # File handling utilities
-│       └── signal_processing.py  # Signal processing utilities
-├── inference/infer.py         # Celery tasks: preprocess, infer, draft report
-├── external/                  # NeuroGate / NeuroTransformer wrappers + weights
-├── migrate.py                 # Schema creation and --reset
-├── scripts/seed_demo.py       # Demo data seeder (idempotent)
-├── requirements.txt           # Python dependencies
-└── .env.example               # Environment variables template
+CereSignal/
+├── scripts/                       # setup.sh, redis-start.sh, backend-start.sh,
+│                                  #   worker-start.sh, stop.sh
+├── backend/
+│   ├── app/
+│   │   ├── main.py                # FastAPI application entry point
+│   │   ├── core/
+│   │   │   ├── auth.py            # JWT and role dependencies
+│   │   │   ├── config.py          # Configuration management
+│   │   │   ├── database.py        # Database connection and session
+│   │   │   ├── logging_config.py  # Logging setup
+│   │   │   └── middleware.py      # Custom middleware
+│   │   ├── models/                # SQLAlchemy models
+│   │   │   ├── auth.py            # auth_users, user_sessions, UserType
+│   │   │   ├── contact.py         # contact form submissions
+│   │   │   ├── hospital.py        # hospitals, staff_invitations
+│   │   │   ├── notification.py    # in-app notifications
+│   │   │   ├── report.py          # eeg_reports and version history
+│   │   │   ├── signal.py          # signal_files, signals, results
+│   │   │   └── user.py            # patient records
+│   │   ├── schemas/               # Pydantic schemas, one per model area
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       ├── api.py         # Main API router
+│   │   │       └── endpoints/
+│   │   │           ├── admin.py         # hospital admin: invites, staff, stats
+│   │   │           ├── auth.py          # login, registration, invites, portal
+│   │   │           ├── contact.py       # public contact form
+│   │   │           ├── dev_admin.py     # cross-hospital superuser views
+│   │   │           ├── logs.py          # client log ingestion
+│   │   │           ├── notifications.py # notification feed
+│   │   │           ├── processing.py    # signal processing endpoints
+│   │   │           ├── reports.py       # reports, versions, PDF export
+│   │   │           ├── signals.py       # file upload, plots, inference status
+│   │   │           └── users.py         # patient management
+│   │   ├── services/
+│   │   │   ├── brain_viz_service.py   # topomap rendering
+│   │   │   ├── eeg_cache_service.py   # decoded-signal cache
+│   │   │   ├── email_service.py       # invitations and portal links
+│   │   │   ├── inference_service.py   # queues the Celery inference task
+│   │   │   ├── pdf_service.py         # report PDF generation
+│   │   │   └── storage_service.py     # Supabase or local-disk file storage
+│   │   └── utils/
+│   │       ├── file_processing.py     # File handling utilities
+│   │       └── signal_processing.py   # Signal processing utilities
+│   ├── inference/infer.py         # Celery tasks: preprocess, infer, draft report
+│   ├── external/                  # NeuroGate / NeuroTransformer wrappers + weights
+│   ├── migrate.py                 # Schema creation and --reset
+│   ├── scripts/                   # create_admin.py, seed_demo.py (idempotent)
+│   ├── requirements.txt           # Python dependencies
+│   └── .env.example               # Environment variables template
+├── frontend/
+│   └── src/
+│       ├── pages/                 # Top-level page components
+│       ├── components/            # Shared UI components
+│       ├── contexts/              # Auth and demo React contexts
+│       ├── services/              # API client
+│       └── types/                 # Shared TypeScript types
+├── main.js                        # Electron entry point
+├── preload.js
+├── docker-compose.yml
+├── HOWTORUN.md                    # Development setup walkthrough
+├── DESKTOP_BUILD_WINDOWS.md       # Windows desktop build guide
+└── CLAUDE.md                      # Architecture notes for AI coding agents
 ```
 
-## Installation
+## Getting Started
 
 From the repository root:
 
@@ -106,6 +131,9 @@ Then start the backend (it migrates the schema and seeds demo data first):
 The full four-component setup — Redis, backend, Celery worker and frontend —
 is documented in [HOWTORUN.md](HOWTORUN.md).
 
+No cloud account is required for local development — with `SUPABASE_URL` unset
+the backend stores files on local disk and SQLite works as the database.
+
 To run things by hand, use the virtualenv's binaries directly; there is no
 `cere_env` pyenv virtualenv:
 
@@ -114,9 +142,12 @@ cd backend
 ./cere_env/bin/uvicorn app.main:app --reload
 ```
 
+For the Windows desktop build, see
+**[DESKTOP_BUILD_WINDOWS.md](DESKTOP_BUILD_WINDOWS.md)**.
+
 ## API Documentation
 
-Once the server is running, you can access:
+Once the server is running:
 
 - **Interactive API docs**: http://localhost:8000/api/v1/docs
 - **ReDoc documentation**: http://localhost:8000/api/v1/redoc
@@ -180,7 +211,7 @@ padlock icon there marks which routes carry an auth dependency.
 
 ### Signal Management
 
-- `POST /signals/upload` - Upload a signal file (optional `patient_id`)
+- `POST /signals/upload` - Upload a signal file (optional `patient_id`, triggers processing)
 - `GET /signals/files` - List uploaded files (with patient filtering)
 - `GET /signals/files/{file_id}` - File details
 - `DELETE /signals/files/{file_id}` - Delete a file
@@ -244,6 +275,18 @@ padlock icon there marks which routes carry an auth dependency.
 - **Feature Extraction** - Statistical and signal features
 - **Spectral Analysis** - Power spectral density analysis
 
+## Configuration
+
+Configured through environment variables in `backend/.env`; see `backend/.env.example` for the full
+template and `CLAUDE.md` for what each one does. Key options:
+
+- `DATABASE_URL` — Postgres in deployment; SQLite works for local development
+- `SECRET_KEY` — JWT signing key
+- `REDIS_URL` — Celery broker
+- `SUPABASE_URL`, `SUPABASE_SECRET_KEY` — File storage; leave unset to use local disk
+- `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation
+- `MAX_FILE_SIZE`, `ALLOWED_FILE_TYPES`, `BACKEND_CORS_ORIGINS`
+
 ## Development
 
 ### Database
@@ -267,16 +310,6 @@ versions of this README documented `pytest`, `black app/ tests/` and `mypy app/`
 none of those work today.
 
 The frontend has tests: `npm --prefix frontend test`.
-
-## Configuration
-
-The application can be configured through environment variables. See `.env.example` for available options.
-
-Key configuration options:
-- `DATABASE_URL` - Database connection string
-- `MAX_FILE_SIZE` - Maximum file upload size
-- `ALLOWED_FILE_TYPES` - Allowed file extensions
-- `BACKEND_CORS_ORIGINS` - CORS allowed origins
 
 ## License
 
