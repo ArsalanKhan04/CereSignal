@@ -399,7 +399,7 @@ const PatientPortal: React.FC = () => {
                             <Box key={bookmark.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
                               <Box
                                 component="img"
-                                src={`${apiClient.getPublicBaseUrl()}${bookmark.image_url}`}
+                                src={apiClient.resolveAssetUrl(bookmark.image_url)}
                                 alt="EEG bookmark"
                                 sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
                               />

@@ -533,6 +533,15 @@ class ApiClient {
     return this.baseURL.replace(/\/api\/v1\/?$/, '');
   }
 
+  // Resolve a stored asset URL for use in an <img src>. The backend returns an
+  // absolute CDN URL when files live in Supabase, and a root-relative /static path
+  // when they are served from local disk — only the latter needs the API origin.
+  resolveAssetUrl(url: string): string {
+    if (!url) return '';
+    if (/^https?:\/\//i.test(url)) return url;
+    return `${this.getPublicBaseUrl()}${url}`;
+  }
+
   setAuthToken(token: string): void {
     localStorage.setItem('auth_token', token);
   }

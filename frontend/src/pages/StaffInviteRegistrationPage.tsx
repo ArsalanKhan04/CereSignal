@@ -97,8 +97,12 @@ const StaffInviteRegistrationPage: React.FC = () => {
           } else {
             setTokenError('This invitation link has expired. Please ask your admin to send a new invite.');
           }
-        } else {
+        } else if (status === 404) {
           setTokenError('This invitation link is invalid or not found.');
+        } else {
+          // A server or network failure is not a bad token — saying so sends
+          // people chasing the wrong problem.
+          setTokenError('Couldn\'t verify this invitation right now. Please try again, or ask your admin to resend it.');
         }
       } finally {
         setTokenLoading(false);

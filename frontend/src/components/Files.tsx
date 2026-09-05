@@ -27,6 +27,12 @@ import {
 import { apiClient } from '../services/api';
 import { SignalFile, Signal } from '../types';
 
+// 'pending_review' means the file processed fine but has no automated label —
+// it is waiting on a manual read (AI inference disabled). Module scope because
+// FileCard below renders the same chip.
+const getConditionLabel = (condition: string) =>
+  condition === 'pending_review' ? 'NEEDS REVIEW' : condition.toUpperCase();
+
 const Files: React.FC = () => {
   const [files, setFiles] = useState<SignalFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,11 +151,6 @@ const Files: React.FC = () => {
       default: return '⏳';
     }
   };
-
-  // 'pending_review' means the file processed fine but has no automated label —
-  // it is waiting on a manual read (AI inference disabled).
-  const getConditionLabel = (condition: string) =>
-    condition === 'pending_review' ? 'NEEDS REVIEW' : condition.toUpperCase();
 
   const filteredFiles = files.filter(file => {
     if (filter === 'all') return true;
