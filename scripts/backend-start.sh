@@ -53,7 +53,7 @@ log "seeding demo data"
 cat <<EOF
 
 ${_C_GREEN}Backend starting${_C_OFF} on http://localhost:8000  ${_C_DIM}(docs at /api/v1/docs)${_C_OFF}
-Demo login: ${_C_GREEN}admin_nl${_C_OFF} / ${_C_GREEN}Demo@2025!${_C_OFF}  ${_C_DIM}(from backend/scripts/seed_demo.py)${_C_OFF}
+${_C_DIM}Demo accounts are listed above, from backend/scripts/seed_demo.py${_C_OFF}
 
 EOF
 

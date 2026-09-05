@@ -21,7 +21,7 @@ npm --prefix frontend run dev    # React frontend on :3000
 
 `./scripts/stop.sh` stops all three backend components. `./scripts/backend-start.sh --fresh` drops every table, clears uploaded files/plots/logs, and re-seeds (typed confirmation; `--yes` to skip).
 
-Seeded demo login: `admin_nl` / `Demo@2025!`
+Seeded demo login: `admin` / `password`
 
 There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere_env/`, and the scripts call its binaries directly rather than activating anything. The backend and worker must run with `backend/` as cwd: `inference/infer.py` resolves model weights relative to the current directory and `DATABASE_URL` is cwd-relative.
 

@@ -43,7 +43,7 @@ Four terminals, one command each:
 npm --prefix frontend run dev
 ```
 
-Log in with the seeded demo account: **`admin_nl`** / **`Demo@2025!`**
+Log in with the seeded demo account: **`admin`** / **`password`**
 
 ### Starting over
 

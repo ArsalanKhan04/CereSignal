@@ -23,7 +23,8 @@ from app.models.report import EEGReport
 from app.models.notification import Notification
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-DEMO_PASSWORD_HASH = pwd_context.hash("Demo@2025!")
+DEMO_PASSWORD = "password"
+DEMO_PASSWORD_HASH = pwd_context.hash(DEMO_PASSWORD)
 
 NOW = datetime.now(timezone.utc)
 
@@ -49,15 +50,35 @@ def seed_demo(db: Session) -> None:
 
     # ── Auth Users ────────────────────────────────────────────
     def get_or_create_auth(username: str, **kwargs) -> AuthUser:
-        u = db.query(AuthUser).filter(AuthUser.username == username).first()
+        # Keyed on email rather than username: the email is the stable identity
+        # of a demo account, so renaming one (admin_nl -> admin) updates the
+        # existing row instead of inserting a second one that would collide on
+        # the unique email.
+        u = db.query(AuthUser).filter(AuthUser.email == kwargs["email"]).first()
         if not u:
             u = AuthUser(username=username, **kwargs)
             db.add(u)
             db.flush()
+            return u
+
+        # Realign credentials so a database seeded before a username or
+        # password change picks the new ones up without needing --fresh.
+        if u.username != username:
+            taken = db.query(AuthUser).filter(
+                AuthUser.username == username, AuthUser.id != u.id
+            ).first()
+            if taken:
+                # A real account already owns the name. Renaming would abort the
+                # seed — and this runs on every backend start — so leave it.
+                print(f"  ! username '{username}' is taken; keeping '{u.username}'")
+            else:
+                u.username = username
+        u.hashed_password = kwargs["hashed_password"]
+        db.flush()
         return u
 
     admin = get_or_create_auth(
-        "admin_nl",
+        "admin",
         email="admin@neurolink.demo.local",
         hashed_password=DEMO_PASSWORD_HASH,
         user_type="admin",
@@ -68,7 +89,7 @@ def seed_demo(db: Session) -> None:
     )
 
     technician = get_or_create_auth(
-        "jenny_tech",
+        "tech",
         email="jenny.tech@demo.local",
         hashed_password=DEMO_PASSWORD_HASH,
         user_type="technician",
@@ -80,7 +101,7 @@ def seed_demo(db: Session) -> None:
     )
 
     doctor = get_or_create_auth(
-        "dr_chen",
+        "doc",
         email="david.chen@demo.local",
         hashed_password=DEMO_PASSWORD_HASH,
         user_type="doctor",
@@ -267,6 +288,12 @@ def seed_demo(db: Session) -> None:
         db.commit()
 
     print("Demo seed complete.")
+
+    # Built from the rows just seeded, so this can never drift from the
+    # accounts that actually exist.
+    print(f"\nDemo accounts (password: {DEMO_PASSWORD})")
+    for u in (admin, technician, doctor):
+        print(f"  {u.username:<7} {u.user_type}")
 
 
 if __name__ == "__main__":
