@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DemoProvider, useDemo } from './contexts/DemoContext';
+import { ConfigProvider } from './contexts/ConfigContext';
 import DemoGuide from './components/DemoGuide';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -246,13 +247,15 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <DemoProvider>
-        <AuthProvider>
-          <Router>
-            <AppRoutes />
-          </Router>
-        </AuthProvider>
-      </DemoProvider>
+      <ConfigProvider>
+        <DemoProvider>
+          <AuthProvider>
+            <Router>
+              <AppRoutes />
+            </Router>
+          </AuthProvider>
+        </DemoProvider>
+      </ConfigProvider>
     </ThemeProvider>
   );
 };

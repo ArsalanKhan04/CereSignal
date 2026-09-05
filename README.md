@@ -285,6 +285,7 @@ template and `CLAUDE.md` for what each one does. Key options:
 - `REDIS_URL` — Celery broker
 - `SUPABASE_URL`, `SUPABASE_SECRET_KEY` — File storage; leave unset to use local disk
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation
+- `AI_INFERENCE_ENABLED` — set `False` for a manual-entry-only deployment (no models, no LLM)
 - `MAX_FILE_SIZE`, `ALLOWED_FILE_TYPES`, `BACKEND_CORS_ORIGINS`
 
 ## Development

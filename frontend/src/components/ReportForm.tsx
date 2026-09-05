@@ -29,6 +29,7 @@ import {
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useConfig } from '../contexts/ConfigContext';
 import {
   validateName,
   validateRequired,
@@ -63,6 +64,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
   isDialog = false
 }) => {
   const { user } = useAuth();
+  const { aiInferenceEnabled } = useConfig();
   const DOCTOR_PROFILES_KEY = 'ceresignal_doctor_profiles';
   type DoctorProfile = {
     id: string;
@@ -187,6 +189,12 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   const checkForLLMReport = async () => {
     if (!fileId) return;
+
+    if (!aiInferenceEnabled) {
+      // Manual-entry-only deployment: no report task is ever queued, so skip the
+      // status check and the polling loop and open straight to a blank form.
+      return;
+    }
 
     try {
       // Check if LLM report is already available
@@ -704,7 +712,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
   }
 
   // Show waiting dialog while LLM is generating the report
-  if (waitingForLLM) {
+  if (waitingForLLM && aiInferenceEnabled) {
     return (
       <Dialog open={true} maxWidth="sm" fullWidth>
         <DialogTitle>

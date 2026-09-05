@@ -176,6 +176,27 @@ Report drafting calls OpenAI. Without `OPENAI_API_KEY` in `backend/.env`,
 inference still completes and the report text is simply left empty for manual
 entry.
 
+### Every upload lands in "Needs Review"
+
+That is the manual-entry-only mode. Uploads are still preprocessed for the EEG
+viewer, but no model runs and no report is drafted; the file waits for a manual
+normal/abnormal label.
+
+Both start scripts print `Manual-entry-only mode` at startup when it is active,
+so check those two terminals first. If you did not pass `--no-ai`, something has
+uncommented `AI_INFERENCE_ENABLED` in `backend/.env` — comment it out again and
+restart **both** the backend and the Celery worker, since each reads the flag
+independently. The ML stack must also be installed: `./scripts/setup.sh` without
+`--no-ai`.
+
+To run the mode deliberately for one session, leave `.env` alone and pass the
+flag to both:
+
+```bash
+./scripts/backend-start.sh --no-ai
+./scripts/worker-start.sh --no-ai
+```
+
 ### Upload or processing fails
 
 Check the backend and Celery worker logs. In local mode, files are written under

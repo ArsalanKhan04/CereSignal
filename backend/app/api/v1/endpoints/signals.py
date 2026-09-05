@@ -1043,6 +1043,11 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                         file.condition = "normal"
                     elif result["result"].lower() == "abnormal":
                         file.condition = "abnormal"
+                    elif result["result"].lower() == "pending_review":
+                        # AI inference disabled — the file processed fine, it just
+                        # awaits a manual label from the doctor/technician.
+                        file.condition = "pending_review"
+                        file.processing_status = "completed"
                     else:
                         file.condition = "failed"
 

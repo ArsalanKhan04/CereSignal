@@ -22,6 +22,9 @@ services:
     build:
       context: ./backend # Path to your FastAPI directory
       dockerfile: Dockerfile.backend
+      args:
+        # Set INSTALL_AI=false (and AI_INFERENCE_ENABLED=False) for a manual-entry-only stack
+        INSTALL_AI: ${INSTALL_AI:-true}
     container_name: fastapi_backend
     # Both steps are idempotent, so this is safe on every restart. Mirrors
     # scripts/backend-start.sh, which does the same before serving.
@@ -37,6 +40,7 @@ services:
       # /usr/src/app, which the volume below maps to ./backend on the host. Set
       # explicitly because the default in app/core/config.py is Postgres.
       - DATABASE_URL=sqlite:///./cere_signal.db
+      - AI_INFERENCE_ENABLED=${AI_INFERENCE_ENABLED:-True}
     volumes:
       # Not just for live reload: the worker resolves the object paths it
       # receives over Redis against its own filesystem, so an upload the API
@@ -50,11 +54,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.backend
+      args:
+        INSTALL_AI: ${INSTALL_AI:-true}
     container_name: celery_worker
     command: celery -A inference.infer worker -l info
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:///./cere_signal.db
+      - AI_INFERENCE_ENABLED=${AI_INFERENCE_ENABLED:-True}
       # Optional. Without it inference still completes; the report text is blank.
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:

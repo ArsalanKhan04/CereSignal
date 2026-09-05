@@ -22,8 +22,10 @@ import { apiClient } from '../services/api';
 import { SignalFile, EventsData } from '../types';
 import EEGPlot from './EEGPlot';
 import TopographicMap from './TopographicMap';
+import { useConfig } from '../contexts/ConfigContext';
 
 const Events: React.FC = () => {
+  const { aiInferenceEnabled } = useConfig();
   const [files, setFiles] = useState<SignalFile[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<number | ''>('');
   const [eventsData, setEventsData] = useState<EventsData | null>(null);
@@ -203,7 +205,9 @@ const Events: React.FC = () => {
                 </CardContent>
               </Card>
 
-              <TopographicMap fileId={selectedFileId as number} />
+              {/* Topomap is derived from NeuroTransformer events — nothing to plot
+                  when AI inference is disabled. */}
+              {aiInferenceEnabled && <TopographicMap fileId={selectedFileId as number} />}
 
             </Box>
           )}

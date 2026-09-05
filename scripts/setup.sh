@@ -3,6 +3,21 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# --no-ai sets up a manual-entry-only install: no torch/openai, and
+# AI_INFERENCE_ENABLED=False in the generated .env. See "No-AI Mode" in CLAUDE.md.
+INSTALL_AI=true
+for arg in "$@"; do
+    case "$arg" in
+        --no-ai) INSTALL_AI=false ;;
+        -h|--help)
+            echo "usage: $0 [--no-ai]"
+            echo "  --no-ai   skip torch/openai and configure a manual-entry-only backend"
+            exit 0
+            ;;
+        *) die "unknown option: $arg (try --help)" ;;
+    esac
+done
+
 log "CereSignal setup"
 
 # ── Python virtualenv ───────────────────────────────────────────
@@ -27,10 +42,19 @@ fi
 # backend/requirements.txt is the real one — it is what CI (.github/workflows)
 # and backend/Dockerfile.backend install. backend/app/requirements.txt and the
 # root requirements.txt are stale duplicates.
-log "installing backend dependencies (this takes a while — torch and mne are large)"
+#
+# torch and openai live in backend/requirements-ai.txt and are needed only when
+# AI_INFERENCE_ENABLED=True, which is the default — so install them unless --no-ai.
+log "installing backend dependencies (this takes a while — mne is large)"
 "$PIP" install --quiet --upgrade pip
 "$PIP" install -r "$BACKEND/requirements.txt"
-ok "backend dependencies installed"
+if [ "$INSTALL_AI" = "true" ]; then
+    log "installing ML dependencies (torch is large — pass --no-ai to skip)"
+    "$PIP" install -r "$BACKEND/requirements-ai.txt"
+    ok "backend dependencies installed (with ML stack)"
+else
+    ok "backend dependencies installed (no ML stack — manual-entry-only)"
+fi
 
 # ── Environment file ────────────────────────────────────────────
 if [ -f "$BACKEND/.env" ]; then
@@ -38,6 +62,21 @@ if [ -f "$BACKEND/.env" ]; then
 else
     cp "$BACKEND/.env.example" "$BACKEND/.env"
     ok "created backend/.env from .env.example"
+fi
+
+# Only meaningful when the ML stack was skipped — leaving the default True would
+# give a worker that dies on `import torch` at the first inference task.
+# .env.example ships this commented out, so the default (True, from
+# app/core/config.py) applies and `AI_INFERENCE_ENABLED=False ./scripts/...` can
+# still override per run. --no-ai is the case where the mode is the persistent
+# default, so uncomment it.
+if [ "$INSTALL_AI" = "false" ]; then
+    if grep -q '^# AI_INFERENCE_ENABLED=False$' "$BACKEND/.env"; then
+        sed -i "s|^# AI_INFERENCE_ENABLED=False$|AI_INFERENCE_ENABLED=False|" "$BACKEND/.env"
+        ok "set AI_INFERENCE_ENABLED=False in backend/.env"
+    else
+        skip "AI_INFERENCE_ENABLED already set by hand — leaving backend/.env alone"
+    fi
 fi
 
 # .env.example ships SECRET_KEY as a literal placeholder and tells you to
@@ -83,3 +122,12 @@ ${_C_GREEN}Setup complete.${_C_OFF} Start the stack in three terminals:
 
 Stop everything with ./scripts/stop.sh
 EOF
+
+if [ "$INSTALL_AI" = "false" ]; then
+    cat <<EOF
+${_C_YELLOW}Manual-entry-only install${_C_OFF} — NeuroGate, NeuroTransformer and LLM report
+generation are off. Uploads are still preprocessed for the viewer and land in
+"Needs Review" for a manual label. Re-run ./scripts/setup.sh (no flag) and set
+AI_INFERENCE_ENABLED=True in backend/.env to turn the ML stack back on.
+EOF
+fi

@@ -496,3 +496,9 @@ export interface DevAdminContactListResponse {
   total: number;
   unread_count: number;
 }
+
+// Public runtime configuration served by GET /api/v1/config.
+// Lets one frontend build target both an AI-enabled and a manual-entry-only backend.
+export interface AppConfig {
+  ai_inference_enabled: boolean;
+}

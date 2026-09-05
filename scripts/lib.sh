@@ -91,3 +91,23 @@ redis_running() {
     docker ps --filter "name=^${REDIS_CONTAINER}$" --format '{{.Names}}' 2>/dev/null \
         | grep -q "^${REDIS_CONTAINER}$"
 }
+
+# True when the backend will run with AI inference disabled. Reads the resolved
+# value rather than the --no-ai flag, so it is also right for someone who
+# uncommented AI_INFERENCE_ENABLED in .env. Unset means the app default, True.
+ai_disabled() {
+    case "${AI_INFERENCE_ENABLED:-True}" in
+        [Ff]alse|0|[Nn]o) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Say so, loudly, in every component that skips the models. Getting this wrong in
+# one of the two processes is the confusing failure: the UI advertises AI while
+# the worker quietly skips it, or the reverse.
+announce_mode() {
+    if ai_disabled; then
+        printf '%sManual-entry-only mode%s — no models, no LLM report. Uploads land in "Needs Review".\n' \
+            "$_C_YELLOW" "$_C_OFF"
+    fi
+}

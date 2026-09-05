@@ -23,12 +23,14 @@ import {
 import { apiClient } from '../services/api';
 import { SignalFile, Signal, EEGReport, Patient } from '../types';
 import ReportForm from './ReportForm';
+import { useConfig } from '../contexts/ConfigContext';
 
 interface FileListProps {
   patientId: number;
 }
 
 const FileList: React.FC<FileListProps> = ({ patientId }) => {
+  const { aiInferenceEnabled } = useConfig();
   const [files, setFiles] = useState<SignalFile[]>([]);
   const [patient, setPatient] = useState<Patient | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -89,6 +91,12 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
 
   // Poll for report generation status on files with report_task_id but no report yet
   useEffect(() => {
+    if (!aiInferenceEnabled) {
+      // No LLM report task is ever queued in a manual-entry-only deployment.
+      setReportPolling(false);
+      return;
+    }
+
     const reportPendingFiles = files.filter(file =>
       file.report_task_id &&
       !file.factual_report &&
@@ -133,7 +141,7 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
       clearInterval(pollInterval);
       setReportPolling(false);
     };
-  }, [files]);
+  }, [files, aiInferenceEnabled]);
 
   const loadFiles = async () => {
     try {
@@ -219,9 +227,15 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
       case 'abnormal': return '❌';
       case 'processing': return '⏳';
       case 'failed': return '❌';
+      case 'pending_review': return '📝';
       default: return '⏳';
     }
   };
+
+  // 'pending_review' means the file processed fine but has no automated label —
+  // it is waiting on a manual read (AI inference disabled).
+  const getConditionLabel = (condition: string) =>
+    condition === 'pending_review' ? 'NEEDS REVIEW' : condition.toUpperCase();
 
   if (loading) {
     return (
@@ -288,7 +302,7 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
                 </Typography>
                 <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip
-                    label={`${getConditionIcon(file.condition)} ${file.condition.toUpperCase()}`}
+                    label={`${getConditionIcon(file.condition)} ${getConditionLabel(file.condition)}`}
                     size="small"
                     color={getConditionColor(file.condition)}
                   />

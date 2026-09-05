@@ -1,3 +1,6 @@
+# Base runtime dependencies.
+# ML/AI extras (torch, openai) live in requirements-ai.txt and are needed only
+# when AI_INFERENCE_ENABLED=True. See that file for details.
 aiofiles
 aiohappyeyeballs
 aiohttp
@@ -147,7 +150,6 @@ six
 sniffio
 soupsieve
 SQLAlchemy
-openai
 psycopg2-binary
 supabase
 resampy
@@ -157,7 +159,6 @@ sympy
 tenacity
 threadpoolctl
 tinycss2
-torch
 tornado
 tqdm
 traitlets

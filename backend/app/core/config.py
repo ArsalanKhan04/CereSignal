@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # Redis settings
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # AI/ML inference. Set False for a manual-entry-only deployment
+    # (no torch, no model weights, no LLM report generation).
+    AI_INFERENCE_ENABLED: bool = True
+
     # OpenAI settings
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"

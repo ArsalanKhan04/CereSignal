@@ -148,6 +148,8 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
   (`app/core/database.py` applies `sslmode=require` only to Postgres URLs)
 - `SECRET_KEY` — must be set for JWT signing
 - `REDIS_URL` — defaults to `redis://localhost:6379/0`
+- `AI_INFERENCE_ENABLED` — defaults to `True`. Set `False` for a manual-entry-only
+  deployment (see "No-AI Mode" below)
 - `SUPABASE_URL`, `SUPABASE_SECRET_KEY` — file storage. Leave `SUPABASE_URL` empty to store
   files on local disk instead (`SUPABASE_PUBLISHABLE_KEY` is the client-side key)
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation (default `gpt-4o-mini`)
@@ -156,6 +158,37 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
 - `DESKTOP_MODE` — read only by `entry_point.py:25` and never acted on; currently has no effect
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
+
+## No-AI Mode
+
+Setting `AI_INFERENCE_ENABLED=False` runs CereSignal as a manual-entry-only platform:
+NeuroGate, NeuroTransformer and the LLM report step are all skipped. Files still upload,
+still go through `preprocess_edf` (channel conversion for the EEG viewer), and land in the
+`pending_review` condition awaiting a manual normal/abnormal label from the existing
+`PATCH /signals/files/{id}/label` flow. Reports are typed by hand.
+
+Because `inference/infer.py` imports `torch`, `openai` and everything under `external/`
+lazily, a no-AI deployment can skip the ML stack entirely:
+
+```bash
+./scripts/setup.sh --no-ai                       # base deps only, no torch/openai
+docker compose build --build-arg INSTALL_AI=false
+```
+
+To run an existing install in this mode for one session, without touching `.env` — both
+components need the flag, since each reads `AI_INFERENCE_ENABLED` independently:
+
+```bash
+./scripts/backend-start.sh --no-ai
+./scripts/worker-start.sh --no-ai
+```
+
+`.env.example` ships `AI_INFERENCE_ENABLED` commented out, so the `True` default in
+`app/core/config.py` applies; uncomment it in `backend/.env` to make the mode permanent.
+
+The frontend discovers the mode at runtime via `GET /api/v1/config`
+(`frontend/src/contexts/ConfigContext.tsx`), so one build serves both modes. Redis and the
+Celery worker are still required — `preprocess_edf` runs in both modes.
 
 ## Tech Stack
 
