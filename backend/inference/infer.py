@@ -12,6 +12,18 @@ from celery import Celery
 # functions that need them. With AI_INFERENCE_ENABLED=False the worker must be able to
 # start without the ML stack installed at all (see backend/requirements-ai.txt).
 
+# Celery puts the working directory on sys.path only while it imports this module
+# (celery.utils.imports.cwd_in_path) and takes it straight back off. The app.* and
+# external.* imports in the tasks below run later, at task time, so backend/ has to
+# stay importable; a module-level `from app.services.brain_viz_service import ...`
+# used to cache `app` during that window, but it is lazy now.
+#
+# Inserted unconditionally: celery's temporary entry is the same string, so a
+# `not in sys.path` guard skips the insert and celery then removes the only copy.
+# Resolved from __file__, not cwd, so it holds wherever the worker was started.
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _BACKEND_DIR)
+
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
