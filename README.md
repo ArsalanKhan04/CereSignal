@@ -189,7 +189,7 @@ padlock icon there marks which routes carry an auth dependency.
 - `GET /signals/files/{file_id}/signals` - Channel records for a file
 - `GET /signals/files/{file_id}/signal-data` - Raw samples for plotting
 - `GET /signals/files/{file_id}/plot-data` - Downsampled plot series
-- `GET /signals/files/{file_id}/topomap` - Generated topomap image
+- `GET /signals/files/{file_id}/topomap` - Generated topomap image (`<recording_basename>_topomap.png`)
 - `GET /signals/files/{file_id}/events` - Detected events
 - `GET /signals/files/{file_id}/inference-status` - Poll the ML inference task
 - `GET /signals/files/{file_id}/report-status` - Poll the report drafting task
