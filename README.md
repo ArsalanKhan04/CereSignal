@@ -100,7 +100,7 @@ re-run.
 Then start the backend (it migrates the schema and seeds demo data first):
 
 ```bash
-./scripts/start-backend.sh
+./scripts/backend-start.sh
 ```
 
 The full four-component setup — Redis, backend, Celery worker and frontend —
@@ -257,7 +257,7 @@ cd backend
 ./cere_env/bin/python -m scripts.seed_demo  # demo data (idempotent)
 ```
 
-Or `./scripts/start-backend.sh --fresh` to reset, re-seed and serve in one step.
+Or `./scripts/backend-start.sh --fresh` to reset, re-seed and serve in one step.
 
 ### Tests and linting
 

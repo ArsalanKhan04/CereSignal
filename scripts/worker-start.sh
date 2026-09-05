@@ -8,7 +8,7 @@ load_env
 
 # Fail loudly here rather than letting Celery sit in an opaque reconnect loop.
 if command -v docker >/dev/null 2>&1 && ! redis_running; then
-    warn "Redis container '$REDIS_CONTAINER' is not running — start it with ./scripts/start-redis.sh"
+    warn "Redis container '$REDIS_CONTAINER' is not running — start it with ./scripts/redis-start.sh"
     warn "(ignore this if you run Redis outside Docker)"
 fi
 

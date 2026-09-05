@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Prepare the database, seed demo data, then run the FastAPI backend.
 #
-#   ./scripts/start-backend.sh            continue from the last run
-#   ./scripts/start-backend.sh --fresh    wipe the DB and generated files, start over
-#   ./scripts/start-backend.sh --fresh --yes   ... without the confirmation prompt
+#   ./scripts/backend-start.sh            continue from the last run
+#   ./scripts/backend-start.sh --fresh    wipe the DB and generated files, start over
+#   ./scripts/backend-start.sh --fresh --yes   ... without the confirmation prompt
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

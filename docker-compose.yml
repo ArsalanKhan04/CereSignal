@@ -24,7 +24,7 @@ services:
       dockerfile: Dockerfile.backend
     container_name: fastapi_backend
     # Both steps are idempotent, so this is safe on every restart. Mirrors
-    # scripts/start-backend.sh, which does the same before serving.
+    # scripts/backend-start.sh, which does the same before serving.
     command: >
       sh -c "python migrate.py &&
              python -m scripts.seed_demo &&

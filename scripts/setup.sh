@@ -69,16 +69,16 @@ fi
 if command -v docker >/dev/null 2>&1; then
     ok "docker found"
 else
-    warn "docker not found — scripts/start-redis.sh needs it, or run a local redis-server on 6379."
+    warn "docker not found — scripts/redis-start.sh needs it, or run a local redis-server on 6379."
 fi
 
 cat <<EOF
 
 ${_C_GREEN}Setup complete.${_C_OFF} Start the stack in three terminals:
 
-  ${_C_DIM}terminal 1${_C_OFF}  ./scripts/start-redis.sh
-  ${_C_DIM}terminal 2${_C_OFF}  ./scripts/start-backend.sh      ${_C_DIM}# add --fresh to reset and re-seed${_C_OFF}
-  ${_C_DIM}terminal 3${_C_OFF}  ./scripts/start-worker.sh
+  ${_C_DIM}terminal 1${_C_OFF}  ./scripts/redis-start.sh
+  ${_C_DIM}terminal 2${_C_OFF}  ./scripts/backend-start.sh      ${_C_DIM}# add --fresh to reset and re-seed${_C_OFF}
+  ${_C_DIM}terminal 3${_C_OFF}  ./scripts/worker-start.sh
   ${_C_DIM}terminal 4${_C_OFF}  npm --prefix frontend run dev
 
 Stop everything with ./scripts/stop.sh

@@ -31,13 +31,13 @@ Four terminals, one command each:
 
 ```bash
 # Terminal 1 — Redis
-./scripts/start-redis.sh
+./scripts/redis-start.sh
 
 # Terminal 2 — Backend (prepares the DB, seeds demo data, then serves)
-./scripts/start-backend.sh
+./scripts/backend-start.sh
 
 # Terminal 3 — Celery worker
-./scripts/start-worker.sh
+./scripts/worker-start.sh
 
 # Terminal 4 — Frontend
 npm --prefix frontend run dev
@@ -48,7 +48,7 @@ Log in with the seeded demo account: **`admin_nl`** / **`Demo@2025!`**
 ### Starting over
 
 ```bash
-./scripts/start-backend.sh --fresh
+./scripts/backend-start.sh --fresh
 ```
 
 Drops every table, deletes uploaded files, generated plots and logs, then
@@ -132,7 +132,7 @@ Then `kill <PID>`, or just run `./scripts/stop.sh`.
 
 ### Celery worker not connecting
 
-Redis must be running first — `./scripts/start-redis.sh` waits for it to accept
+Redis must be running first — `./scripts/redis-start.sh` waits for it to accept
 connections before returning, so start it before the worker.
 
 ```bash

@@ -34,7 +34,7 @@ stop_matching() {
 stop_matching "backend (uvicorn)" "$VENV/bin/uvicorn app.main:app"
 stop_matching "Celery worker"     "$VENV/bin/celery -A inference.infer worker"
 
-# Redis. Stopped, not removed, so start-redis.sh can reuse the container.
+# Redis. Stopped, not removed, so redis-start.sh can reuse the container.
 if command -v docker >/dev/null 2>&1; then
     if redis_running; then
         docker stop "$REDIS_CONTAINER" >/dev/null

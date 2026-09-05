@@ -13,13 +13,13 @@ One-time: `./scripts/setup.sh` (creates `backend/cere_env`, installs deps, write
 Four components must run simultaneously, one per terminal:
 
 ```bash
-./scripts/start-redis.sh         # Redis broker
-./scripts/start-backend.sh       # migrates + seeds demo data, then uvicorn on :8000
-./scripts/start-worker.sh        # Celery worker (ML inference)
+./scripts/redis-start.sh         # Redis broker
+./scripts/backend-start.sh       # migrates + seeds demo data, then uvicorn on :8000
+./scripts/worker-start.sh        # Celery worker (ML inference)
 npm --prefix frontend run dev    # React frontend on :3000
 ```
 
-`./scripts/stop.sh` stops all three backend components. `./scripts/start-backend.sh --fresh` drops every table, clears uploaded files/plots/logs, and re-seeds (typed confirmation; `--yes` to skip).
+`./scripts/stop.sh` stops all three backend components. `./scripts/backend-start.sh --fresh` drops every table, clears uploaded files/plots/logs, and re-seeds (typed confirmation; `--yes` to skip).
 
 Seeded demo login: `admin_nl` / `Demo@2025!`
 
@@ -76,7 +76,7 @@ The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `rea
 
 | Path | Purpose |
 |------|---------|
-| `scripts/` | Dev workflow — `setup.sh`, `start-redis.sh`, `start-backend.sh`, `start-worker.sh`, `stop.sh` |
+| `scripts/` | Dev workflow — `setup.sh`, `redis-start.sh`, `backend-start.sh`, `worker-start.sh`, `stop.sh` |
 | `backend/migrate.py` | Schema creation and `--reset`. No Alembic — this is the whole migration system |
 | `backend/scripts/seed_demo.py` | Demo/test data seeder, idempotent |
 | `backend/app/main.py` | FastAPI app, router registration, CORS config |
