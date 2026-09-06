@@ -42,39 +42,20 @@ If we want the admin to **live-invite** during the demo: keep these as **pending
 
 **Recommended:** Use **live invite** for the technician (to show the admin inviting flow) and **pre-seeded** accounts for the doctor (to show autofill login). See step flow below.
 
-### Patients (User records)
-| # | name | email | phone | medical_id | gender | date_of_birth | blood_type | auth_user_id | doctor_id | hospital_id | report_sent | portal_token |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | Emily Richardson | emily.r@demo.local | +44 7700 900001 | MED-2025-0042 | F | 1992-06-15 | A+ | 2 (tech) | 3 (doc) | 1 | false | `portal-demo-emily-001` |
-| 2 | James Okafor | james.o@demo.local | +44 7700 900002 | MED-2025-0087 | M | 1978-03-22 | O+ | 2 (tech) | 3 (doc) | 1 | false | `portal-demo-james-002` |
-| 3 | Aisha Patel | aisha.p@demo.local | +44 7700 900003 | MED-2025-0156 | F | 1985-11-08 | B+ | 2 (tech) | 3 (doc) | 1 | true | `portal-demo-aisha-003` |
+### Patients, Signal Files, Reports, Bookmarks and Notifications — not seeded
 
-### Signal Files (pre-processed EEGs with results)
-| # | id | user_id | original_filename | processing_status | condition | neurogate_probability |
-|---|---|---|---|---|---|---|
-| 1 | 101 | 1 (Emily) | emily_eeg_resting.edf | completed | abnormal | 87.3 |
-| 2 | 102 | 1 (Emily) | emily_eeg_sleep.edf | completed | abnormal | 91.5 |
-| 3 | 201 | 2 (James) | james_eeg_routine.edf | completed | normal | 12.1 |
-| 4 | 301 | 3 (Aisha) | aisha_eeg_followup.edf | completed | normal | 5.8 |
+`seed_demo.py` stops at the rows above: the hospital, the three staff accounts and their
+invitations. Everything else is created by using the app.
 
-### EEG Report (pre-generated)
-| # | id | file_id | user_id | doctor_id | factual_report (excerpt) | impression | report_date |
-|---|---|---|---|---|---|---|---|
-| 1 | 5001 | 101 | 1 (Emily) | 3 (doc) | "Background activity shows posterior dominant rhythm at 9 Hz... intermittent left temporal sharp waves noted..." | abnormal | 2025-04-28 |
-| 2 | 5002 | 301 | 3 (Aisha) | 3 (doc) | "Well-regulated 10 Hz alpha rhythm... no epileptiform discharges identified..." | normal | 2025-04-25 |
+Earlier versions did seed three sample patients (Emily Richardson, James Okafor, Aisha Patel) with
+four `signal_files` rows and two reports on top of them. Those files pointed at `/demo/*.edf` —
+storage objects that were never uploaded — so opening one in the viewer failed with `Invalid object
+path`, and seeding EEG rows properly would mean seeding real EDF objects alongside them. The files
+and reports were dropped first, which left the patients with nothing attached, so they went too.
+The seed now deletes all of it from databases an older version wrote to.
 
-### EEG Bookmarks
-| # | file_id | comment | created_by |
-|---|---|---|---|
-| 1 | 101 | "Left temporal sharp wave at ~3s — correlate clinically" | 3 (doc) |
-| 2 | 101 | "Spike-and-wave complex at ~8s" | 3 (doc) |
-
-### Notifications
-| # | user_id (doctor) | message | patient_id | is_read |
-|---|---|---|---|---|
-| 1 | 3 | "New patient Emily Richardson assigned to you" | 1 | false |
-| 2 | 3 | "New patient James Okafor assigned to you" | 2 | false |
-| 3 | 3 | "Patient Aisha Patel's EEG report is ready for review" | 3 | false |
+Patients, EEG uploads, inference results, reports, bookmarks and notifications therefore all appear
+live during the walkthrough, starting from the phase-2 upload (see "Demo EDF File" below).
 
 ---
 
@@ -201,7 +182,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Instruction** | Click the **"+ Add Patient"** button. Fill in the patient details using the **autofill button**, then click "Save". In a real clinic, you'd also assign a doctor from the dropdown. |
 | **UI** | Add Patient dialog opens. Form with sections: Personal Info, Medical Details, Contact Info. |
 | **Highlight** | The "+ Add Patient" button, then the Doctor Assignment dropdown, then the "Save" button. |
-| **Demo Button** | "⚡ Autofill Patient" → Fills name="Emily Richardson", email="emily.r@demo.local", phone="+44 7700 900001", medical_id="MED-2025-0042", gender="F", date_of_birth="1992-06-15", blood_type="A+", doctor_id=3 (Dr. Chen) |
+| **Demo Button** | "⚡ Autofill Patient" → Fills a randomly generated patient (name, email, phone, medical_id, gender, date_of_birth, blood_type) and attaches the matching demo EDF, doctor_id=3 (Dr. Chen) |
 | **Files** | `frontend/src/components/Patients.tsx:54-127` — component state & form data |
 | **Files** | `frontend/src/components/Patients.tsx:779-1039` — Add/Edit Patient dialog (approximate) |
 | **Files** | `backend/app/api/v1/endpoints/users.py:26-207` — POST /users/ |
@@ -236,12 +217,12 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 #### Step 2.4 — Quick Transition: Technician with Full Workload
 | Property | Value |
 |---|---|
-| **Route** | `/dashboard` (technician role, but with pre-seeded data) |
+| **Route** | `/dashboard` (technician role, full workload view) |
 | **Duration** | ~8s |
 | **Instruction** | Jenny often manages multiple patients. Let's see her full workload. Click **"Show Full Workload →"** below to view all her patients at different stages: pending review, examined, and report sent. |
 | **UI** | A demo-only button appears at the bottom of the patient list area. |
-| **Demo Button** | "Show Full Workload →" — Signs out, logs in as `tech` again, but this time the backend returns the pre-seeded data (3 patients: Emily pending, James pending, Aisha report-sent). Alternatively, this can be implemented as a demo mode toggle that loads pre-seeded patients into the existing technician session. |
-| **Implementation** | Simpler approach: In demo mode, after uploading Emily's file, load the pre-seeded patient data by calling `GET /users/` which now returns the seed data since we're logged in as the same technician. The seed migration should have already created Patients 1, 2, 3 with `auth_user_id=2` (tech). |
+| **Demo Button** | "Show Full Workload →" — Switches the technician dashboard to the "all patients" view. With nothing seeded, the workload is whatever the demo has created so far (the normal and abnormal patients from steps 2.1 and 2.2). |
+| **Implementation** | `GET /users/` returns the patients this technician created earlier in the demo — no seeded rows are involved. |
 | **Files** | `frontend/src/pages/TechnicianDashboard.tsx:26-27` — statusFilter state |
 | **Files** | `frontend/src/components/Patients.tsx:139-145` — loadPatients effect |
 
@@ -276,7 +257,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Route** | `/dashboard` (doctor role) |
 | **Duration** | ~8s |
 | **Instruction** | Welcome Dr. Chen! Notice the notification bell 🔔 with 3 unread alerts — these tell you when new patients are assigned and when reports are ready. The toggle at the top lets you switch between **"Assigned to me"** and **"All patients"**. Currently, 2 patients are pending your review. |
-| **UI** | DoctorDashboard with 3 patient cards (Emily — pending, James — pending, Aisha — examined). Notification bell with red dot. Toggle for assigned/all. |
+| **UI** | DoctorDashboard with a card per patient created in phase 2 (both pending review). Notification bell with red dot. Toggle for assigned/all. |
 | **Highlight** | The notification bell badge, then the "Pending Review" toggle. |
 | **Files** | `frontend/src/pages/DoctorDashboard.tsx:34-303` — full DoctorDashboard |
 | **Files** | `frontend/src/pages/DoctorDashboard.tsx:56-70` — notification loading |
@@ -289,7 +270,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Route** | `/dashboard` (doctor role, patient detail open) |
 | **Duration** | ~8s |
 | **Instruction** | Click on **Emily Richardson's** patient card to open the full detail view. Here you can see her profile, EEG files, and processing results. Notice the **"View EEG"** and **"Normal / Abnormal"** label buttons. Click **"View EEG"** to inspect her brain wave recordings. |
-| **UI** | Full-screen patient detail dialog opens. Shows Emily's profile chips, her two EEG files (emily_eeg_resting.edf — Abnormal, emily_eeg_sleep.edf — Abnormal), and action buttons per file. |
+| **UI** | Full-screen patient detail dialog opens. Shows the patient's profile chips, the EEG file uploaded in phase 2 with its condition chip, and action buttons per file. |
 | **Highlight** | The "View EEG" button, then the "Normal" / "Abnormal" label buttons. |
 | **Files** | `frontend/src/components/Patients.tsx:1234-1279` — Patient detail dialog header |
 | **Files** | `frontend/src/components/Patients.tsx:1082-1111` — Normal/Abnormal label buttons |
@@ -315,7 +296,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Instruction** | After reviewing the EEG, click **"Create Report"** (or "Edit Report" if one exists). The form is pre-populated with AI-generated content: factual report text, impression, and PDR values. Review and edit if needed, fill in your doctor info, then click **"Save Report"**. |
 | **UI** | Full-screen ReportForm dialog. Sections: Patient Info (auto-filled), Report Info (date, ref physician, indications, technique), Factual Report (AI-generated, editable textarea), Impression (dropdown: Normal/Abnormal, auto-set from ML), Doctor Info (auto-filled from profile, with save/load). "Save Report" button at bottom. |
 | **Highlight** | The Factual Report textarea (showing AI-generated content), then the "Save Report" button. |
-| **Note** | For Emily, the pre-seeded report (id=5001) already exists. Doctor clicks "Edit Report" to review it. For James, there's no report yet — "Create Report" flow. |
+| **Note** | No reports are seeded, so this is always the "Create Report" flow. Re-opening a patient whose report was saved earlier in the demo shows "Edit Report" instead. |
 | **Files** | `frontend/src/components/ReportForm.tsx:44-778` — ReportForm component |
 | **Files** | `frontend/src/components/ReportForm.tsx:175-266` — AI report polling |
 | **Files** | `frontend/src/components/Patients.tsx:1112-1129` — Create/Edit Report buttons |
@@ -365,7 +346,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Route** | `/dashboard` (technician role, statusFilter='examined') |
 | **Duration** | ~6s |
 | **Instruction** | Back as Jenny! The **Examined** tab shows patients whose EEGs have been reviewed. Notice Emily's card now shows the report created by Dr. Chen. Technicians finalize the workflow by sending reports to patients. |
-| **UI** | TechnicianDashboard with statusFilter='examined'. Shows patient cards for Emily and Aisha (both have reports). |
+| **UI** | TechnicianDashboard with statusFilter='examined'. Shows the card for the patient whose report the doctor just saved. |
 | **Files** | `frontend/src/pages/TechnicianDashboard.tsx:27` — statusFilter |
 | **Files** | `frontend/src/components/Patients.tsx:108-109` — filter state |
 
@@ -387,7 +368,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 | **Duration** | ~6s |
 | **Instruction** | Now click **"Email Report"** on Emily's card. This generates a secure portal link and emails it to the patient. The patient doesn't need to create an account — they just click the link in their email. A demo button will appear to simulate the patient's experience. |
 | **UI** | Patient card shows "Email Report" button. After clicking, success feedback appears. Demo-only button appears below: |
-| **Demo Button** | "Open Patient Portal (Emily) →" — Logout + navigate to `/patient/portal/{emily_portal_token}` (portal-demo-emily-001 from seed data). |
+| **Demo Button** | "Open Patient Portal (Emily) →" — Logout + navigate to `/patient/portal/{portal_token}`, using the token generated when the report was emailed in step 5.2. |
 | **Highlight** | The "Email Report" button. |
 | **Files** | `frontend/src/components/Patients.tsx:1158-1173` — Email Report button |
 | **Files** | `backend/app/api/v1/endpoints/users.py:644-690` — POST /users/{id}/send-portal-email |
@@ -419,7 +400,7 @@ The demo is organized into **8 phases** of 3-5 steps each. Each step is a positi
 - Latest Report card (file name, Normal/Abnormal chip, date, doctor name, indications, technique, factual report, impression, doctor notes)
 - Download PDF button
 - EEG Bookmarks section (2 bookmarks from Dr. Chen with images and comments)
-- Previous Reports section (report id=5001 listed) |
+- Previous Reports section (the report saved in phase 4) |
 | **Highlight** | The Latest Report "Normal/Abnormal" chip, then the "Download PDF" button, then the EEG Bookmarks section. |
 | **Files** | `frontend/src/pages/PatientPortal.tsx:39-522` — full PatientPortal |
 | **Files** | `frontend/src/pages/PatientPortal.tsx:216-267` — Patient Profile card |
@@ -518,7 +499,7 @@ Migration order:
 1. Insert Hospital (id=1)
 2. Insert AuthUsers (admin, technician, doctor) with bcrypt-hashed passwords
 3. Insert StaffInvitations (2 records, used or pending depending on desired flow)
-4. Insert Patients (Emily, James, Aisha) with portal tokens
+4. (No patient rows — patients are created during the walkthrough)
 5. Insert SignalFiles (4 records with completed status)
 6. Insert EEGReports (2 records)
 7. Insert EEGBookmarks (2 records)
@@ -569,7 +550,7 @@ PHASE 2: Technician (initial)
   Step 2.1  /dashboard (tech)      → Add patient (Emily)
   Step 2.2  /dashboard (tech)      → Upload EEG file
   Step 2.3  /dashboard (tech)      → Processing status
-  Step 2.4  /dashboard (tech)*     → "Show Full Workload" → reload with seed data
+  Step 2.4  /dashboard (tech)*     → "Show Full Workload" → all patients view
   │
   ▼
 PHASE 3: Login transition

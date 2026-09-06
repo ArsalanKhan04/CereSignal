@@ -1,5 +1,7 @@
 """
-Demo seed script — inserts pre-seeded data for the CereSignal guided demo.
+Demo seed script — creates the demo hospital, its three staff accounts
+(admin/tech/doc) and the invitations they registered through. Patients, EEG
+files and reports are not seeded; they are created by using the app.
 Run: python -m backend.scripts.seed_demo  (from project root)
      or: python seed_demo.py              (from backend/scripts/)
 """
@@ -19,7 +21,6 @@ from app.models.auth import AuthUser
 from app.models.hospital import Hospital, StaffInvitation
 from app.models.user import User
 from app.models.signal import SignalFile
-from app.models.report import EEGReport
 from app.models.notification import Notification
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -27,6 +28,9 @@ DEMO_PASSWORD = "password"
 DEMO_PASSWORD_HASH = pwd_context.hash(DEMO_PASSWORD)
 
 NOW = datetime.now(timezone.utc)
+
+# Sample patients seeded by earlier versions of this script, deleted below.
+DEMO_PATIENT_MEDICAL_IDS = ["MED-2025-0042", "MED-2025-0087", "MED-2025-0156"]
 
 
 def seed_demo(db: Session) -> None:
@@ -131,148 +135,32 @@ def seed_demo(db: Session) -> None:
             )
             db.add(inv)
 
-    # ── Patients ──────────────────────────────────────────────
-    patient_data = [
-        dict(
-            id=1,
-            name="Emily Richardson",
-            email="emily.r@demo.local",
-            phone="+44 7700 900001",
-            medical_id="MED-2025-0042",
-            gender="F",
-            date_of_birth=datetime(1992, 6, 15),
-            blood_type="A+",
-            auth_user_id=technician.id,
-            hospital_id=hospital.id,
-            report_sent=False,
-            portal_token="portal-demo-emily-001",
-        ),
-        dict(
-            id=2,
-            name="James Okafor",
-            email="james.o@demo.local",
-            phone="+44 7700 900002",
-            medical_id="MED-2025-0087",
-            gender="M",
-            date_of_birth=datetime(1978, 3, 22),
-            blood_type="O+",
-            auth_user_id=technician.id,
-            hospital_id=hospital.id,
-            report_sent=False,
-            portal_token="portal-demo-james-002",
-        ),
-        dict(
-            id=3,
-            name="Aisha Patel",
-            email="aisha.p@demo.local",
-            phone="+44 7700 900003",
-            medical_id="MED-2025-0156",
-            gender="F",
-            date_of_birth=datetime(1985, 11, 8),
-            blood_type="B+",
-            auth_user_id=technician.id,
-            hospital_id=hospital.id,
-            report_sent=True,
-            portal_token="portal-demo-aisha-003",
-        ),
-    ]
-    patients = {}
-    # The ids above double as the local lookup keys used further down. Use them
-    # as real primary keys only on an empty table, for the same reason as the
-    # hospital above.
-    _pin_ids = db.query(User).count() == 0
-    for pd in patient_data:
-        p = db.query(User).filter(User.medical_id == pd["medical_id"]).first()
-        if not p:
-            p = User(**(pd if _pin_ids else {k: v for k, v in pd.items() if k != "id"}))
-            db.add(p)
-            db.flush()
-        patients[pd["id"]] = p
+    # ── Remove earlier demo sample data ───────────────────────
+    # Earlier seeds inserted three sample patients plus signal_files pointing at
+    # /demo/*.edf — storage objects that were never written, so opening one in
+    # the viewer failed with "Invalid object path". Neither is seeded any more;
+    # remove what previous runs left behind, oldest dependency first.
+    stale_files = db.query(SignalFile).filter(SignalFile.file_path.like("/demo/%")).all()
+    for sf in stale_files:
+        db.delete(sf)
+    if stale_files:
+        print(f"Removed {len(stale_files)} placeholder demo signal file(s).")
 
-    # ── Signal Files ──────────────────────────────────────────
-    signal_data = [
-        dict(id=101, user_id=patients[1].id, hospital_id=hospital.id, filename="emily_eeg_resting.edf",
-             original_filename="emily_eeg_resting.edf", file_path="/demo/emily_eeg_resting.edf",
-             file_size=512000, file_type="edf", processing_status="completed", condition="abnormal"),
-        dict(id=102, user_id=patients[1].id, hospital_id=hospital.id, filename="emily_eeg_sleep.edf",
-             original_filename="emily_eeg_sleep.edf", file_path="/demo/emily_eeg_sleep.edf",
-             file_size=512000, file_type="edf", processing_status="completed", condition="abnormal"),
-        dict(id=201, user_id=patients[2].id, hospital_id=hospital.id, filename="james_eeg_routine.edf",
-             original_filename="james_eeg_routine.edf", file_path="/demo/james_eeg_routine.edf",
-             file_size=512000, file_type="edf", processing_status="completed", condition="normal"),
-        dict(id=301, user_id=patients[3].id, hospital_id=hospital.id, filename="aisha_eeg_followup.edf",
-             original_filename="aisha_eeg_followup.edf", file_path="/demo/aisha_eeg_followup.edf",
-             file_size=512000, file_type="edf", processing_status="completed", condition="normal"),
-    ]
-    signals = {}
-    for sd in signal_data:
-        sf = db.query(SignalFile).filter(SignalFile.id == sd["id"]).first()
-        if not sf:
-            sf = SignalFile(**sd)
-            db.add(sf)
-            db.flush()
-        signals[sd["id"]] = sf
-
-    # ── EEG Reports ───────────────────────────────────────────
-    report_data = [
-        dict(
-            id=5001,
-            file_id=signals[101].id,
-            auth_user_id=doctor.id,
-            hospital_id=hospital.id,
-            patient_name="Emily Richardson",
-            patient_age=32,
-            patient_gender="F",
-            report_date=datetime(2025, 4, 28),
-            factual_report=(
-                "Background activity shows posterior dominant rhythm at 9 Hz. "
-                "Intermittent left temporal sharp waves noted, predominantly at T3. "
-                "Occasional spike-and-wave complexes identified at approximately 3 s and 8 s. "
-                "No generalized epileptiform discharges seen."
-            ),
-            impression="abnormal",
-            is_finalized=True,
-        ),
-        dict(
-            id=5002,
-            file_id=signals[301].id,
-            auth_user_id=doctor.id,
-            hospital_id=hospital.id,
-            patient_name="Aisha Patel",
-            patient_age=39,
-            patient_gender="F",
-            report_date=datetime(2025, 4, 25),
-            factual_report=(
-                "Well-regulated 10 Hz alpha rhythm present bilaterally. "
-                "No epileptiform discharges identified. "
-                "Normal sleep architecture observed in sleep sections. "
-                "No focal slowing or asymmetry noted."
-            ),
-            impression="normal",
-            is_finalized=True,
-        ),
-    ]
-    for rd in report_data:
-        r = db.query(EEGReport).filter(EEGReport.id == rd["id"]).first()
-        if not r:
-            r = EEGReport(**rd)
-            db.add(r)
-
-    # ── Notifications ─────────────────────────────────────────
-    notif_data = [
-        dict(auth_user_id=doctor.id, message="New patient Emily Richardson assigned to you",
-             patient_id=patients[1].id, is_read=False),
-        dict(auth_user_id=doctor.id, message="New patient James Okafor assigned to you",
-             patient_id=patients[2].id, is_read=False),
-        dict(auth_user_id=doctor.id, message="Patient Aisha Patel's EEG report is ready for review",
-             patient_id=patients[3].id, is_read=False),
-    ]
-    existing_notifs = db.query(Notification).filter(
-        Notification.auth_user_id == doctor.id
-    ).count()
-    if existing_notifs == 0:
-        for nd in notif_data:
-            db.add(Notification(**nd))
+    stale_patients = db.query(User).filter(User.medical_id.in_(DEMO_PATIENT_MEDICAL_IDS)).all()
+    # A demo patient that still owns files has had a real EEG uploaded against
+    # it. signal_files.user_id is NOT NULL with no delete cascade, so leave that
+    # patient (and its data) alone rather than deleting either.
+    keep = [p for p in stale_patients if p.signal_files]
+    remove = [p for p in stale_patients if not p.signal_files]
+    for p in remove:
+        db.query(Notification).filter(Notification.patient_id == p.id).delete(
+            synchronize_session=False
+        )
+        db.delete(p)
+    if remove:
+        print(f"Removed {len(remove)} demo patient(s).")
+    for p in keep:
+        print(f"Kept demo patient {p.name!r} — it has uploaded EEG files.")
 
     db.commit()
 
@@ -282,7 +170,7 @@ def seed_demo(db: Session) -> None:
     # the current MAX so auto-generated IDs don't conflict.
     # SQLite has no sequences (and no setval), so this is Postgres-only.
     if db.get_bind().dialect.name == "postgresql":
-        _tables_with_ids = ["hospitals", "auth_users", "users", "signal_files", "eeg_reports", "staff_invitations"]
+        _tables_with_ids = ["hospitals", "auth_users", "staff_invitations"]
         for t in _tables_with_ids:
             db.execute(text(f"SELECT setval('{t}_id_seq', COALESCE((SELECT MAX(id) FROM {t}), 1), true)"))
         db.commit()
