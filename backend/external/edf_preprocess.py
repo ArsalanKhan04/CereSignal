@@ -57,6 +57,31 @@ def load_edf(filepath: str) -> mne.io.Raw:
     return raw
 
 
+def conforms_to_layout(ch_names) -> bool:
+    """
+    Return True if these channels are already the layout process_edf produces.
+
+    Doubles as the viewer's readiness test: a file that does not conform is either
+    still awaiting conversion or failed it, and is not fit to plot either way.
+    """
+    return list(ch_names) == FINAL_CHANNEL_LABELS
+
+
+def needs_preprocessing(filepath: str) -> bool:
+    """
+    Return True if the file still needs the legacy 26-channel repair.
+
+    process_edf rebuilds recordings whose channel count was mis-declared at export.
+    Its reshape re-chunks samples across channel boundaries, so running it on a file
+    that already carries the standard layout scrambles every channel. Files already
+    labelled FINAL_CHANNEL_LABELS are left alone.
+
+    Reads the header only, so it is cheap enough to run on every upload.
+    """
+    raw = mne.io.read_raw_edf(filepath, preload=False, verbose=False)
+    return not conforms_to_layout(raw.ch_names)
+
+
 def reshape_data_to_26_channels(data: np.ndarray) -> np.ndarray:
     """
     Reshape EEG data to 26 channels.
@@ -231,7 +256,18 @@ def process_edf(input_path: str, output_path: str) -> None:
     if original_info.get("line_freq"):
         info["line_freq"] = original_info["line_freq"]
 
-    # Scaling data by 1e-6 to convert from microvolts to volts
+    # Scaling data by 1e-6 to convert from microvolts to volts.
+    #
+    # This is correct only because these recordings declare their physical dimension as
+    # "uM", not "uV". MNE does not recognise "uM", so it skips its own uV->V conversion and
+    # get_data() hands back physical units directly — microvolts, despite the label. Do not
+    # "fix" this to a no-op without first checking the header of the file you are testing:
+    # a genuine "uV" file already comes back in volts and would be scaled to nothing here.
+    #
+    # Known issue: after this the signal sits around 0.12 uV rms, roughly 100x below real
+    # EEG. The source calibration is the cause (physical full scale +/-56 against digital
+    # +/-32768, and the data occupies ~0.3% of it), not anything in this pipeline — the
+    # average re-reference above costs only 1.4x. See the note in _process_neurotransformer.
     data = data * 1e-6
 
     # Create Raw object with preserved metadata

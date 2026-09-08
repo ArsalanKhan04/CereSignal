@@ -234,6 +234,25 @@ def _process_neurogate(mne_data):
 
 
 def _process_neurotransformer(mne_data, threshold=0.5):
+    """
+    Per-channel 3-class classification (normal / spike / slow wave) in 2s windows.
+
+    Known issue — this model is sharply sensitive to input amplitude, and the EDFs we
+    receive are miscalibrated (see the note in external/edf_preprocess.py: ~0.12 uV rms,
+    about 100x below real EEG). Measured on 0001377, spikes surviving the confidence gate
+    against input scale:
+
+        scale   rms       spikes @ argmax   spikes after gate   slow
+        x1      0.12 uV   65                0                   39
+        x10     1.2 uV    4790              665                 0
+        x100    12 uV     941               121                 0
+        x1000   120 uV    1006              121                 0
+
+    So "no spike waves" here is a calibration artefact, not a clinical finding: 65 are found
+    at argmax and the gate below erases every one. Raising the amplitude to a realistic scale
+    changes the answer completely, and so does lowering `threshold`. Do not read this
+    model's output as a verdict until the source calibration is settled.
+    """
     import torch
     import torch.nn.functional as F
     from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
@@ -261,6 +280,8 @@ def _process_neurotransformer(mne_data, threshold=0.5):
         confidence = confidence.cpu().numpy()
         preds = preds.cpu().numpy()
 
+        # Anything the model is not sure about is recorded as normal. With the amplitude
+        # shortfall described above, this currently discards every spike prediction.
         preds[confidence < threshold] = 0
         outputs = preds
         events = all_events[outputs]
@@ -418,31 +439,38 @@ def preprocess_edf(mne_file_path):
     print("Preprocess: starting EDF conversion...")
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         import tempfile
-        from external.edf_preprocess import process_edf
+        from external.edf_preprocess import needs_preprocessing, process_edf
 
-        tmp_processed = tempfile.NamedTemporaryFile(suffix="_processed.edf", delete=False)
-        tmp_processed.close()
         processed_path = None
-        try:
-            process_edf(local_path, tmp_processed.name)
-
-            base_name = os.path.splitext(os.path.basename(mne_file_path))[0]
-            processed_name = f"{base_name}_processed.edf"
-            processed_path = f"signals/{processed_name}"
-            with open(tmp_processed.name, "rb") as pf:
-                storage_service.upload(SIGNALS_BUCKET, processed_path, pf.read())
-            print(f"Preprocess: uploaded processed EDF to {processed_path}")
-
-            inference_task = infer.delay(processed_path)
-        except Exception as e:
-            print(f"Preprocess: EDF conversion failed ({e}), chaining with raw file")
-            processed_path = None
+        if not needs_preprocessing(local_path):
+            # Already in the standard 10-20 layout. The conversion below re-chunks
+            # samples across channel boundaries, so running it here would scramble
+            # the recording; leave file_path on the upload and infer from it.
+            print("Preprocess: channels already conform to the 10-20 layout, passing through")
             inference_task = infer.delay(mne_file_path)
-        finally:
+        else:
+            tmp_processed = tempfile.NamedTemporaryFile(suffix="_processed.edf", delete=False)
+            tmp_processed.close()
             try:
-                os.unlink(tmp_processed.name)
-            except OSError:
-                pass
+                process_edf(local_path, tmp_processed.name)
+
+                base_name = os.path.splitext(os.path.basename(mne_file_path))[0]
+                processed_name = f"{base_name}_processed.edf"
+                processed_path = f"signals/{processed_name}"
+                with open(tmp_processed.name, "rb") as pf:
+                    storage_service.upload(SIGNALS_BUCKET, processed_path, pf.read())
+                print(f"Preprocess: uploaded processed EDF to {processed_path}")
+
+                inference_task = infer.delay(processed_path)
+            except Exception as e:
+                print(f"Preprocess: EDF conversion failed ({e}), chaining with raw file")
+                processed_path = None
+                inference_task = infer.delay(mne_file_path)
+            finally:
+                try:
+                    os.unlink(tmp_processed.name)
+                except OSError:
+                    pass
 
     end_time = time.time()
     print(f"Preprocess: finished in {end_time - start_time:.1f}s, chained infer={inference_task.id}")
@@ -488,13 +516,18 @@ def infer(self, mne_file_path):
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         mne_data = mne.io.read_raw_edf(local_path, preload=True)
 
-        condition, ab_prob = _process_neurogate(mne_data)
+        # Every pipeline stage runs in place on the Raw it is handed — Preprocess.apply
+        # returns self.func(data), and crop/pick/resample/filter all mutate and return the
+        # same object. Sharing mne_data between stages let NeuroGate's PaddedCropData(60, 660)
+        # leak: NeuroTransformer and PDR then saw a 600s, 100Hz, normalised recording whose
+        # time origin had shifted by 60s. Each stage gets its own copy.
+        condition, ab_prob = _process_neurogate(mne_data.copy())
         print(f"Inference: neurogate done — condition={condition}, ab_prob={ab_prob:.3f}")
-        events, raw_events = _process_neurotransformer(mne_data, 0.9)
+        events, raw_events = _process_neurotransformer(mne_data.copy(), 0.9)
         print(f"Inference: neurotransformer done — {len(events)} channels, {sum(len(v) for v in raw_events.values())} raw events")
         focus_points = _compute_focus_points(raw_events, 0.5)
         print(f"Inference: computed {len(focus_points)} focus point(s)")
-        pdr_text = _compute_pdr(mne_data)
+        pdr_text = _compute_pdr(mne_data.copy())
         print(f"Inference: PDR computed ({pdr_text})")
     region_report = _get_region_report(raw_events, 0)
     print(f"Inference: region report done — {len(region_report)} regions")

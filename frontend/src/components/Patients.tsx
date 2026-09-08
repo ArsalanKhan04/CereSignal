@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -55,6 +55,7 @@ import FormTextField from '../components/FormTextField';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData, EEGReport } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useConfig } from '../contexts/ConfigContext';
 import { useDemo } from '../contexts/DemoContext';
 import DemoButton from '../components/DemoButton';
 import EEGPlot from './EEGPlot';
@@ -111,6 +112,7 @@ const Patients: React.FC<{
   reportSentFilter,
 }) => {
   const { user } = useAuth();
+  const { aiInferenceEnabled } = useConfig();
   const { isActive: isDemoActive, demoData, setDemoData, jumpToStep } = useDemo();
   const isReadOnly = user?.user_type === 'doctor';
   const allowDoctorFileOps = false;
@@ -776,6 +778,43 @@ const Patients: React.FC<{
     ? Object.values(patientFiles).flat().find((file) => file.id === activeEEGFileId) || null
     : null;
 
+  // How far AI analysis has got for the file being viewed. Anything that is not a terminal
+  // state counts as running: the status endpoint also reports 'pending', 'not_started' and
+  // 'unknown', not just 'processing'. Falls back to the file row so the viewer is right the
+  // moment it opens, rather than blank until the next poll up to 10s later.
+  const activeEEGAnalysis = useMemo<'running' | 'done' | 'failed' | undefined>(() => {
+    if (!aiInferenceEnabled || !activeEEGFileId || !activeEEGFile) return undefined;
+    const stage = fileStatuses[activeEEGFileId]?.inference_status;
+    if (stage === 'completed') return 'done';
+    if (stage === 'failed') return 'failed';
+    if (stage) return 'running';
+    return activeEEGFile.processing_status === 'processing' ? 'running' : 'done';
+  }, [aiInferenceEnabled, activeEEGFileId, activeEEGFile, fileStatuses]);
+
+  // handleFilePreview fetches events once, when the dialog opens. Open the viewer while
+  // inference is still running and that fetch returns nothing, leaving the plot with no
+  // wave overlays and no focus points for the life of the dialog. Re-fetch once analysis
+  // reaches a terminal state. Keyed on the memo rather than fileStatuses so it does not
+  // re-fire every poll just because some other file's status changed.
+  useEffect(() => {
+    if (!activeEEGFileId) return undefined;
+    if (activeEEGAnalysis !== 'done' && activeEEGAnalysis !== 'failed') return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await apiClient.getFileEvents(activeEEGFileId);
+        if (!cancelled && resp.status === 200) {
+          setActiveEEGEvents(resp.data);
+        }
+      } catch {
+        // Keep whatever the open-time fetch got; the poll will come round again.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEEGFileId, activeEEGAnalysis]);
+
   const getReportStatusColor = (impression?: string) => {
     if (impression === 'normal' || impression === 'abnormal') return 'success';
     return 'default';
@@ -1325,7 +1364,11 @@ const Patients: React.FC<{
         </AppBar>
         <Box sx={{ p: 2, bgcolor: '#f7f8fa', minHeight: '100%' }}>
           {activeEEGFileId && (
-            <EEGPlot fileId={activeEEGFileId} eventsData={activeEEGEvents} />
+            <EEGPlot
+              fileId={activeEEGFileId}
+              eventsData={activeEEGEvents}
+              analysisStatus={activeEEGAnalysis}
+            />
           )}
         </Box>
       </Dialog>

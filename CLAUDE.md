@@ -85,6 +85,28 @@ The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `rea
 Note: the `/api/v1/processing/*` router exists but the frontend does not use it — inference is
 triggered by the upload endpoint, not by a separate process call.
 
+### Known Data Issues
+
+The sample EDFs are miscalibrated, which changes how model output should be read:
+
+- **Physical dimension is `uM`, not `uV`.** MNE does not recognise `uM`, so it skips its own
+  µV→V conversion and `raw.get_data()` returns physical units directly. `process_edf`'s
+  `data * 1e-6` in `backend/external/edf_preprocess.py` is correct *because* of this — it is
+  not redundant, and a genuine `uV` file would be scaled to nothing by it. Check the header
+  before touching that line.
+- **Amplitudes land ~100× below real EEG** (~0.12 µV rms). The cause is the source
+  calibration — physical full scale ±56 against digital ±32768, with the data occupying about
+  0.3% of the range — not the preprocessing; the average re-reference costs only 1.4×.
+- **NeuroTransformer is sharply scale-dependent**, so this suppresses spike detection
+  entirely: 65 spikes are found at argmax but none survive `preds[confidence < 0.9] = 0`.
+  At ×100 the same recording yields 121. Treat "no spike waves" as a calibration artefact
+  rather than a clinical finding until the calibration is resolved.
+
+Two structural quirks in the sample files, both repaired by `process_edf`: the channel count is
+mis-declared (24 in the header, 26 in reality — hence the reshape), and `signals` table rows
+keep the *raw* upload's metadata, so their duration and channel names do not match the
+processed EDF the viewer actually plots.
+
 ### Multi-Tenancy
 - `hospitals` and `staff_invitations` tables (`app/models/hospital.py`)
 - Staff are onboarded by invitation; `auth_users.hospital_id` scopes data access to one hospital

@@ -724,11 +724,24 @@ async def get_plot_data(
 
     # Ensure file is loaded into cache
     try:
-        eeg_cache.load_file(file_id, file.file_path)
+        meta = eeg_cache.load_file(file_id, file.file_path)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to load EEG file: {e}",
+        )
+
+    # Until preprocessing has converted it, file_path still points at the raw upload:
+    # pre-repair montage, wrong channel count, and units MNE could not interpret. Refuse
+    # rather than plotting it — check_inference_status swaps the path once the conversion
+    # lands. A status rather than a body flag so a client that knows nothing about
+    # readiness surfaces this message instead of rendering an empty plot.
+    from external.edf_preprocess import conforms_to_layout
+
+    if not conforms_to_layout(meta["ch_names"]):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Recording is still being prepared for viewing.",
         )
 
     # parse channels
@@ -1038,11 +1051,16 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                     file.report_task_id = report_task_id
 
                 if result and "result" in result:
-                    # Map inference result to condition
+                    # Map inference result to condition. processing_status tracks signal
+                    # processing, not the LLM write-up — the report is a separate task with
+                    # its own /report-status — so it settles here. Leaving it on "processing"
+                    # kept the clients polling forever and counted finished files as pending.
                     if result["result"].lower() == "normal":
                         file.condition = "normal"
+                        file.processing_status = "completed"
                     elif result["result"].lower() == "abnormal":
                         file.condition = "abnormal"
+                        file.processing_status = "completed"
                     elif result["result"].lower() == "pending_review":
                         # AI inference disabled — the file processed fine, it just
                         # awaits a manual label from the doctor/technician.
@@ -1050,6 +1068,7 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                         file.processing_status = "completed"
                     else:
                         file.condition = "failed"
+                        file.processing_status = "failed"
 
                     # Store events data if available
                     if "events" in result and result["events"]:
@@ -1060,8 +1079,10 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
                         file.focus_points = result["focus_points"]
                 else:
                     file.condition = "failed"
+                    file.processing_status = "failed"
             else:  # failed
                 file.condition = "failed"
+                file.processing_status = "failed"
 
             db.commit()
 
