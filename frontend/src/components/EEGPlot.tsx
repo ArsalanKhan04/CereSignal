@@ -46,9 +46,12 @@ const MONTAGE_OPTIONS = [
 interface EEGPlotProps {
   fileId: number;
   eventsData: EventsData | null;
+  // Where AI analysis has got to for this file. Viewer-level vocabulary on purpose — the
+  // parent owns the mapping from the inference-status endpoint's Celery states.
+  analysisStatus?: 'running' | 'done' | 'failed';
 }
 
-const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
+const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus }) => {
   const [plotStart, setPlotStart] = useState<number>(0);
   const [plotDuration, setPlotDuration] = useState<number>(10);
   const [montage, setMontage] = useState<string>('original');
@@ -56,6 +59,8 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
   const [plotData, setPlotData] = useState<any | null>(null);
   const [totalDuration, setTotalDuration] = useState<number | null>(null);
   const [plotLoading, setPlotLoading] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const preparingRef = useRef(false);
   const [error, setError] = useState('');
   const [bookmarks, setBookmarks] = useState<EEGBookmark[]>([]);
   const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
@@ -73,9 +78,26 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     [eventsData]
   );
 
+  // While inference is still running the events endpoint returns {events: {}, focus_points: []}
+  // — an object, not null — so a plain `eventsData &&` check would show the legend for
+  // highlights that do not exist yet.
+  const hasEvents = useMemo(
+    () => Object.keys(eventsData?.events || {}).length > 0,
+    [eventsData]
+  );
+
   const plotCacheRef = useRef<Map<string, any>>(new Map());
   const inflightRef = useRef<Set<string>>(new Set());
+  // The window the viewer currently wants. Responses that no longer match it are cached
+  // but not drawn, which keeps background prefetches and abandoned foreground requests
+  // from redrawing the plot out from under the title.
+  const currentKeyRef = useRef<string>('');
+  // Foreground requests in flight. A plain boolean would be cleared by whichever request
+  // finished first, re-enabling the Load button while another was still running.
+  const fgCountRef = useRef(0);
   const MAX_CACHE_ENTRIES = 8;
+  const PREPARE_POLL_MS = 2000;
+  const PREPARE_TIMEOUT_MS = 60000;
 
   // Fullscreen change handler
   useEffect(() => {
@@ -131,20 +153,29 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         return;
       }
     }
-    if (inflightRef.current.has(cacheKey)) {
+    // A forced fetch must go through even if a background prefetch already holds the key,
+    // otherwise clicking Load during a prefetch does nothing at all.
+    if (!options?.force && inflightRef.current.has(cacheKey)) {
       return;
     }
     inflightRef.current.add(cacheKey);
     if (!options?.background) {
+      fgCountRef.current += 1;
       setPlotLoading(true);
       setError('');
     }
     try {
       const resp = await apiClient.getPlotData(fileId, start, plotDuration, undefined, montage);
       if (resp.status === 200) {
+        preparingRef.current = false;
+        setPreparing(false);
         const plotPayload = resp.data.plot_data;
         setCache(cacheKey, plotPayload);
-        setPlotData(plotPayload);
+        // Prefetches and responses for a window we have already navigated away from fill
+        // the cache only — drawing them would swap the plot without moving the title.
+        if (cacheKey === currentKeyRef.current) {
+          setPlotData(plotPayload);
+        }
         if (typeof plotPayload?.total_duration === 'number') {
           setTotalDuration(plotPayload.total_duration);
         }
@@ -154,6 +185,16 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         }
       }
     } catch (err) {
+      if ((err as any)?.response?.status === 409) {
+        // Still awaiting EDF conversion. Foreground only: a prefetch of the next
+        // window must not put the whole viewer into the preparing state. Leave
+        // plotData alone so an already-drawn plot is never blanked.
+        if (!options?.background) {
+          preparingRef.current = true;
+          setPreparing(true);
+        }
+        return;
+      }
       if (!options?.background) {
         const errorMessage = err && typeof err === 'object'
           ? ((err as any).response?.data?.detail || (err as any).message)
@@ -163,15 +204,62 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     } finally {
       inflightRef.current.delete(cacheKey);
       if (!options?.background) {
-        setPlotLoading(false);
+        fgCountRef.current = Math.max(0, fgCountRef.current - 1);
+        if (fgCountRef.current === 0) {
+          setPlotLoading(false);
+        }
       }
     }
   }, [fileId, plotStart, plotDuration, montage, buildCacheKey]);
 
+  // The raw -> processed path swap happens only inside the inference-status endpoint,
+  // so the viewer has to drive it: nudge status, then retry the plot. If the chain has
+  // already finished and the file still isn't viewable, conversion failed and no amount
+  // of waiting will help.
+  useEffect(() => {
+    if (!preparing || !fileId) return undefined;
+    let cancelled = false;
+    const deadline = Date.now() + PREPARE_TIMEOUT_MS;
+
+    const giveUp = () => {
+      preparingRef.current = false;
+      setPreparing(false);
+      setError('This recording could not be prepared for viewing.');
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      let stage: string | undefined;
+      try {
+        const status = await apiClient.checkInferenceStatus(fileId);
+        stage = status.data?.inference_status;
+      } catch {
+        // Best effort: the plot retry below is what actually decides.
+      }
+      if (cancelled) return;
+      await fetchPlot({ force: true });
+      // fetchPlot clears the ref synchronously once the file becomes viewable.
+      if (cancelled || !preparingRef.current) return;
+      if (stage === 'completed' || stage === 'failed' || Date.now() > deadline) {
+        giveUp();
+      }
+    };
+
+    const id = setInterval(tick, PREPARE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preparing, fileId, fetchPlot]);
+
   useEffect(() => {
     if (!fileId) return;
+    // Assigned here rather than in its own effect so it is always up to date before the
+    // fetch it gates is issued.
+    currentKeyRef.current = buildCacheKey(plotStart, plotDuration, montage);
     fetchPlot();
-  }, [fileId, montage, plotStart, plotDuration, fetchPlot]);
+  }, [fileId, montage, plotStart, plotDuration, fetchPlot, buildCacheKey]);
 
   const goToStart = useCallback((nextStart: number) => {
     const durationLimit = totalDuration ?? Infinity;
@@ -230,14 +318,18 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [plotDuration, plotStart, goToStart]);
 
+  // Prefetch both neighbours. Forward-only prefetching made every backwards step a cache
+  // miss, so the Load button dropped into its loading state on each one while stepping
+  // forwards never touched it.
   useEffect(() => {
     if (!fileId) return;
-    if (totalDuration !== null && plotStart + plotDuration >= totalDuration) return;
-    const nextStart = plotStart + plotDuration;
-    const nextKey = buildCacheKey(nextStart, plotDuration, montage);
-    if (!plotCacheRef.current.has(nextKey) && !inflightRef.current.has(nextKey)) {
-      fetchPlot({ startOverride: nextStart, background: true });
-    }
+    [plotStart + plotDuration, plotStart - plotDuration].forEach((start) => {
+      if (start < 0) return;
+      if (totalDuration !== null && start >= totalDuration) return;
+      const key = buildCacheKey(start, plotDuration, montage);
+      if (plotCacheRef.current.has(key) || inflightRef.current.has(key)) return;
+      fetchPlot({ startOverride: start, background: true });
+    });
   }, [fileId, plotStart, plotDuration, montage, buildCacheKey, fetchPlot, totalDuration]);
 
   useEffect(() => {
@@ -275,36 +367,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
     }
   }, [totalDuration, plotDuration, plotStart, goToStart]);
 
-  // Keyboard navigation handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle arrow keys when not typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goToStart(Math.max(0, plotStart - plotDuration));
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        goToStart(plotStart + plotDuration);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [plotDuration, plotStart, goToStart]);
-
-  useEffect(() => {
-    if (!fileId) return;
-    if (totalDuration !== null && plotStart + plotDuration >= totalDuration) return;
-    const nextStart = plotStart + plotDuration;
-    const nextKey = buildCacheKey(nextStart, plotDuration, montage);
-    if (!plotCacheRef.current.has(nextKey) && !inflightRef.current.has(nextKey)) {
-      fetchPlot({ startOverride: nextStart, background: true });
-    }
-  }, [fileId, plotStart, plotDuration, montage, buildCacheKey, fetchPlot, totalDuration]);
 
   useEffect(() => {
     if (!fileId) return;
@@ -433,6 +495,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
         const chEvents = eventsData?.events?.[ch.channel_name];
         if (chEvents) {
           Object.entries(chEvents).forEach(([etype, evlist]: any) => {
+            // 'normal wave' is green-on-green at double width over an identical base trace:
+            // it carries no information and is the only reason line weight varies across the
+            // recording. Channels the model never classifies (A1, A2, ECG) have no overlay at
+            // all, so overprinting normals made them read as permanently thinner.
+            if (etype !== 'spike wave' && etype !== 'slow wave') return;
             evlist.forEach((ev: any) => {
               const [s, e] = ev;
               const xs: number[] = [];
@@ -445,7 +512,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
                 }
               }
               if (xs.length) {
-                const color = etype === 'spike wave' ? 'red' : etype === 'slow wave' ? '#ffb300' : 'green';
+                const color = etype === 'spike wave' ? 'red' : '#ffb300';
                 traces.push({
                   x: xs,
                   y: ys,
@@ -518,7 +585,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
             EEG Plot
           </Typography>
 
-          {montage === 'original' && eventsData && (
+          {montage === 'original' && hasEvents && (
             <Stack direction="row" spacing={1} alignItems="center">
               <Chip label="Normal" size="small" sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
               <Chip label="Slow Waves" size="small" sx={{ bgcolor: '#ffb300', color: '#fff' }} />
@@ -640,10 +707,11 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
               size="small"
               variant="contained"
               onClick={() => fetchPlot({ force: true })}
-              disabled={plotLoading}
-              sx={{ minWidth: 64, height: 28 }}
+              loading={plotLoading}
+              loadingPosition="center"
+              sx={{ width: 76, height: 28 }}
             >
-              {plotLoading ? <CircularProgress size={14} /> : 'Load'}
+              Load
             </Button>
 
             <Button
@@ -683,6 +751,40 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData }) => {
           <Alert severity="error" sx={{ mb: 1 }}>
             {error}
           </Alert>
+        )}
+
+        {/* Suppressed while `preparing`, which already replaces the plot with its own wait
+            message — the EDF is not even converted yet, so stacking both is just noise. */}
+        {analysisStatus === 'running' && !preparing && (
+          <Alert severity="info" icon={<CircularProgress size={18} />} sx={{ mb: 1 }}>
+            Analyzing with AI — spike and slow-wave highlights and focus points will appear here
+            automatically when it finishes. The traces below are complete and can be reviewed now.
+          </Alert>
+        )}
+
+        {analysisStatus === 'failed' && (
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            AI analysis did not complete, so this recording has no wave highlights or focus points.
+            The traces themselves are unaffected.
+          </Alert>
+        )}
+
+        {preparing && (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              py: 10,
+            }}
+          >
+            <CircularProgress />
+            <Typography variant="body2" color="text.secondary">
+              Preparing recording for viewing…
+            </Typography>
+          </Box>
         )}
 
         {computedPlot && (
