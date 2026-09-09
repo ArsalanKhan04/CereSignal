@@ -1,8 +1,17 @@
 name: DB Migration
 
+# DORMANT — manual dispatch only.
+#
+# The Supabase project this targeted no longer exists: every run since
+# 2026-09-05 failed with `FATAL: (ENOTFOUND) tenant/user postgres.<ref> not
+# found`. The push trigger is removed so a dead database stops red-X'ing every
+# push to main. Nothing else here is broken.
+#
+# To re-arm: point the DATABASE_URL secret at a live Postgres URL, then restore
+#   push:
+#     branches: [main]
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   migrate:
@@ -27,5 +36,5 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPERUSER_USERNAME: admin
-          SUPERUSER_PASSWORD: ceresignal123
+          SUPERUSER_PASSWORD: ${{ secrets.SUPERUSER_PASSWORD }}
         run: python migrate.py

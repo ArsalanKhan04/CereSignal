@@ -141,8 +141,14 @@ Railway, three services, each with its own config:
 | `backend/railway.worker.toml` | Celery worker |
 | `frontend/railway.toml` | React frontend |
 
-CI runs `backend/migrate.py` via `.github/workflows/migrate.yml` (create missing tables) and
-`reset-db.yml` (manual full reset).
+**Both GitHub workflows are dormant.** The Supabase project they targeted no longer exists —
+every run of `.github/workflows/migrate.yml` since 2026-09-05 failed with
+`FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found`, so its push-to-`main` trigger was
+removed. It and `reset-db.yml` are now manual-dispatch only, and a dispatch still fails at the
+connection until there is a live database. To re-arm: set the `DATABASE_URL` secret to a live
+Postgres URL, set `SUPERUSER_PASSWORD` (unset means `migrate.py` creates the tables and skips
+the superuser), and restore migrate.yml's `push: branches: [main]` trigger. Nothing else in
+either workflow is broken — they ran green 39 times through 2026-05-15.
 
 ## Key Files
 

@@ -1,5 +1,9 @@
 name: Reset Database
 
+# DORMANT — the Supabase project this targeted no longer exists, so a dispatch
+# will fail at the connection with `FATAL: (ENOTFOUND) tenant/user postgres.<ref>
+# not found`. Already manual-dispatch only, so it never fires on its own. Set the
+# DATABASE_URL secret to a live Postgres URL before using it. See migrate.yml.
 on:
   workflow_dispatch:
     inputs:
@@ -35,5 +39,5 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPERUSER_USERNAME: admin
-          SUPERUSER_PASSWORD: ceresignal123
+          SUPERUSER_PASSWORD: ${{ secrets.SUPERUSER_PASSWORD }}
         run: python migrate.py --reset
