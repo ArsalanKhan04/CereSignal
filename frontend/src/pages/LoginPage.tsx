@@ -16,14 +16,12 @@ import {
   Paper,
   Grid,
 } from '@mui/material';
-import {
-  Person as PersonIcon,
-  Lock as LockIcon,
-  LocalHospital as LogoIcon,
-  ArrowForward as ArrowIcon,
-  Science as ScienceIcon,
-  Psychology as BrainIcon
-} from '@mui/icons-material';
+import PersonIcon from '@mui/icons-material/Person';
+import LockIcon from '@mui/icons-material/Lock';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import ArrowIcon from '@mui/icons-material/ArrowForward';
+import ScienceIcon from '@mui/icons-material/Science';
+import BrainIcon from '@mui/icons-material/Psychology';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginRequest } from '../types';
 import { validateUsername, validatePassword, collectErrors, extractApiErrors } from '../utils/validation';

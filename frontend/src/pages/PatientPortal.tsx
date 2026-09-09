@@ -22,16 +22,14 @@ import {
   Tooltip,
   useTheme
 } from '@mui/material';
-import {
-  Download as DownloadIcon,
-  Description as FileIcon,
-  Event as CalendarIcon,
-  Person as PersonIcon,
-  LocalHospital as LogoIcon,
-  Logout as LogoutIcon,
-  CheckCircle as NormalIcon,
-  Warning as AbnormalIcon
-} from '@mui/icons-material';
+import DownloadIcon from '@mui/icons-material/Download';
+import FileIcon from '@mui/icons-material/Description';
+import CalendarIcon from '@mui/icons-material/Event';
+import PersonIcon from '@mui/icons-material/Person';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import LogoutIcon from '@mui/icons-material/Logout';
+import NormalIcon from '@mui/icons-material/CheckCircle';
+import AbnormalIcon from '@mui/icons-material/Warning';
 import { useAuth } from '../contexts/AuthContext';
 import { useDemo } from '../contexts/DemoContext';
 import { apiClient } from '../services/api';

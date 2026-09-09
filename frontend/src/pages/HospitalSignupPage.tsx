@@ -18,20 +18,18 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
-import {
-  Person as PersonIcon,
-  Email as EmailIcon,
-  Lock as LockIcon,
-  Badge as BadgeIcon,
-  LocalHospital as HospitalIcon,
-  Phone as PhoneIcon,
-  ArrowForward as ArrowIcon,
-  LocalHospital as LogoIcon,
-  Group as GroupIcon,
-  BarChart as BarChartIcon,
-  Security as SecurityIcon,
-  LocationOn as LocationIcon,
-} from '@mui/icons-material';
+import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
+import LockIcon from '@mui/icons-material/Lock';
+import BadgeIcon from '@mui/icons-material/Badge';
+import HospitalIcon from '@mui/icons-material/LocalHospital';
+import PhoneIcon from '@mui/icons-material/Phone';
+import ArrowIcon from '@mui/icons-material/ArrowForward';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import GroupIcon from '@mui/icons-material/Group';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import SecurityIcon from '@mui/icons-material/Security';
+import LocationIcon from '@mui/icons-material/LocationOn';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
 import DemoButton from '../components/DemoButton';

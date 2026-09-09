@@ -23,24 +23,22 @@ import {
   MenuItem,
   FormHelperText,
 } from '@mui/material';
-import {
-  Person as PersonIcon,
-  Email as EmailIcon,
-  Lock as LockIcon,
-  CalendarToday as CalendarIcon,
-  Home as HomeIcon,
-  Bloodtype as BloodIcon,
-  Warning as AllergyIcon,
-  Medication as MedsIcon,
-  Healing as ConditionIcon, 
-  ContactPhone as EmergencyIcon,
-  Phone as PhoneIcon, 
-  ArrowForward as ArrowIcon,
-  LocalHospital as LogoIcon,
-  HealthAndSafety as HealthIcon,
-  History as HistoryIcon,
-  Description as ReportIcon
-} from '@mui/icons-material';
+import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
+import LockIcon from '@mui/icons-material/Lock';
+import CalendarIcon from '@mui/icons-material/CalendarToday';
+import HomeIcon from '@mui/icons-material/Home';
+import BloodIcon from '@mui/icons-material/Bloodtype';
+import AllergyIcon from '@mui/icons-material/Warning';
+import MedsIcon from '@mui/icons-material/Medication';
+import ConditionIcon from '@mui/icons-material/Healing';
+import EmergencyIcon from '@mui/icons-material/ContactPhone';
+import PhoneIcon from '@mui/icons-material/Phone';
+import ArrowIcon from '@mui/icons-material/ArrowForward';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import HealthIcon from '@mui/icons-material/HealthAndSafety';
+import HistoryIcon from '@mui/icons-material/History';
+import ReportIcon from '@mui/icons-material/Description';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
 import {

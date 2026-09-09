@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, ButtonProps } from '@mui/material';
-import { FlashOn as FlashIcon } from '@mui/icons-material';
+import FlashIcon from '@mui/icons-material/FlashOn';
 
 interface DemoButtonProps extends Omit<ButtonProps, 'variant' | 'color'> {
   label: string;

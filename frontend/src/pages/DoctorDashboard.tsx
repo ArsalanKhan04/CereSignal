@@ -22,11 +22,9 @@ import {
   ListItemButton,
   ListItemText
 } from '@mui/material';
-import {
-  Logout as LogoutIcon,
-  LocalHospital as LogoIcon,
-  Notifications as NotificationsIcon
-} from '@mui/icons-material';
+import LogoutIcon from '@mui/icons-material/Logout';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
 import { NotificationItem } from '../types';

@@ -20,12 +20,10 @@ import {
   LinearProgress,
   Stack,
 } from '@mui/material';
-import {
-  Save as SaveIcon,
-  Edit as EditIcon,
-  Check as CheckIcon,
-  HourglassEmpty as WaitingIcon,
-} from '@mui/icons-material';
+import SaveIcon from '@mui/icons-material/Save';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
+import WaitingIcon from '@mui/icons-material/HourglassEmpty';
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
 import { useAuth } from '../contexts/AuthContext';

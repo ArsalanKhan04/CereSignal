@@ -17,10 +17,8 @@ import {
   ToggleButton,
   ToggleButtonGroup
 } from '@mui/material';
-import {
-  Logout as LogoutIcon,
-  LocalHospital as LogoIcon
-} from '@mui/icons-material';
+import LogoutIcon from '@mui/icons-material/Logout';
+import LogoIcon from '@mui/icons-material/LocalHospital';
 import { useAuth } from '../contexts/AuthContext';
 import Patients from '../components/Patients';
 import { useDemo } from '../contexts/DemoContext';

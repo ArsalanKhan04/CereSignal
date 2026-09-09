@@ -19,11 +19,9 @@ import {
   FormControl,
   InputLabel,
 } from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-  Visibility as ViewIcon,
-  Delete as DeleteIcon,
-} from '@mui/icons-material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import ViewIcon from '@mui/icons-material/Visibility';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { apiClient } from '../services/api';
 import { SignalFile, Signal } from '../types';
 

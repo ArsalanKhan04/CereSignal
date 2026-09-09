@@ -24,15 +24,13 @@ import {
   Tooltip,
   Divider
 } from '@mui/material';
-import {
-  ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon,
-  Refresh as RefreshIcon,
-  BookmarkAdd as BookmarkIcon,
-  Fullscreen as FullscreenIcon,
-  FullscreenExit as FullscreenExitIcon,
-  SkipNext as SkipNextIcon,
-} from '@mui/icons-material';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import BookmarkIcon from '@mui/icons-material/BookmarkAdd';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import SkipNextIcon from '@mui/icons-material/SkipNext';
 import { apiClient } from '../services/api';
 import { EventsData, EEGBookmark, FocusPoint } from '../types';
 
@@ -473,12 +471,18 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
     let globalMax = -Infinity;
 
     channels.forEach((ch, idx) => {
-      const data = (ch.data || []).map((value) => value * sensitivityScale);
       const offset = (N - idx - 1) * spacing;
-      const shifted = data.map((value) => value + offset);
-
-      globalMin = Math.min(globalMin, ...shifted);
-      globalMax = Math.max(globalMax, ...shifted);
+      const src = ch.data || [];
+      // One pass: scale, shift and track the global range together. Spreading a whole
+      // channel array into Math.min/max is a RangeError waiting for a long enough window
+      // — signals.py never downsamples, so window length is the only thing bounding it.
+      const shifted = new Array<number>(src.length);
+      for (let i = 0; i < src.length; i++) {
+        const value = src[i] * sensitivityScale + offset;
+        shifted[i] = value;
+        if (value < globalMin) globalMin = value;
+        if (value > globalMax) globalMax = value;
+      }
 
       traces.push({
         x: times,

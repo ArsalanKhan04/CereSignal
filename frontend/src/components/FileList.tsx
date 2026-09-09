@@ -15,11 +15,9 @@ import {
   Button,
   Grid,
 } from '@mui/material';
-import {
-  Visibility as ViewIcon,
-  Delete as DeleteIcon,
-  Description as ReportIcon,
-} from '@mui/icons-material';
+import ViewIcon from '@mui/icons-material/Visibility';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ReportIcon from '@mui/icons-material/Description';
 import { apiClient } from '../services/api';
 import { SignalFile, Signal, EEGReport, Patient } from '../types';
 import ReportForm from './ReportForm';

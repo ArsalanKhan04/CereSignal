@@ -5,7 +5,7 @@ import {
   Typography,
   LinearProgress,
 } from '@mui/material';
-import { Upload as UploadIcon } from '@mui/icons-material';
+import UploadIcon from '@mui/icons-material/Upload';
 import FormAlert from './FormAlert';
 
 interface FileUploadProps {

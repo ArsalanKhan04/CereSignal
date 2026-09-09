@@ -34,12 +34,37 @@ It ships as a multi-tenant web application (Railway + Supabase) and as a Windows
   bookmarks and per-file event annotations.
 - **Clinical reports**: Draft reports with full version history, restore, and
   PDF export.
-- **Signal Processing**: FFT analysis, filtering, feature extraction, and spectral
-  analysis.
+- **Signal Processing**: A separate synchronous DSP path — FFT analysis, filtering,
+  feature extraction and spectral analysis — distinct from the ML pipeline above.
 - **Notifications**: In-app notification feed for report and processing events.
 - **Database Storage**: SQLAlchemy over SQLite locally and Postgres (Supabase) in
   deployment, for users, hospitals, files, signals, reports and processing results.
 - **RESTful API**: Clean REST API with automatic documentation.
+
+## Architecture
+
+Analysis is asynchronous. The upload endpoint does the fast work inline and hands the rest to a
+Celery worker over Redis; the frontend polls for completion. `CLAUDE.md` documents each stage in
+detail.
+
+1. The frontend uploads an EDF/CSV/JSON/TXT file to `POST /api/v1/signals/upload`.
+2. The backend stores it through `storage_service` (Supabase, or local disk when `SUPABASE_URL`
+   is unset), parses the EDF channels with MNE and saves the metadata.
+3. The same handler calls `inference_service.start_inference()`, which queues the
+   `preprocess_edf` Celery task.
+4. `preprocess_edf` converts the recording, uploads `<name>_processed.edf` for the viewer, then
+   chains to `infer`.
+5. `infer` runs the two models in sequence — **NeuroGate** (21-channel Normal/Abnormal
+   classification) then **NeuroTransformer** (per-channel normal/spike/slow-wave) — computes
+   focus points and the posterior dominant rhythm, builds the regional report and renders the
+   topographic map.
+6. `generate_report` calls the OpenAI API to draft the factual report and impression. Without
+   `OPENAI_API_KEY`, inference still completes and the report text is left blank for manual entry.
+7. The frontend polls `GET /signals/files/{id}/inference-status` and `/report-status`, then
+   renders the EEG viewer and the report.
+
+Setting `AI_INFERENCE_ENABLED=False` skips steps 5 and 6 entirely and runs the platform as a
+manual-entry system; files still upload and still pass through `preprocess_edf` for the viewer.
 
 ## Project Structure
 
@@ -251,10 +276,20 @@ padlock icon there marks which routes carry an auth dependency.
 
 ### Signal Processing
 
+A synchronous DSP path, separate from the ML inference pipeline described under
+[Architecture](#architecture) and not used by the frontend.
+
 - `POST /processing/process` - Process signal data
 - `GET /processing/results` - Get processing results
 - `GET /processing/results/{result_id}` - Get specific result
 - `DELETE /processing/results/{result_id}` - Delete result
+
+Operations accepted by `POST /processing/process`:
+
+- **FFT** - Fast Fourier Transform analysis
+- **Filter** - Signal filtering (lowpass, highpass, bandpass)
+- **Feature Extraction** - Statistical and signal features
+- **Spectral Analysis** - Power spectral density analysis
 
 ### Misc
 
@@ -267,13 +302,6 @@ padlock icon there marks which routes carry an auth dependency.
 - **CSV files** (.csv) - Comma-separated values
 - **JSON files** (.json) - JavaScript Object Notation
 - **TXT files** (.txt) - Plain text files
-
-## Processing Types
-
-- **FFT** - Fast Fourier Transform analysis
-- **Filter** - Signal filtering (lowpass, highpass, bandpass)
-- **Feature Extraction** - Statistical and signal features
-- **Spectral Analysis** - Power spectral density analysis
 
 ## Configuration
 
