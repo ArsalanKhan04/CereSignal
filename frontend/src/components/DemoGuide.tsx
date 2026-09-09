@@ -10,14 +10,12 @@ import {
   Collapse,
   Tooltip,
 } from '@mui/material';
-import {
-  Close as CloseIcon,
-  ArrowBack as BackIcon,
-  ArrowForward as NextIcon,
-  PlayCircle as PlayIcon,
-  ExpandLess,
-  ExpandMore,
-} from '@mui/icons-material';
+import CloseIcon from '@mui/icons-material/Close';
+import BackIcon from '@mui/icons-material/ArrowBack';
+import NextIcon from '@mui/icons-material/ArrowForward';
+import PlayIcon from '@mui/icons-material/PlayCircle';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useDemo, DEMO_STEPS } from '../contexts/DemoContext';
 
 const DemoGuide: React.FC = () => {

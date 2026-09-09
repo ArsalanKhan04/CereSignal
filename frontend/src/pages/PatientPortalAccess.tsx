@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Alert, Button } from '@mui/material';
-import { LocalHospital as LogoIcon } from '@mui/icons-material';
+import LogoIcon from '@mui/icons-material/LocalHospital';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
 

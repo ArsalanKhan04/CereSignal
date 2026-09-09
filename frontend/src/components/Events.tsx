@@ -14,10 +14,8 @@ import {
   CircularProgress,
   Chip,
 } from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-  PlayArrow as PlayArrowIcon,
-} from '@mui/icons-material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { apiClient } from '../services/api';
 import { SignalFile, EventsData } from '../types';
 import EEGPlot from './EEGPlot';

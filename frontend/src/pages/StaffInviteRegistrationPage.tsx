@@ -19,22 +19,20 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
-import {
-  Person as PersonIcon,
-  Lock as LockIcon,
-  Badge as BadgeIcon,
-  LocalHospital as HospitalIcon,
-  WorkHistory as ExperienceIcon,
-  MedicalServices as SpecializationIcon,
-  Phone as PhoneIcon,
-  Description as BioIcon,
-  ArrowForward as ArrowIcon,
-  LocalHospital as LogoIcon,
-  CheckCircle as CheckIcon,
-  Security as SecurityIcon,
-  VerifiedUser as VerifiedIcon,
-  Error as ErrorIcon,
-} from '@mui/icons-material';
+import PersonIcon from '@mui/icons-material/Person';
+import LockIcon from '@mui/icons-material/Lock';
+import BadgeIcon from '@mui/icons-material/Badge';
+import HospitalIcon from '@mui/icons-material/LocalHospital';
+import ExperienceIcon from '@mui/icons-material/WorkHistory';
+import SpecializationIcon from '@mui/icons-material/MedicalServices';
+import PhoneIcon from '@mui/icons-material/Phone';
+import BioIcon from '@mui/icons-material/Description';
+import ArrowIcon from '@mui/icons-material/ArrowForward';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import CheckIcon from '@mui/icons-material/CheckCircle';
+import SecurityIcon from '@mui/icons-material/Security';
+import VerifiedIcon from '@mui/icons-material/VerifiedUser';
+import ErrorIcon from '@mui/icons-material/Error';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
 import DemoButton from '../components/DemoButton';

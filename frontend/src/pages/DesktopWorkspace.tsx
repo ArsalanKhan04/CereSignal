@@ -11,7 +11,7 @@ import {
   Chip,
   Fade,
 } from '@mui/material';
-import { LocalHospital as LogoIcon } from '@mui/icons-material';
+import LogoIcon from '@mui/icons-material/LocalHospital';
 import Patients from '../components/Patients';
 
 const DesktopWorkspace: React.FC = () => {

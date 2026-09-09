@@ -22,20 +22,18 @@ import {
   Stack,
   useTheme
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Description as ReportIcon,
-  PictureAsPdf as PDFIcon,
-  Download as DownloadIcon,
-  AccessTime as TimeIcon,
-  Person as PersonIcon,
-  InsertDriveFile as FileIcon,
-  CheckCircle as FinalizedIcon,
-  Drafts as DraftIcon,
-  History as HistoryIcon
-} from '@mui/icons-material';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ReportIcon from '@mui/icons-material/Description';
+import PDFIcon from '@mui/icons-material/PictureAsPdf';
+import DownloadIcon from '@mui/icons-material/Download';
+import TimeIcon from '@mui/icons-material/AccessTime';
+import PersonIcon from '@mui/icons-material/Person';
+import FileIcon from '@mui/icons-material/InsertDriveFile';
+import FinalizedIcon from '@mui/icons-material/CheckCircle';
+import DraftIcon from '@mui/icons-material/Drafts';
+import HistoryIcon from '@mui/icons-material/History';
 import { apiClient } from '../services/api';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { EEGReport, SignalFile } from '../types';

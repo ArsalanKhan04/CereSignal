@@ -21,7 +21,9 @@ import {
   Stack,
   Box,
 } from '@mui/material';
-import { History as HistoryIcon, Close as CloseIcon, ArrowBack as BackIcon } from '@mui/icons-material';
+import HistoryIcon from '@mui/icons-material/History';
+import CloseIcon from '@mui/icons-material/Close';
+import BackIcon from '@mui/icons-material/ArrowBack';
 import { apiClient } from '../services/api';
 import { EEGReportVersion } from '../types';
 

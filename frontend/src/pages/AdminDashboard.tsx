@@ -34,17 +34,15 @@ import {
   ListItemText,
   Divider,
 } from '@mui/material';
-import {
-  Logout as LogoutIcon,
-  LocalHospital as LogoIcon,
-  Group as GroupIcon,
-  BarChart as BarChartIcon,
-  Send as SendIcon,
-  PersonAdd as PersonAddIcon,
-  CheckCircle as CheckCircleIcon,
-  Schedule as PendingIcon,
-  Delete as DeleteIcon,
-} from '@mui/icons-material';
+import LogoutIcon from '@mui/icons-material/Logout';
+import LogoIcon from '@mui/icons-material/LocalHospital';
+import GroupIcon from '@mui/icons-material/Group';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import SendIcon from '@mui/icons-material/Send';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PendingIcon from '@mui/icons-material/Schedule';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../services/api';
 import { AdminStats, StaffInvitation, StaffMember } from '../types';

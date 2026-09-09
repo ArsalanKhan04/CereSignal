@@ -29,20 +29,18 @@ import {
   Tooltip,
   FormHelperText,
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Upload as UploadIcon,
-  Description as ReportIcon,
-  InsertDriveFile as FileIcon,
-  Download as DownloadIcon,
-  Close as CloseIcon,
-  History as HistoryIcon,
-  MarkEmailRead as MarkSentIcon,
-  Email as EmailIcon,
-  Visibility as ViewIcon,
-} from '@mui/icons-material';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import UploadIcon from '@mui/icons-material/Upload';
+import ReportIcon from '@mui/icons-material/Description';
+import FileIcon from '@mui/icons-material/InsertDriveFile';
+import DownloadIcon from '@mui/icons-material/Download';
+import CloseIcon from '@mui/icons-material/Close';
+import HistoryIcon from '@mui/icons-material/History';
+import MarkSentIcon from '@mui/icons-material/MarkEmailRead';
+import EmailIcon from '@mui/icons-material/Email';
+import ViewIcon from '@mui/icons-material/Visibility';
 import { apiClient } from '../services/api';
 import {
   validateName, validateRequired, validatePhone, validateEmail,
