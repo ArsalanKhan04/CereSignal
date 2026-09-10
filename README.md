@@ -315,12 +315,39 @@ Or `./scripts/backend-start.sh --fresh` to reset, re-seed and serve in one step.
 
 ### Tests and linting
 
-There is currently **no backend test suite and no linter configuration** — no
-`tests/` directory, and no pytest/black/mypy in any requirements file. Earlier
-versions of this README documented `pytest`, `black app/ tests/` and `mypy app/`;
-none of those work today.
+```bash
+./scripts/test.sh              # both suites
+./scripts/test.sh --backend    # pytest only
+./scripts/test.sh --frontend   # jest only
+./scripts/test.sh --cov        # with coverage
+```
 
-The frontend has tests: `npm --prefix frontend test`.
+Neither suite needs Redis, a Celery worker, a `.env` file, the model weights or a
+network connection. The backend suite builds its own in-memory SQLite database and
+never touches `backend/cere_signal.db`.
+
+Run either directly if you prefer:
+
+```bash
+cd backend && ./cere_env/bin/python -m pytest    # backend
+npm --prefix frontend test                       # frontend, watch mode
+```
+
+`.github/workflows/test.yml` runs both on every pull request. It needs no secrets
+and no database, unlike the two dormant migration workflows.
+
+Backend tests live in `backend/tests/` (config in `backend/pytest.ini`, dependencies
+in `backend/requirements-dev.txt`). Frontend tests sit next to the code they cover
+as `*.test.ts`.
+
+A handful of tests are marked `xfail(strict=True)`. Those assert how a route or
+function *should* behave and fail today because it does not — each one names the
+defect it pins, and fixing the defect makes the test pass, which `strict` reports as
+a failure so the marker gets removed rather than forgotten.
+
+There is still **no linter configuration** — no black/mypy/ruff in any requirements
+file. Earlier versions of this README documented `black app/ tests/` and `mypy app/`;
+those still do not work.
 
 ## License
 

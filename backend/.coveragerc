@@ -1,0 +1,18 @@
+[run]
+branch = True
+omit =
+    # Git submodules — vendored model/training code from another repository,
+    # not this project's to test. See .gitmodules.
+    external/CereProcess/*
+    external/full_edf_viewer/*
+    # Entry points and one-shot scripts rather than importable behaviour.
+    entry_point.py
+    migrate.py
+    scripts/*
+    tests/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError

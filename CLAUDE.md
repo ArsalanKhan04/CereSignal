@@ -45,7 +45,11 @@ normal way in; `python backend/scripts/create_admin.py` creates a real hospital 
 npm --prefix frontend run dev            # dev server
 npm --prefix frontend run build          # web production build
 npm --prefix frontend run build:desktop  # Electron desktop build
-npm --prefix frontend test
+
+# Tests (from repo root)
+./scripts/test.sh                        # both suites
+./scripts/test.sh --backend -k tenancy   # extra args pass through to pytest
+./scripts/test.sh --cov                  # with coverage
 
 # Database (from backend/)
 ./cere_env/bin/python migrate.py            # create missing tables
@@ -58,7 +62,23 @@ npm --prefix frontend test
 
 The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `react-scripts` directly hits Node's 2 GB default and runs out of heap.
 
-**There are no backend tests or linters.** No `tests/` directory, no pytest/black/mypy in any requirements file. Do not suggest `pytest`, `black` or `mypy` commands for the backend until that changes.
+**Tests: `./scripts/test.sh`.** pytest for the backend (`backend/tests/`, config in
+`backend/pytest.ini`, deps in `backend/requirements-dev.txt`) and CRA's jest for the frontend
+(`frontend/src/**/*.test.ts`). Neither suite needs Redis, a worker, a `.env`, the model weights
+or a network connection — the backend builds its own in-memory SQLite database and never touches
+`backend/cere_signal.db`. `.github/workflows/test.yml` runs both on every PR. Run the backend
+suite directly with `cd backend && ./cere_env/bin/python -m pytest`.
+
+**There are still no linters.** No black/mypy/ruff in any requirements file — do not suggest
+those commands until that changes.
+
+Some tests are `xfail(strict=True)` on purpose. They assert the behaviour a route or function
+*should* have and fail today because it does not; fixing the underlying bug turns them into
+XPASS, which `strict` reports as a failure, so the marker cannot be forgotten. Each one names
+the defect it pins. See `backend/tests/test_region_report.py` (the spike-count string
+mismatch), `backend/tests/test_signals_api.py` (upload's 4xx responses masked as 500)
+and `backend/tests/test_tenancy.py` (`update_file_label` lets a patient relabel their
+own study).
 
 ## Architecture
 
