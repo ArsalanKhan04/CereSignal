@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginRequest, RegisterRequest, PatientRegisterRequest, PatientIdLoginRequest } from '../types';
+import { User, LoginRequest, RegisterRequest, PatientRegisterRequest } from '../types';
 import { apiClient } from '../services/api';
 
 interface AuthContextType {
@@ -7,7 +7,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
-  loginPatient: (credentials: PatientIdLoginRequest) => Promise<void>;
   loginWithToken: (accessToken: string) => void;
   register: (userData: RegisterRequest) => Promise<void>;
   registerPatient: (userData: PatientRegisterRequest) => Promise<void>;
@@ -93,26 +92,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const loginPatient = async (credentials: PatientIdLoginRequest) => {
-    try {
-      const response = await apiClient.loginPatient(credentials);
-      if (response.status === 200) {
-        apiClient.setAuthToken(response.data.access_token);
-
-        const userResponse = await apiClient.getCurrentUser();
-        if (userResponse.status === 200) {
-          setUser(userResponse.data);
-          localStorage.setItem('current_user', JSON.stringify(userResponse.data));
-        }
-      } else {
-        throw new Error('Login failed');
-      }
-    } catch (error) {
-      console.error('Patient login error:', error);
-      throw error;
-    }
-  };
-
   const registerPatient = async (userData: PatientRegisterRequest) => {
     try {
       const response = await apiClient.registerPatient(userData);
@@ -151,7 +130,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     login,
-    loginPatient,
     loginWithToken,
     register,
     registerPatient,

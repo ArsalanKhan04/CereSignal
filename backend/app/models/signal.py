@@ -62,9 +62,6 @@ class SignalFile(Base):
     signals = relationship(
         "Signal", back_populates="file", cascade="all, delete-orphan"
     )
-    processing_results = relationship(
-        "ProcessingResult", back_populates="file", cascade="all, delete-orphan"
-    )
     reports = relationship(
         "EEGReport", back_populates="signal_file", cascade="all, delete-orphan"
     )
@@ -87,9 +84,6 @@ class Signal(Base):
 
     # Relationships
     file = relationship("SignalFile", back_populates="signals")
-    processing_results = relationship(
-        "ProcessingResult", back_populates="signal", cascade="all, delete-orphan"
-    )
 
 
 class EEGBookmark(Base):
@@ -108,23 +102,3 @@ class EEGBookmark(Base):
 
     file = relationship("SignalFile", back_populates="bookmarks")
     creator = relationship("AuthUser")
-
-
-class ProcessingResult(Base):
-    """Model for signal processing results"""
-
-    __tablename__ = "processing_results"
-
-    id: int = Column(Integer, primary_key=True, index=True)
-    file_id: int = Column(Integer, ForeignKey("signal_files.id"), nullable=False)
-    signal_id: Optional[int] = Column(Integer, ForeignKey("signals.id"), nullable=True)
-    processing_type: str = Column(
-        String(100), nullable=False
-    )  # fft, filter, feature_extraction, etc.
-    parameters: Optional[str] = Column(Text)  # JSON string of processing parameters
-    result_data: Optional[str] = Column(Text)  # JSON string of results
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    file = relationship("SignalFile", back_populates="processing_results")
-    signal = relationship("Signal", back_populates="processing_results")

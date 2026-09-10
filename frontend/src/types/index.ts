@@ -117,10 +117,6 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface PatientIdLoginRequest {
-  patient_id: number;
-}
-
 export interface RegisterRequest {
   username: string;
   email: string;

@@ -191,7 +191,6 @@ padlock icon there marks which routes carry an auth dependency.
 ### Authentication
 
 - `POST /auth/login` - Login and get a JWT
-- `POST /auth/patient-login` - Patient login by patient ID
 - `GET /auth/patient-portal/{token}` - Exchange an emailed portal link for a token
 - `POST /auth/register` - Register an authentication user
 - `POST /auth/register/hospital` - Create a hospital and its first admin
@@ -273,23 +272,6 @@ padlock icon there marks which routes carry an auth dependency.
 
 - `GET /notifications/` - Notification feed
 - `POST /notifications/{notification_id}/read` - Mark as read
-
-### Signal Processing
-
-A synchronous DSP path, separate from the ML inference pipeline described under
-[Architecture](#architecture) and not used by the frontend.
-
-- `POST /processing/process` - Process signal data
-- `GET /processing/results` - Get processing results
-- `GET /processing/results/{result_id}` - Get specific result
-- `DELETE /processing/results/{result_id}` - Delete result
-
-Operations accepted by `POST /processing/process`:
-
-- **FFT** - Fast Fourier Transform analysis
-- **Filter** - Signal filtering (lowpass, highpass, bandpass)
-- **Feature Extraction** - Statistical and signal features
-- **Spectral Analysis** - Power spectral density analysis
 
 ### Misc
 

@@ -12,6 +12,9 @@ TABLES = [
     "eeg_report_versions",
     "eeg_bookmarks",
     "eeg_reports",
+    # The ProcessingResult model was deleted with the /processing router, but the
+    # table lingers in databases created before that. Keep it here so --reset is
+    # the one thing that will ever drop it.
     "processing_results",
     "signals",
     "signal_files",

@@ -82,8 +82,9 @@ The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `rea
    `GET /signals/files/{id}/inference-status` and `/report-status`, then displays the EEG
    visualization and report
 
-Note: the `/api/v1/processing/*` router exists but the frontend does not use it — inference is
-triggered by the upload endpoint, not by a separate process call.
+Note: inference is triggered by the upload endpoint, not by a separate process call. The
+`/api/v1/processing/*` router that used to sit alongside it was deleted — it was unauthenticated,
+unreferenced by the frontend and untouched since the initial restructure.
 
 ### Known Data Issues
 
@@ -107,6 +108,20 @@ mis-declared (24 in the header, 26 in reality — hence the reshape), and `signa
 keep the *raw* upload's metadata, so their duration and channel names do not match the
 processed EDF the viewer actually plots.
 
+### Access Control
+`app/core/access.py` is the single source of truth for which signal files and reports a user may
+reach. `visible_signal_files()` / `visible_reports()` return a scoped query (used by the list and
+stats endpoints); `get_accessible_file` / `get_accessible_report` are the FastAPI dependencies that
+resolve a path param to a row, raising 404 when it is out of scope — 403 only when the row is inside
+the caller's own hospital but assigned to another doctor, so a sequential id cannot be used to probe
+another hospital. `forbid_patients()` adds the write denials, because read access does not imply
+write access. Put new per-file or per-report routes behind these rather than re-deriving the rule;
+four hand-copied copies of the check had already drifted apart, and none compared `hospital_id`.
+
+Note `hospital_id` is nullable on every model that carries it, and `col == None` compiles to
+`IS NULL` — so the helpers deliberately return nothing for a non-superuser whose own `hospital_id`
+is unset, rather than matching every orphan row.
+
 ### Multi-Tenancy
 - `hospitals` and `staff_invitations` tables (`app/models/hospital.py`)
 - Staff are onboarded by invitation; `auth_users.hospital_id` scopes data access to one hospital
@@ -115,6 +130,9 @@ processed EDF the viewer actually plots.
 
 ### Authentication
 - Two separate tables: `auth_users` (credentials) and `users` (patient/contact info)
+- Patients enter through `GET /auth/patient-portal/{token}`, which exchanges the unguessable
+  `users.portal_token` for a JWT. There is no login-by-patient-id endpoint; the old
+  `POST /auth/patient-login` took a bare integer and was removed
 - Four roles in `UserType` (`app/models/auth.py`): `doctor`, `technician`, `patient`, `admin` —
   enforced via JWT middleware, plus the separate `is_superuser` flag above
 - Tokens expire in 30 min (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
@@ -159,7 +177,8 @@ either workflow is broken — they ran green 39 times through 2026-05-15.
 | `backend/scripts/` | Admin/superuser creation, plus `seed_demo.py` (idempotent demo data) |
 | `backend/app/main.py` | FastAPI app, router registration, CORS config |
 | `backend/app/models/` | SQLAlchemy ORM models (auth, user, hospital, signal, report, notification, contact) |
-| `backend/app/api/v1/endpoints/` | Route handlers (auth, users, signals, processing, reports, admin, dev_admin, notifications, logs, contact, config) |
+| `backend/app/core/access.py` | Tenant/role scoping — the shared file and report access dependencies |
+| `backend/app/api/v1/endpoints/` | Route handlers (auth, users, signals, reports, admin, dev_admin, notifications, logs, contact, config) |
 | `backend/app/services/` | Storage (Supabase or local disk), PDF generation, brain visualization, inference dispatch |
 | `backend/inference/infer.py` | Celery tasks — preprocessing, ML pipeline, LLM report |
 | `backend/external/` | NeuroGate/NeuroTransformer model wrappers, EDF utilities |

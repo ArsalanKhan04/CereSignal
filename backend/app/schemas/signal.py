@@ -3,7 +3,7 @@ Pydantic schemas for signal processing
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -94,33 +94,6 @@ class EEGBookmarkResponse(EEGBookmarkBase):
         from_attributes = True
 
 
-class ProcessingResultBase(BaseModel):
-    """Base schema for processing result"""
-
-    processing_type: str
-    parameters: Optional[Dict[str, Any]] = None
-    result_data: Optional[Dict[str, Any]] = None
-
-
-class ProcessingResultCreate(ProcessingResultBase):
-    """Schema for creating processing result"""
-
-    file_id: int
-    signal_id: Optional[int] = None
-
-
-class ProcessingResultResponse(ProcessingResultBase):
-    """Schema for processing result response"""
-
-    id: int
-    file_id: int
-    signal_id: Optional[int]
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
 class FileUploadResponse(BaseModel):
     """Schema for file upload response"""
 
@@ -135,12 +108,3 @@ class SignalLabelUpdate(BaseModel):
     """Schema for updating signal file label"""
 
     condition: str = Field(..., description="Label for file condition: normal or abnormal")
-
-
-class ProcessingRequest(BaseModel):
-    """Schema for processing request"""
-
-    file_id: int
-    signal_id: Optional[int] = None
-    processing_type: str
-    parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
