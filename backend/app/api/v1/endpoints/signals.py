@@ -286,6 +286,10 @@ async def upload_signal_file(
             processing_status=db_file.processing_status,
         )
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         db.rollback()
         log_error(e, f"File upload failed for user {current_user.id}")
@@ -695,6 +699,10 @@ async def get_plot_data(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not loaded in cache"
         )
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -990,6 +998,10 @@ async def get_file_report_status(
             "has_report": False,
         }
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error checking report status: {str(e)}"
@@ -1059,10 +1071,18 @@ async def update_file_label(
     """Update label for a signal file"""
 
     # get_accessible_file has already settled which files this user may touch;
-    # this only rejects the roles that may not label at all. Admins are excluded
-    # deliberately - they can see their hospital's files but not relabel them.
+    # what follows only rejects the roles that may not label at all.
+
+    # Patients used to be allowed here, which made this the one write route of ten
+    # that let a patient change their own record - a portal session could set its
+    # own study to "normal". The rule lives in forbid_patients so it stays in one
+    # place; four hand-copied access checks drifting apart is what access.py was
+    # written to end.
+    forbid_patients(current_user, "Patients cannot relabel files")
+
+    # Admins are excluded deliberately - they can see their hospital's files but
+    # not relabel them.
     if current_user.user_type not in (
-        UserType.PATIENT.value,
         UserType.DOCTOR.value,
         UserType.TECHNICIAN.value,
     ):

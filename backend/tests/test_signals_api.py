@@ -10,12 +10,6 @@ import io
 
 import pytest
 
-MASKED_ERROR_REASON = (
-    "upload_signal_file's outer `except Exception` re-wraps the HTTPExceptions "
-    "raised inside its try block as HTTP 500 (signals.py:289)"
-)
-
-
 class TestSmokeRoutes:
     def test_root_advertises_the_version_and_docs(self, client):
         response = client.get("/")
@@ -135,16 +129,18 @@ class TestValidationErrorShape:
         messages = [e["message"] for e in response.json()["errors"]]
         assert "Password is required." in messages
 
-class TestUploadAuthorisationErrorsAreMasked:
+class TestUploadAuthorisationErrors:
     """
-    upload_signal_file raises HTTPException(403) for a patient account and
-    HTTPException(404) for an unknown patient, but both are raised *inside* a try
-    whose outer ``except Exception`` (signals.py:289) re-wraps everything as a 500.
-    Its documented 4xx responses are therefore unreachable.
+    upload_signal_file raises 403 for a patient account and 404 for an unknown
+    patient from inside a big try block. HTTPException is an Exception, so the
+    outer ``except Exception`` used to catch both and re-raise them as 500 with
+    the original message stuffed into the detail string — every documented 4xx on
+    this endpoint was unreachable, and a routine refusal was logged through
+    log_error() as a server fault.
 
-    The xfail tests assert the intended behaviour and will XPASS — and so fail —
-    once the handler re-raises HTTPException instead of swallowing it. The pair
-    below them record what actually happens today.
+    The handler now re-raises HTTPException ahead of the generic branch. The same
+    shape was fixed in five other handlers across signals.py, reports.py and
+    users.py; tests/test_users_api.py covers the create_user case.
     """
 
     @pytest.fixture
@@ -176,34 +172,29 @@ class TestUploadAuthorisationErrorsAreMasked:
 
         return _post
 
-    @pytest.mark.xfail(strict=True, reason=MASKED_ERROR_REASON)
-    def test_a_patient_should_be_forbidden_from_uploading(
+    def test_a_patient_is_forbidden_from_uploading(
         self, post_upload, patient_account, make_patient, hospital_a
     ):
         patient = make_patient("Someone", hospital_a)
         response = post_upload(patient_account, patient_id=str(patient.id))
 
         assert response.status_code == 403
+        assert "Patients cannot upload" in response.json()["detail"]
 
-    @pytest.mark.xfail(strict=True, reason=MASKED_ERROR_REASON)
-    def test_an_unknown_patient_should_be_404(self, post_upload, technician_a):
+    def test_an_unknown_patient_is_404(self, post_upload, technician_a):
         response = post_upload(technician_a, patient_id="999999")
 
         assert response.status_code == 404
+        assert "Patient not found" in response.json()["detail"]
 
-    def test_a_patients_403_currently_surfaces_as_500(
-        self, post_upload, patient_account, make_patient, hospital_a
-    ):
-        patient = make_patient("Someone", hospital_a)
-        response = post_upload(patient_account, patient_id=str(patient.id))
-
-        assert response.status_code == 500
-        assert "Patients cannot upload" in response.json()["detail"]
-
-    def test_an_unknown_patients_404_currently_surfaces_as_500(
+    def test_the_detail_is_not_wrapped_in_a_server_error_message(
         self, post_upload, technician_a
     ):
+        """
+        The old behaviour produced "Error uploading file: 404: Patient not found".
+        Asserting the prefix is absent catches a re-raise that was added but
+        placed after the generic handler.
+        """
         response = post_upload(technician_a, patient_id="999999")
 
-        assert response.status_code == 500
-        assert "Patient not found" in response.json()["detail"]
+        assert "Error uploading file" not in response.json()["detail"]

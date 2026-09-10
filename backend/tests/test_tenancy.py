@@ -332,14 +332,6 @@ class TestPatientsCanReadButNotWrite:
         assert response.status_code == 403
         assert db_session.get(SignalFile, own_file.id) is not None
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="update_file_label lists PATIENT among the roles allowed to relabel "
-        "and never calls forbid_patients (signals.py:1063), so a patient can "
-        "relabel their own study normal — the one write route out of nine that "
-        "does not, and the opposite of what forbid_patients documents "
-        "(access.py:168)",
-    )
     def test_a_patient_cannot_relabel_their_own_study(
         self, client, patient_a, auth_headers, own_file
     ):

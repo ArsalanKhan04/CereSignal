@@ -472,6 +472,10 @@ async def generate_report_pdf(
             "report_id": report.id,
         }
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(

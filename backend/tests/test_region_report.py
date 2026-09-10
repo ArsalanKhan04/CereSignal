@@ -2,7 +2,10 @@
 Tests for _get_region_report, which turns per-channel event sequences into the
 regional prose that goes into the clinical report.
 
-This file pins a live bug. See TestSpikeCountIsAlwaysZero.
+Note that production calls this with ``threshold=0`` (infer.py:532), which the
+tests here deliberately do not: at 0 every comparison is ``>= 0`` and so always
+true, which makes the "Normal activity." branch unreachable. That is recorded as
+an open item, not settled here.
 """
 
 import pytest
@@ -109,27 +112,22 @@ class TestDegenerateInput:
             _get_region_report(incomplete, threshold=5.0)
 
 
-class TestSpikeCountIsAlwaysZero:
+class TestSpikeWavesRegisterInTheRegionReport:
     """
-    A live bug, pinned rather than fixed (see the plan's Follow-ups).
+    _get_region_report counted ``events.count("spike and sharp wave")``, a literal
+    that appeared nowhere else in the repo — the classifier emits "normal wave",
+    "spike wave" or "slow wave" (infer.py:260), _merge_events keys on those
+    (infer.py:118) and the frontend switches on them (Events.tsx:94). spike_count
+    was therefore always 0 and no epileptiform discharge could ever be reported,
+    whatever the model found. The count now uses "spike wave".
 
-    _get_region_report counts ``events.count("spike and sharp wave")``
-    (infer.py:346), but _process_neurotransformer only ever emits one of
-    ``"normal wave"``, ``"spike wave"`` or ``"slow wave"`` (infer.py:260). The
-    string never matches, so spike_pct is 0.0 for every region regardless of what
-    the model found, and no epileptiform discharge is ever reported.
-
-    This is masked by a separate calibration problem — the recordings sit ~100x
-    below real EEG, so the confidence gate discards every spike prediction anyway
-    (see the note at infer.py:242-251). Fixing the calibration alone would not make
-    spikes appear; this string has to be fixed too.
+    A separate calibration problem still suppresses spikes on the sample files —
+    they sit ~100x below real EEG and the confidence gate discards every spike
+    prediction before this code runs (see the note at infer.py:242-251). That is
+    independent of this: fixing the string was necessary but not sufficient.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason='counts "spike and sharp wave", which the model never emits (infer.py:346)',
-    )
-    def test_a_spike_wave_should_register_in_the_region_report(self):
+    def test_a_spike_wave_registers_in_the_region_report(self):
         report = _get_region_report(
             events_for(O1=["spike wave"] * 10, O2=["spike wave"] * 10),
             threshold=5.0,
@@ -137,11 +135,7 @@ class TestSpikeCountIsAlwaysZero:
 
         assert report["Occipital"]["stats"]["spike_pct"] == 100.0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason='counts "spike and sharp wave", which the model never emits (infer.py:346)',
-    )
-    def test_epileptiform_discharges_should_be_described(self):
+    def test_epileptiform_discharges_are_described(self):
         report = _get_region_report(
             events_for(O1=["spike wave"] * 10, O2=["spike wave"] * 10),
             threshold=5.0,
@@ -149,20 +143,12 @@ class TestSpikeCountIsAlwaysZero:
 
         assert "epileptiform discharges" in report["Occipital"]["description"]
 
-    def test_spike_pct_is_currently_zero_even_for_an_all_spike_region(self):
-        """The mirror image: delete this when the string above is fixed."""
-        report = _get_region_report(
-            events_for(O1=["spike wave"] * 10, O2=["spike wave"] * 10),
-            threshold=5.0,
-        )
-
-        assert report["Occipital"]["stats"]["spike_pct"] == 0.0
-        assert report["Occipital"]["description"] == "Normal activity."
-
-    def test_the_literal_the_code_looks_for_does_register(self):
+    def test_the_old_literal_no_longer_counts_for_anything(self):
         """
-        Proof the mismatch is the whole problem: feed it the string it actually
-        counts and the report works as intended.
+        Guards the direction of the fix. "spike and sharp wave" is not a string the
+        classifier can produce, so it must not register — if it does, someone has
+        renamed the classifier's output instead of the count, which would break
+        _merge_events' keys and the frontend that reads them.
         """
         report = _get_region_report(
             events_for(
@@ -172,5 +158,28 @@ class TestSpikeCountIsAlwaysZero:
             threshold=5.0,
         )
 
-        assert report["Occipital"]["stats"]["spike_pct"] == 100.0
+        assert report["Occipital"]["stats"]["spike_pct"] == 0.0
+
+    def test_a_region_with_no_spikes_is_still_normal(self):
+        report = _get_region_report(
+            events_for(O1=["normal wave"] * 10, O2=["normal wave"] * 10),
+            threshold=5.0,
+        )
+
+        assert report["Occipital"]["stats"]["spike_pct"] == 0.0
+        assert report["Occipital"]["description"] == "Normal activity."
+
+    def test_spikes_and_slowing_are_counted_independently(self):
+        report = _get_region_report(
+            events_for(
+                O1=["spike wave"] * 10,
+                O2=["slow wave"] * 10,
+            ),
+            threshold=5.0,
+        )
+
+        stats = report["Occipital"]["stats"]
+        assert stats["spike_pct"] == 50.0
+        assert stats["slow_pct"] == 50.0
         assert "epileptiform discharges" in report["Occipital"]["description"]
+        assert "slowing" in report["Occipital"]["description"]

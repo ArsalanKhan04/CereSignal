@@ -72,13 +72,12 @@ suite directly with `cd backend && ./cere_env/bin/python -m pytest`.
 **There are still no linters.** No black/mypy/ruff in any requirements file — do not suggest
 those commands until that changes.
 
-Some tests are `xfail(strict=True)` on purpose. They assert the behaviour a route or function
-*should* have and fail today because it does not; fixing the underlying bug turns them into
-XPASS, which `strict` reports as a failure, so the marker cannot be forgotten. Each one names
-the defect it pins. See `backend/tests/test_region_report.py` (the spike-count string
-mismatch), `backend/tests/test_signals_api.py` (upload's 4xx responses masked as 500)
-and `backend/tests/test_tenancy.py` (`update_file_label` lets a patient relabel their
-own study).
+`xfail(strict=True)` is the house convention for pinning a defect that is found but not yet
+fixed: the test asserts the behaviour a route *should* have, fails today, and turns into an
+XPASS — which `strict` reports as a failure — the moment the bug is fixed, so the marker cannot
+be left behind. **There are none right now.** The last three (the region report's spike-count
+string, upload's 4xx responses masked as 500, and `update_file_label` letting a patient relabel
+their own study) were all fixed together, and every marker came off with them.
 
 ## Architecture
 

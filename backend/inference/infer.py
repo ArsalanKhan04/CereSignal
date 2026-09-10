@@ -343,7 +343,7 @@ def _get_region_report(result_events, threshold):
         for ch in channels:
             events = result_events[ch]
             total_windows += len(events)
-            spike_count += events.count("spike and sharp wave")
+            spike_count += events.count("spike wave")
             slow_count += events.count("slow wave")
         # Calculate Percentages
         spike_pct = (spike_count / total_windows) * 100

@@ -340,10 +340,10 @@ Backend tests live in `backend/tests/` (config in `backend/pytest.ini`, dependen
 in `backend/requirements-dev.txt`). Frontend tests sit next to the code they cover
 as `*.test.ts`.
 
-A handful of tests are marked `xfail(strict=True)`. Those assert how a route or
-function *should* behave and fail today because it does not — each one names the
-defect it pins, and fixing the defect makes the test pass, which `strict` reports as
-a failure so the marker gets removed rather than forgotten.
+No test is currently marked `xfail(strict=True)`, but the convention is worth
+knowing: it pins a defect that has been found and not yet fixed. The test asserts
+how the code *should* behave, fails today, and turns into a reported failure the
+moment the bug is fixed — so the marker gets removed rather than forgotten.
 
 There is still **no linter configuration** — no black/mypy/ruff in any requirements
 file. Earlier versions of this README documented `black app/ tests/` and `mypy app/`;
