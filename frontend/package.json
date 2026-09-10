@@ -10,7 +10,8 @@
     "build:desktop": "cross-env NODE_OPTIONS=--max-old-space-size=6144 REACT_APP_DESKTOP=true react-scripts build",
     "start": "npx --yes serve -s build -l 3000",
     "start:desktop": "npx --yes serve -s build -l 3000",
-    "test": "react-scripts test"
+    "test": "cross-env NODE_OPTIONS=--max-old-space-size=6144 react-scripts test",
+    "test:ci": "cross-env NODE_OPTIONS=--max-old-space-size=6144 CI=true react-scripts test --watchAll=false"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -57,5 +58,14 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^react-router-dom$": "<rootDir>/node_modules/react-router-dom/dist/index.js",
+      "^react-router$": "<rootDir>/node_modules/react-router/dist/development/index.js",
+      "^axios$": "axios/dist/node/axios.cjs",
+      "^plotly\\.js-basic-dist$": "<rootDir>/src/__mocks__/plotly.ts",
+      "^react-plotly\\.js$": "<rootDir>/src/__mocks__/reactPlotly.tsx"
+    }
   }
 }

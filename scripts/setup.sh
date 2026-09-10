@@ -56,6 +56,11 @@ else
     ok "backend dependencies installed (no ML stack — manual-entry-only)"
 fi
 
+# pytest and friends. Small, and needed by ./scripts/test.sh; the Railway and
+# Docker builds do not install these.
+"$PIP" install --quiet -r "$BACKEND/requirements-dev.txt"
+ok "test dependencies installed"
+
 # ── Environment file ────────────────────────────────────────────
 if [ -f "$BACKEND/.env" ]; then
     skip ".env already exists"
@@ -121,6 +126,7 @@ ${_C_GREEN}Setup complete.${_C_OFF} Start the stack in three terminals:
   ${_C_DIM}terminal 4${_C_OFF}  npm --prefix frontend run dev
 
 Stop everything with ./scripts/stop.sh
+Run the tests with ./scripts/test.sh
 EOF
 
 if [ "$INSTALL_AI" = "false" ]; then
