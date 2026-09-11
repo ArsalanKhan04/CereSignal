@@ -494,7 +494,12 @@ async def download_report_pdf(
 
     from app.services.storage_service import storage_service, SIGNALS_BUCKET
 
-    needs_regen = not report.pdf_file_path
+    # A path outside reports/<id>/ predates per-report paths: it was named after the
+    # upload, may have been overwritten by another hospital's same-named file, and
+    # must not be served. Rebuilding moves it to the per-report path.
+    needs_regen = not report.pdf_file_path or not report.pdf_file_path.startswith(
+        f"reports/{report.id}/"
+    )
 
     if needs_regen:
         try:

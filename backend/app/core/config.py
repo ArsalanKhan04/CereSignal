@@ -27,8 +27,10 @@ class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: str = "postgresql://user:password@host:5432/postgres"
 
-    # Security settings
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    # Security settings. No usable default: main.py refuses to start the API on an
+    # empty key or one of PLACEHOLDER_SECRET_KEYS, since anyone who knows the key can
+    # mint a JWT for any account.
+    SECRET_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS settings
@@ -90,6 +92,15 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+
+# Values that have shipped as a SECRET_KEY default — the old config.py default and
+# the .env.example placeholder that scripts/setup.sh replaces.
+PLACEHOLDER_SECRET_KEYS = {
+    "",
+    "your-secret-key-change-in-production",
+    "change-me-for-local-dev",
+}
 
 
 # Create settings instance

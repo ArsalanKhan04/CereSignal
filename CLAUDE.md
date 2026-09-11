@@ -34,9 +34,23 @@ There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere
 Access points: Frontend → `localhost:3000`, API → `localhost:8000`, Docs → `localhost:8000/api/v1/docs`
 
 **Storage backend is chosen automatically.** `app/services/storage_service.py` uses Supabase when
-`SUPABASE_URL` is set and local disk (`backend/local_storage/`, served at `/static`) when it isn't,
-so no cloud account is needed for local development. The seeded `admin` / `password` account is the
-normal way in; `python backend/scripts/create_admin.py` creates a real hospital and admin instead.
+`SUPABASE_URL` is set and local disk (`backend/local_storage/`) when it isn't, so no cloud account
+is needed for local development. The seeded `admin` / `password` account is the normal way in;
+`python backend/scripts/create_admin.py` creates a real hospital and admin instead.
+
+**Nothing in storage is public.** Recordings, report PDFs and topomaps are only reachable through
+authenticated API routes. Bookmark screenshots are the one thing a browser loads directly (an
+`<img src>` cannot send the bearer token), so they go out as a one-hour signed URL from
+`storage_service.signed_url()`: Supabase's `create_signed_url` in deployment, or locally an HMAC
+over the path and expiry, keyed with `SECRET_KEY`, which `main.py` checks on
+`/static/eeg-assets/...`. That route replaced a `StaticFiles` mount over the whole of
+`local_storage`, which used to serve every EDF and PDF to anyone who could guess a path. Never
+reintroduce a public URL; `get_public_url()` was the original storage leak, fixed 2026-09-11.
+
+**The API will not start without a real `SECRET_KEY`.** `create_application()` raises on an empty
+key or on either placeholder that has ever shipped (`PLACEHOLDER_SECRET_KEYS` in
+`app/core/config.py`), since anyone who knows the key can mint a JWT for any account.
+`./scripts/setup.sh` generates one. The worker and `migrate.py` don't need one.
 
 ## Common Commands
 
@@ -137,6 +151,13 @@ another hospital. `forbid_patients()` adds the write denials, because read acces
 write access. Put new per-file or per-report routes behind these rather than re-deriving the rule;
 four hand-copied copies of the check had already drifted apart, and none compared `hospital_id`.
 
+Patient records (`users` rows) have the same pair: `visible_patients()` and the
+`get_accessible_patient` dependency, which every `/users/{user_id}` route and the upload handler's
+`patient_id` lookup go through. The rule is the file rule, with one difference: admins see their
+whole hospital's patients, as technicians do. Doctors see their own and unassigned patients. The
+checks this replaced used `if current_user.hospital_id and ...`, which skipped the hospital
+comparison entirely for staff with no hospital.
+
 Note `hospital_id` is nullable on every model that carries it, and `col == None` compiles to
 `IS NULL` — so the helpers deliberately return nothing for a non-superuser whose own `hospital_id`
 is unset, rather than matching every orphan row.
@@ -163,7 +184,7 @@ is unset, rather than matching every orphan row.
 Logs go to `AppData/Roaming`.
 
 **Desktop mode is unimplemented** — every switch for it is currently inert:
-- `DESKTOP_MODE` reaches the backend (`main.js:51`) but `backend/entry_point.py:25` assigns `IS_DESKTOP_MODE` and never reads it. Auth is not bypassed.
+- `DESKTOP_MODE` reaches the backend (`main.js:51`) but `backend/entry_point.py:35` assigns `IS_DESKTOP_MODE` and never reads it. Auth is not bypassed.
 - `REACT_APP_DESKTOP` is never read anywhere in `frontend/src`, and it is a build-time variable, so setting it on `electron .` cannot change an already-built bundle.
 - `frontend/src/pages/DesktopWorkspace.tsx` exists but is never imported or routed, so `/` renders the normal `LoginPage`.
 - `main.js:67-70` skips the Celery worker in desktop mode, but there is no synchronous inference path — `app/services/inference_service.py:44` always dispatches `preprocess_edf.delay(...)`. With no worker consuming the queue, processing would never complete.
@@ -187,6 +208,11 @@ Postgres URL, set `SUPERUSER_PASSWORD` (unset means `migrate.py` creates the tab
 the superuser), and restore migrate.yml's `push: branches: [main]` trigger. Nothing else in
 either workflow is broken — they ran green 39 times through 2026-05-15.
 
+**When Supabase storage is re-attached, make the `eeg-assets` bucket private** (Storage → bucket
+settings; it's free). The code no longer relies on it being public — bookmark images are signed
+URLs — but a bucket left public still serves every object to anyone who knows its path. `eeg-signals`
+must stay private too.
+
 ## Key Files
 
 | Path | Purpose |
@@ -196,7 +222,7 @@ either workflow is broken — they ran green 39 times through 2026-05-15.
 | `backend/scripts/` | Admin/superuser creation, plus `seed_demo.py` (idempotent demo data) |
 | `backend/app/main.py` | FastAPI app, router registration, CORS config |
 | `backend/app/models/` | SQLAlchemy ORM models (auth, user, hospital, signal, report, notification, contact) |
-| `backend/app/core/access.py` | Tenant/role scoping — the shared file and report access dependencies |
+| `backend/app/core/access.py` | Tenant/role scoping — the shared file, report and patient access dependencies |
 | `backend/app/api/v1/endpoints/` | Route handlers (auth, users, signals, reports, admin, dev_admin, notifications, logs, contact, config) |
 | `backend/app/services/` | Storage (Supabase or local disk), PDF generation, brain visualization, inference dispatch |
 | `backend/inference/infer.py` | Celery tasks — preprocessing, ML pipeline, LLM report |
@@ -212,7 +238,7 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
 
 - `DATABASE_URL` — Postgres in deployment; `sqlite:///./cere_signal.db` works locally
   (`app/core/database.py` applies `sslmode=require` only to Postgres URLs)
-- `SECRET_KEY` — must be set for JWT signing
+- `SECRET_KEY` — JWT signing and local signed asset URLs; the API refuses to start without a real one
 - `REDIS_URL` — defaults to `redis://localhost:6379/0`
 - `AI_INFERENCE_ENABLED` — defaults to `True`. Set `False` for a manual-entry-only
   deployment (see "No-AI Mode" below)
@@ -221,7 +247,7 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation (default `gpt-4o-mini`)
 - `RESEND_API_KEY` — invitation email; `MAIL_*` variables are the SMTP fallback
 - `FRONTEND_URL` — used to build invitation email links
-- `DESKTOP_MODE` — read only by `entry_point.py:25` and never acted on; currently has no effect
+- `DESKTOP_MODE` — read only by `entry_point.py:35` and never acted on; currently has no effect
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
 

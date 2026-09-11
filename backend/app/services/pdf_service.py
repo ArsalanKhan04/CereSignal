@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from xml.sax.saxutils import escape
 
 from app.core.config import settings
 from app.models.auth import AuthUser
@@ -170,8 +171,10 @@ class PDFReportGenerator:
             except OSError:
                 pass
 
-        # Upload PDF to Supabase and remove local temp
-        object_path = f"reports/{filename}"
+        # Upload PDF to Supabase and remove local temp. Keyed by report id: this was
+        # reports/<upload name>.pdf, so two hospitals that each uploaded "EEG.edf"
+        # wrote the same object and each downloaded whichever report was built last.
+        object_path = f"reports/{report.id}/{filename}"
         with open(tmp_path, "rb") as f:
             storage_service.upload(SIGNALS_BUCKET, object_path, f.read())
         try:
@@ -203,25 +206,28 @@ class PDFReportGenerator:
         )
 
         # Structure data to match the 4-column layout in reference [cite: 1, 5, 6, 10, 12]
+        # Every user-supplied string is escape()d: Paragraph parses its text as
+        # markup, and an <img src="..."> in a report field would embed any image the
+        # server can read — another hospital's bookmarks included.
         data = [
             [
                 Paragraph("<b>Name:</b>", self.styles["Normal"]),
-                Paragraph(report.patient_name or "N/A", self.styles["Normal"]),
+                Paragraph(escape(report.patient_name or "N/A"), self.styles["Normal"]),
                 Paragraph("<b>Date/ID:</b>", self.styles["Normal"]),
                 Paragraph(f"{rep_date} / #{report.id}", self.styles["Normal"]),
             ],
             [
                 Paragraph("<b>Age/Sex:</b>", self.styles["Normal"]),
                 Paragraph(
-                    f"{report.patient_age or '--'} Yrs / {report.patient_gender or '--'}",
+                    escape(f"{report.patient_age or '--'} Yrs / {report.patient_gender or '--'}"),
                     self.styles["Normal"],
                 ),
                 Paragraph("<b>Ref By:</b>", self.styles["Normal"]),
-                Paragraph(report.ref_physician or "Direct", self.styles["Normal"]),
+                Paragraph(escape(report.ref_physician or "Direct"), self.styles["Normal"]),
             ],
             [
                 Paragraph("<b>File:</b>", self.styles["Normal"]),
-                Paragraph(signal_file.original_filename, self.styles["Normal"]),
+                Paragraph(escape(signal_file.original_filename), self.styles["Normal"]),
                 Paragraph("", self.styles["Normal"]),
                 Paragraph("", self.styles["Normal"]),
             ],
@@ -267,7 +273,7 @@ class PDFReportGenerator:
                 except Exception:
                     pass
             if bookmark.comment:
-                story.append(Paragraph(bookmark.comment, self.styles["ClinicalText"]))
+                story.append(Paragraph(escape(bookmark.comment), self.styles["ClinicalText"]))
             story.append(Spacer(1, 8))
 
         return story
@@ -311,7 +317,7 @@ class PDFReportGenerator:
         # INDICATIONS [cite: 14]
         if report.indications:
             story.append(Paragraph("INDICATIONS:", self.styles["SectionTitle"]))
-            story.append(Paragraph(report.indications, self.styles["ClinicalText"]))
+            story.append(Paragraph(escape(report.indications), self.styles["ClinicalText"]))
 
         # TECHNIQUE [cite: 15]
         technique_text = (
@@ -319,12 +325,12 @@ class PDFReportGenerator:
             or "Multichannel digital EEG recording using the international 10-20 electrode placement system."
         )
         story.append(Paragraph("TECHNIQUE:", self.styles["SectionTitle"]))
-        story.append(Paragraph(technique_text, self.styles["ClinicalText"]))
+        story.append(Paragraph(escape(technique_text), self.styles["ClinicalText"]))
 
-        # FACTUAL REPORT [cite: 17]
+        # FACTUAL REPORT [cite: 17] — LLM output, so escaped like any user text
         if report.factual_report:
             story.append(Paragraph("FACTUAL REPORT:", self.styles["SectionTitle"]))
-            story.append(Paragraph(report.factual_report, self.styles["ClinicalText"]))
+            story.append(Paragraph(escape(report.factual_report), self.styles["ClinicalText"]))
 
         story.append(Spacer(1, 10))
 
@@ -332,7 +338,7 @@ class PDFReportGenerator:
         story.append(Paragraph("IMPRESSION:", self.styles["SectionTitle"]))
 
         # Display the impression text
-        imp_text = report.impression or "No impression available."
+        imp_text = escape(report.impression or "No impression available.")
         story.append(Paragraph(f"<b>{imp_text}</b>", self.styles["ClinicalText"]))
 
         # Standard disclaimer/Note found in reference [cite: 26]
@@ -348,7 +354,9 @@ class PDFReportGenerator:
 
         # Doctor details
         if report.doctor_info:
-            title_lines = [line.strip() for line in report.doctor_info.split("|") if line.strip()]
+            title_lines = [
+                escape(line.strip()) for line in report.doctor_info.split("|") if line.strip()
+            ]
             if title_lines:
                 title_lines[0] = f"<b>{title_lines[0]}</b>"
         else:
@@ -357,9 +365,9 @@ class PDFReportGenerator:
                 or doctor.username
             )
             title_lines = [
-                f"<b>{name}</b>",
-                doctor.specialization or "Neurologist",
-                doctor.hospital_affiliation or "Department of Neurophysiology",
+                f"<b>{escape(name)}</b>",
+                escape(doctor.specialization or "Neurologist"),
+                escape(doctor.hospital_affiliation or "Department of Neurophysiology"),
             ]
 
         # Create a table to force alignment to the right

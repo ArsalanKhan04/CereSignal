@@ -9,15 +9,20 @@ from datetime import date, datetime, timezone
 import os
 import uuid
 
-from sqlalchemy import or_
-
+from app.core.access import forbid_patients, get_accessible_patient, visible_patients
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
 from app.models.auth import AuthUser, UserType
 from app.models.signal import SignalFile
 from app.models.notification import Notification
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse
+from app.schemas.user import (
+    PortalEmailResponse,
+    UserCreate,
+    UserListResponse,
+    UserResponse,
+    UserUpdate,
+)
 from app.core.logging_config import logger
 
 router = APIRouter()
@@ -224,37 +229,14 @@ async def get_users(
 
     # Patients can only see their own record
     if current_user.user_type == UserType.PATIENT.value:
-        patient_user = (
-            db.query(User).filter(User.patient_auth_user_id == current_user.id).first()
-        )
-        if patient_user:
-            return [patient_user]
-        return []
+        return visible_patients(db, current_user).limit(1).all()
 
-    # Technicians can see all active patients in their hospital
-    if current_user.user_type == UserType.TECHNICIAN.value:
-        query = db.query(User).filter(
-            User.is_active == True,
-            User.hospital_id == current_user.hospital_id,
-        )
-    elif current_user.user_type == UserType.DOCTOR.value:
-        if include_unassigned:
-            query = db.query(User).filter(
-                User.is_active == True,
-                User.hospital_id == current_user.hospital_id,
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-            )
-        else:
-            query = db.query(User).filter(
-                User.auth_user_id == current_user.id,
-                User.is_active == True,
-                User.hospital_id == current_user.hospital_id,
-            )
-    else:
-        query = db.query(User).filter(
-            User.is_active == True,
-            User.hospital_id == current_user.hospital_id,
-        )
+    query = visible_patients(db, current_user).filter(User.is_active == True)
+
+    # visible_patients already gives a doctor their own and unassigned patients;
+    # the list shows only their own unless asked for the unassigned ones too.
+    if current_user.user_type == UserType.DOCTOR.value and not include_unassigned:
+        query = query.filter(User.auth_user_id == current_user.id)
 
     if search:
         query = query.filter(
@@ -280,32 +262,10 @@ async def get_users(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: int,
-    current_user: AuthUser = Depends(get_current_active_user),
+    user: User = Depends(get_accessible_patient),
     db: Session = Depends(get_db),
 ):
     """Get specific user by ID"""
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    # Patients can only access their own record
-    if current_user.user_type == UserType.PATIENT.value:
-        if user.patient_auth_user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access your own record",
-            )
-    else:
-        # Hospital isolation — staff can only access patients in their hospital
-        if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access patients from your hospital",
-            )
 
     # Attach doctor_name
     doc = db.query(AuthUser).filter(AuthUser.id == user.auth_user_id).first()
@@ -319,42 +279,26 @@ async def get_user(
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: int,
     user_data: UserUpdate,
+    user: User = Depends(get_accessible_patient),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Update user information"""
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
+    # A patient may read their record but not edit it — UserUpdate carries clinical
+    # fields (notes, medical_id, is_active), and no patient-facing page calls this.
+    forbid_patients(current_user, "Patients cannot edit patient records")
 
-    # Patients can only update their own record
-    if current_user.user_type == UserType.PATIENT.value:
-        if user.patient_auth_user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only update your own record",
-            )
-    else:
-        # Hospital isolation
-        if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only update patients from your hospital",
-            )
-        # Doctors can only update their managed patients
-        if (
-            current_user.user_type == UserType.DOCTOR.value
-            and user.auth_user_id != current_user.id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only update patients you manage",
-            )
+    # Doctors can only update their managed patients, not unassigned ones
+    if (
+        current_user.user_type == UserType.DOCTOR.value
+        and user.auth_user_id != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update patients you manage",
+        )
 
     # Check email uniqueness if being updated
     if user_data.email and user_data.email != user.email:
@@ -510,30 +454,13 @@ async def update_user(
 
 @router.delete("/{user_id}")
 async def delete_user(
-    user_id: int,
+    user: User = Depends(get_accessible_patient),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Delete a user and all associated files (soft delete user, hard delete files)"""
 
-    # Only doctors and technicians can delete patients
-    if current_user.user_type == UserType.PATIENT.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Patients cannot delete users"
-        )
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    # Hospital isolation
-    if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only delete patients from your hospital",
-        )
+    forbid_patients(current_user, "Patients cannot delete users")
 
     # Doctors can only delete managed patients; technicians can delete any patient
     if (
@@ -549,7 +476,7 @@ async def delete_user(
         # Delete all associated signal files first (both physical files and database records)
         from app.services.storage_service import storage_service, SIGNALS_BUCKET, ASSETS_BUCKET
 
-        signal_files = db.query(SignalFile).filter(SignalFile.user_id == user_id).all()
+        signal_files = db.query(SignalFile).filter(SignalFile.user_id == user.id).all()
         for file in signal_files:
             # Delete signal file from Supabase Storage
             try:
@@ -581,47 +508,14 @@ async def delete_user(
         )
 
 
-@router.get("/{user_id}/files", response_model=List[dict])
-async def get_user_files(
-    user_id: int,
-    current_user: AuthUser = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
-    """Get all signal files for a specific user"""
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    # Patients can only access their own files
-    if current_user.user_type == UserType.PATIENT.value:
-        if user.patient_auth_user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access your own files",
-            )
-
-    files = db.query(User.signal_files).filter(User.id == user_id).all()
-    return files
-
-
 @router.post("/{user_id}/mark-report-sent", response_model=UserListResponse)
 async def mark_report_sent(
-    user_id: int,
+    user: User = Depends(get_accessible_patient),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Mark a patient's report as sent (technician/doctor only)."""
-    if current_user.user_type == UserType.PATIENT.value:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
-    if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    forbid_patients(current_user, "Forbidden")
 
     user.report_sent = True
     db.commit()
@@ -630,21 +524,15 @@ async def mark_report_sent(
     return user
 
 
-@router.post("/{user_id}/send-portal-email", response_model=UserListResponse)
+@router.post("/{user_id}/send-portal-email", response_model=PortalEmailResponse)
 async def send_portal_email(
-    user_id: int,
+    user: User = Depends(get_accessible_patient),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Generate a portal token and email it to the patient. Requires patient email."""
-    if current_user.user_type == UserType.PATIENT.value:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    forbid_patients(current_user, "Forbidden")
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
-    if current_user.hospital_id and user.hospital_id != current_user.hospital_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     if not user.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -15,6 +15,7 @@ import mne
 from app.core.access import (
     forbid_patients,
     get_accessible_file,
+    visible_patients,
     visible_signal_files,
 )
 from app.core.auth import get_current_active_user
@@ -133,24 +134,29 @@ async def upload_signal_file(
             detail=f"File size exceeds maximum allowed size of {settings.MAX_FILE_SIZE} bytes",
         )
 
+    # Before the patient_id branch: a patient who omitted patient_id used to fall
+    # through to the default-patient path below and upload anyway.
+    forbid_patients(current_user, "Patients cannot upload files")
+
     try:
         # Determine which patient this file belongs to
         if patient_id:
-            # For technicians: allow uploading to any patient (they manage patient creation)
-            # For doctors: only allow uploading to their assigned patients
-            # For patients: they cannot upload files
+            # For technicians: any patient in their own hospital
+            # For doctors: only their assigned patients
             if current_user.user_type == UserType.TECHNICIAN.value:
-                # Technicians can upload files for any patient
-                user = db.query(User).filter(User.id == patient_id).first()
+                user = (
+                    visible_patients(db, current_user)
+                    .filter(User.id == patient_id)
+                    .first()
+                )
                 if not user:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="Patient not found",
                     )
             elif current_user.user_type == UserType.DOCTOR.value:
-                # Doctors can only upload to their assigned patients
                 user = (
-                    db.query(User)
+                    visible_patients(db, current_user)
                     .filter(User.id == patient_id, User.auth_user_id == current_user.id)
                     .first()
                 )
@@ -160,10 +166,9 @@ async def upload_signal_file(
                         detail="Patient not found or you don't have access to this patient",
                     )
             else:
-                # Patients cannot upload files
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Patients cannot upload files",
+                    detail="Only doctors and technicians can upload to a patient",
                 )
         else:
             # If no patient specified, create a default patient for this auth user
@@ -181,6 +186,7 @@ async def upload_signal_file(
                 user = User(
                     name=f"Default Patient for {current_user.username}",
                     auth_user_id=current_user.id,
+                    hospital_id=current_user.hospital_id,
                 )
                 db.add(user)
                 db.commit()
@@ -316,7 +322,7 @@ async def get_file_bookmarks(
 
     response = []
     for bookmark in bookmarks:
-        image_url = storage_service.public_url(bookmark.image_path) if bookmark.image_path else ""
+        image_url = storage_service.signed_url(bookmark.image_path) if bookmark.image_path else ""
         response.append(
             EEGBookmarkResponse(
                 id=bookmark.id,
@@ -400,7 +406,7 @@ async def create_file_bookmark(
         id=bookmark.id,
         file_id=bookmark.file_id,
         comment=bookmark.comment,
-        image_url=storage_service.public_url(object_path),
+        image_url=storage_service.signed_url(object_path),
         created_at=bookmark.created_at,
         created_by=bookmark.created_by,
     )

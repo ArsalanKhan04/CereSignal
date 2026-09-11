@@ -526,3 +526,220 @@ class TestReportsAreScopedToOneHospital:
         assert response.status_code == 200
         names = sorted(r["patient_name"] for r in response.json())
         assert names == ["Patient A", "Patient B"]
+
+
+class TestPatientRecordsAreScoped:
+    """
+    The patient half of access.py (visible_patients / get_accessible_patient).
+
+    users.py used to check `if current_user.hospital_id and user.hospital_id != ...`
+    in five places. The leading truthiness test skipped the comparison altogether
+    for a staff account with no hospital, so such an account could read, edit and
+    delete any patient on the platform; and get_users compiled its NULL hospital to
+    IS NULL, listing every self-registered patient. Doctors could also read the
+    records of patients assigned to a colleague, which the file routes never
+    allowed. Same 404/403 split as files.
+    """
+
+    @pytest.fixture
+    def orphan_doctor(self, db_session, password_hash):
+        from app.models.auth import AuthUser, UserType
+
+        orphan = AuthUser(
+            username="orphan_doctor",
+            email="orphan_doctor@example.test",
+            hashed_password=password_hash,
+            user_type=UserType.DOCTOR.value,
+            hospital_id=None,
+            is_active=True,
+        )
+        db_session.add(orphan)
+        db_session.commit()
+        db_session.refresh(orphan)
+        return orphan
+
+    @pytest.fixture
+    def patient_in_a(self, make_patient, hospital_a, doctor_a):
+        return make_patient("Patient A", hospital_a, doctor_a)
+
+    @pytest.fixture
+    def patient_in_b(self, make_patient, hospital_b, doctor_b):
+        return make_patient("Patient B", hospital_b, doctor_b)
+
+    @pytest.fixture
+    def self_registered(self, make_patient):
+        """What /auth/register/patient creates: a users row with no hospital."""
+        return make_patient("Self Registered", None)
+
+    def test_a_staff_account_with_no_hospital_lists_no_patients(
+        self, client, orphan_doctor, auth_headers, patient_in_a, self_registered
+    ):
+        response = client.get(
+            "/api/v1/users/",
+            params={"include_unassigned": "true"},
+            headers=auth_headers(orphan_doctor),
+        )
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    @pytest.mark.parametrize("target", ["patient_in_a", "self_registered"])
+    def test_a_staff_account_with_no_hospital_cannot_read_edit_or_delete(
+        self, client, orphan_doctor, auth_headers, request, db_session, target
+    ):
+        from app.models.user import User
+
+        patient = request.getfixturevalue(target)
+        headers = auth_headers(orphan_doctor)
+
+        assert client.get(f"/api/v1/users/{patient.id}", headers=headers).status_code == 404
+        assert (
+            client.put(
+                f"/api/v1/users/{patient.id}", json={"name": "Renamed"}, headers=headers
+            ).status_code
+            == 404
+        )
+        assert client.delete(f"/api/v1/users/{patient.id}", headers=headers).status_code == 404
+
+        db_session.expire_all()
+        row = db_session.get(User, patient.id)
+        assert row.name == patient.name
+        assert row.is_active is True
+
+    def test_another_hospitals_patient_is_indistinguishable_from_a_missing_one(
+        self, client, technician_a, auth_headers, patient_in_b
+    ):
+        headers = auth_headers(technician_a)
+        real = client.get(f"/api/v1/users/{patient_in_b.id}", headers=headers)
+        imaginary = client.get("/api/v1/users/999999", headers=headers)
+
+        assert real.status_code == imaginary.status_code == 404
+        assert real.json()["detail"] == imaginary.json()["detail"]
+
+    def test_a_colleagues_patient_is_403(
+        self, client, doctor_a, doctor_a2, auth_headers, make_patient, hospital_a
+    ):
+        from app.core.access import DOCTOR_PATIENT_DENIED
+
+        patient = make_patient("Colleague's Patient", hospital_a, doctor_a2)
+
+        response = client.get(
+            f"/api/v1/users/{patient.id}", headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == DOCTOR_PATIENT_DENIED
+
+    def test_an_unassigned_patient_is_readable_by_a_doctor(
+        self, client, doctor_a, auth_headers, make_patient, hospital_a
+    ):
+        patient = make_patient("Unassigned", hospital_a, auth_user=None)
+
+        response = client.get(
+            f"/api/v1/users/{patient.id}", headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "Unassigned"
+
+    def test_a_technician_reads_any_patient_in_their_hospital(
+        self, client, technician_a, auth_headers, patient_in_a
+    ):
+        response = client.get(
+            f"/api/v1/users/{patient_in_a.id}", headers=auth_headers(technician_a)
+        )
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("action", ["mark-report-sent", "send-portal-email"])
+    def test_the_report_actions_are_scoped_too(
+        self, client, doctor_b, auth_headers, patient_in_a, action
+    ):
+        response = client.post(
+            f"/api/v1/users/{patient_in_a.id}/{action}", headers=auth_headers(doctor_b)
+        )
+        assert response.status_code == 404
+
+    def test_a_superuser_reaches_every_hospitals_patients(
+        self, client, superuser, auth_headers, patient_in_a, patient_in_b
+    ):
+        for patient in (patient_in_a, patient_in_b):
+            response = client.get(
+                f"/api/v1/users/{patient.id}", headers=auth_headers(superuser)
+            )
+            assert response.status_code == 200
+
+    def test_the_unscoped_user_files_route_is_gone(
+        self, client, technician_a, auth_headers, patient_in_b
+    ):
+        """It checked patients only and had no caller; it was deleted, not repaired."""
+        response = client.get(
+            f"/api/v1/users/{patient_in_b.id}/files", headers=auth_headers(technician_a)
+        )
+        assert response.status_code == 404
+
+
+class TestPatientsCannotEditTheirOwnRecord:
+    @pytest.fixture
+    def own_record(self, make_patient, hospital_a, patient_a):
+        return make_patient("Self", hospital_a, patient_auth_user=patient_a)
+
+    def test_a_patient_reads_their_own_record(
+        self, client, patient_a, auth_headers, own_record
+    ):
+        response = client.get(
+            f"/api/v1/users/{own_record.id}", headers=auth_headers(patient_a)
+        )
+        assert response.status_code == 200
+
+    def test_a_patient_cannot_edit_their_own_record(
+        self, client, patient_a, auth_headers, own_record, db_session
+    ):
+        """UserUpdate carries notes, medical_id and is_active — clinical fields."""
+        from app.models.user import User
+
+        response = client.put(
+            f"/api/v1/users/{own_record.id}",
+            json={"notes": "all clear", "medical_id": "FORGED"},
+            headers=auth_headers(patient_a),
+        )
+
+        assert response.status_code == 403
+        db_session.expire_all()
+        assert db_session.get(User, own_record.id).medical_id is None
+
+
+class TestPortalTokenIsNotListed:
+    """
+    A portal token is a standing login for the patient. The hospital-wide list
+    returned every patient's token to every technician; now only the staff member
+    who sends the email gets the token back.
+    """
+
+    @pytest.fixture
+    def patient_with_email(self, make_patient, hospital_a, doctor_a, db_session):
+        patient = make_patient("Emailable", hospital_a, doctor_a)
+        patient.email = "emailable@example.test"
+        patient.portal_token = "standing-login-token"
+        db_session.commit()
+        return patient
+
+    def test_the_patient_list_omits_the_token(
+        self, client, technician_a, auth_headers, patient_with_email
+    ):
+        response = client.get("/api/v1/users/", headers=auth_headers(technician_a))
+
+        assert response.status_code == 200
+        assert response.json()
+        for row in response.json():
+            assert "portal_token" not in row
+
+    def test_the_sender_gets_the_token_back(
+        self, client, doctor_a, auth_headers, patient_with_email
+    ):
+        response = client.post(
+            f"/api/v1/users/{patient_with_email.id}/send-portal-email",
+            headers=auth_headers(doctor_a),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["portal_token"] == "standing-login-token"

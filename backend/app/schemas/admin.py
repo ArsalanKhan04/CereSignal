@@ -32,8 +32,8 @@ class HospitalAdminRegister(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=50)
     email: LenientEmailStr
-    password: str = Field(..., min_length=6)
-    confirm_password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
 
 
 class InviteCreate(BaseModel):
@@ -84,8 +84,8 @@ class StaffInviteRegister(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6)
-    confirm_password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
     title: Optional[str] = Field(None, max_length=50)
     specialization: Optional[str] = Field(None, max_length=100)
     license_number: Optional[str] = Field(None, max_length=100)

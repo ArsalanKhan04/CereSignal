@@ -106,9 +106,138 @@ class TestRoundTrip:
         assert service.download(ASSETS_BUCKET, "same-name") == b"assets"
 
 
-class TestPublicUrl:
+class TestSignedUrl:
+    """
+    Assets are the only objects a browser loads straight from storage (an <img src>
+    cannot carry the bearer token), so the URL itself is the credential. It used to
+    be a bare, guessable path — topomaps had no random component at all.
+    """
+
+    def _parts(self, url):
+        from urllib.parse import parse_qs, urlsplit
+
+        split = urlsplit(url)
+        query = {k: v[0] for k, v in parse_qs(split.query).items()}
+        return split.path, int(query["expires"]), query["signature"]
+
     def test_it_is_root_relative_so_the_frontend_can_prefix_the_api_origin(self, service):
-        assert service.public_url("plots/topomap.png") == "/static/eeg-assets/plots/topomap.png"
+        path, _, _ = self._parts(service.signed_url("bookmarks/1/bookmark_2.png"))
+        assert path == "/static/eeg-assets/bookmarks/1/bookmark_2.png"
+
+    def test_a_fresh_url_verifies(self, service):
+        _, expires, signature = self._parts(service.signed_url("bookmarks/1/b.png"))
+        assert LocalStorageService.verify_signature(
+            ASSETS_BUCKET, "bookmarks/1/b.png", expires, signature
+        )
+
+    def test_the_signature_does_not_transfer_to_another_object(self, service):
+        _, expires, signature = self._parts(service.signed_url("bookmarks/1/b.png"))
+        assert not LocalStorageService.verify_signature(
+            ASSETS_BUCKET, "bookmarks/2/b.png", expires, signature
+        )
+
+    def test_the_expiry_cannot_be_extended(self, service):
+        _, expires, signature = self._parts(service.signed_url("bookmarks/1/b.png"))
+        assert not LocalStorageService.verify_signature(
+            ASSETS_BUCKET, "bookmarks/1/b.png", expires + 3600, signature
+        )
+
+    def test_an_expired_url_does_not_verify(self, service):
+        _, expires, signature = self._parts(
+            service.signed_url("bookmarks/1/b.png", expires_in=-1)
+        )
+        assert not LocalStorageService.verify_signature(
+            ASSETS_BUCKET, "bookmarks/1/b.png", expires, signature
+        )
+
+    def test_the_supabase_backend_asks_for_a_signed_url_on_the_assets_bucket(self):
+        """No Supabase account needed: the client is a stub recording the call."""
+        from app.services.storage_service import SupabaseStorageService
+
+        calls = []
+
+        class Bucket:
+            def __init__(self, name):
+                self.name = name
+
+            def create_signed_url(self, path, expires_in):
+                calls.append((self.name, path, expires_in))
+                return {"signedURL": f"https://x.supabase.co/{path}?token=t"}
+
+        class Client:
+            class storage:
+                from_ = Bucket
+
+        backend = SupabaseStorageService()
+        backend._client = Client()
+
+        url = backend.signed_url("bookmarks/1/b.png", expires_in=60)
+
+        assert url == "https://x.supabase.co/bookmarks/1/b.png?token=t"
+        assert calls == [(ASSETS_BUCKET, "bookmarks/1/b.png", 60)]
+
+
+class TestSignedUrlRoute:
+    """main.py's local-mode route: the replacement for an open StaticFiles mount."""
+
+    def test_a_signed_url_serves_the_asset(self, client, local_storage):
+        local_storage.upload(ASSETS_BUCKET, "bookmarks/1/b.png", b"png-bytes")
+
+        response = client.get(local_storage.signed_url("bookmarks/1/b.png"))
+
+        assert response.status_code == 200
+        assert response.content == b"png-bytes"
+
+    def test_the_bare_path_is_refused(self, client, local_storage):
+        local_storage.upload(ASSETS_BUCKET, "bookmarks/1/b.png", b"png-bytes")
+        assert client.get("/static/eeg-assets/bookmarks/1/b.png").status_code == 403
+
+    def test_a_tampered_signature_is_refused(self, client, local_storage):
+        local_storage.upload(ASSETS_BUCKET, "bookmarks/1/b.png", b"png-bytes")
+        url = local_storage.signed_url("bookmarks/1/b.png")
+        tampered = url[:-1] + ("0" if url[-1] != "0" else "1")
+
+        assert client.get(tampered).status_code == 403
+
+    def test_one_objects_signature_does_not_open_another(self, client, local_storage):
+        local_storage.upload(ASSETS_BUCKET, "bookmarks/1/b.png", b"mine")
+        local_storage.upload(ASSETS_BUCKET, "bookmarks/2/b.png", b"theirs")
+        url = local_storage.signed_url("bookmarks/1/b.png")
+
+        swapped = url.replace("bookmarks/1/", "bookmarks/2/")
+        assert client.get(swapped).status_code == 403
+
+    def test_recordings_and_reports_are_not_served_at_all(self, client, local_storage):
+        """
+        The old StaticFiles mount covered all of local_storage, eeg-signals
+        included. It served the real LOCAL_STORAGE_ROOT rather than this test's
+        temp tree, so a request alone cannot show it is gone — check the routes.
+        """
+        from starlette.routing import Mount
+
+        from app.main import app
+
+        assert not [r for r in app.routes if isinstance(r, Mount)]
+
+        local_storage.upload(SIGNALS_BUCKET, "reports/7/EEG.pdf", b"%PDF")
+        assert client.get("/static/eeg-signals/reports/7/EEG.pdf").status_code == 404
+
+    def test_a_validly_signed_traversal_is_still_contained(self, client, local_storage):
+        """The signature proves who issued the URL, not that the path is safe."""
+        from app.services.storage_service import _local_signature
+
+        local_storage.upload(SIGNALS_BUCKET, "x.edf", b"recording")
+        expires = 2**31
+        signature = _local_signature(ASSETS_BUCKET, "../eeg-signals/x.edf", expires)
+        response = client.get(
+            "/static/eeg-assets/%2E%2E/eeg-signals/x.edf",
+            params={"expires": expires, "signature": signature},
+        )
+
+        # Whichever layer stops it (URL normalisation or _path's guard), the
+        # recording must not come back.
+        assert response.status_code != 200
+        assert b"recording" not in response.content
 
 
 class TestTempLocalFile:

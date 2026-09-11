@@ -119,10 +119,21 @@ class UserListResponse(BaseModel):
     auth_user_id: Optional[int] = None
     is_active: bool
     report_sent: bool = False
-    portal_token: Optional[str] = None
     portal_sent_at: Optional[datetime] = None
     created_at: datetime
     doctor_name: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class PortalEmailResponse(UserListResponse):
+    """
+    send-portal-email's response: the list row plus the token just emailed.
+
+    The token is a standing login for the patient, so it is returned only to the
+    staff member who issued it (the demo walkthrough opens the portal with it) —
+    never in the hospital-wide patient list.
+    """
+
+    portal_token: Optional[str] = None

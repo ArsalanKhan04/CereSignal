@@ -28,7 +28,9 @@ dependencies, creates `backend/.env` from the example, and generates a random
 
 The defaults it writes need no cloud account: `DATABASE_URL` is
 `sqlite:///./cere_signal.db`, and with `SUPABASE_URL` unset the backend stores
-uploads on disk under `backend/local_storage/`, serving them from `/static`.
+uploads on disk under `backend/local_storage/`. Nothing there is public:
+bookmark images are served from `/static/eeg-assets/` only with a signed,
+expiring URL, and everything else goes through authenticated API routes.
 Set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` and it switches to Supabase Storage
 automatically — that is how the deployed app runs. `OPENAI_API_KEY` is optional
 too; without it inference still runs and the report text is simply left blank.
