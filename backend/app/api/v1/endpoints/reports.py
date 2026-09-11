@@ -5,18 +5,23 @@ Report management endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 from sqlalchemy.sql import func
 from typing import List, Optional
 from datetime import datetime
 import os
 
 from app.core.database import get_db
+from app.core.access import (
+    forbid_patients,
+    get_accessible_file,
+    get_accessible_report,
+    visible_reports,
+    visible_signal_files,
+)
 from app.core.auth import get_current_active_user
 from app.models.report import EEGReport, EEGReportVersion
 from app.models.signal import SignalFile
 from app.models.auth import AuthUser, UserType
-from app.models.user import User
 from app.models.notification import Notification
 from app.schemas.report import (
     EEGReportCreate,
@@ -68,14 +73,13 @@ async def create_report(
 ):
     """Create a new EEG report"""
 
-    # Check if file exists and belongs to the user
+    forbid_patients(current_user, "Patients cannot create reports")
+
+    # The file must be one this user can reach. file_id arrives in the body, so
+    # this uses the scope query directly rather than the path-param dependency.
     signal_file = (
-        db.query(SignalFile)
-        .join(User)
-        .filter(
-            SignalFile.id == report_data.file_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
+        visible_signal_files(db, current_user)
+        .filter(SignalFile.id == report_data.file_id)
         .first()
     )
 
@@ -168,39 +172,7 @@ async def get_reports(
     """Get all reports for the authenticated user"""
 
     try:
-        # Patients can only see their own reports
-        if current_user.user_type == UserType.PATIENT.value:
-            # Find the patient's User record
-            patient_user = (
-                db.query(User)
-                .filter(User.patient_auth_user_id == current_user.id)
-                .first()
-            )
-
-            if not patient_user:
-                return []  # No patient record found, return empty list
-
-            # Get reports for files belonging to this patient
-            reports = (
-                db.query(EEGReport)
-                .join(SignalFile)
-                .filter(SignalFile.user_id == patient_user.id)
-            )
-        elif current_user.user_type == UserType.TECHNICIAN.value:
-            reports = db.query(EEGReport).filter(
-                EEGReport.hospital_id == current_user.hospital_id
-            )
-        else:
-            # Doctors see reports for their managed patients within their hospital
-            reports = (
-                db.query(EEGReport)
-                .join(SignalFile)
-                .join(User)
-                .filter(
-                    or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-                    EEGReport.hospital_id == current_user.hospital_id,
-                )
-            )
+        reports = visible_reports(db, current_user)
 
         if patient_id is not None:
             reports = reports.filter(SignalFile.user_id == patient_id)
@@ -236,27 +208,11 @@ async def get_reports(
 
 @router.get("/{report_id}", response_model=EEGReportResponse)
 async def get_report(
-    report_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Get a specific report by ID"""
-
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-        )
 
     # Add additional fields for response
     response_data = report.__dict__.copy()
@@ -271,28 +227,14 @@ async def get_report(
 
 @router.put("/{report_id}", response_model=EEGReportResponse)
 async def update_report(
-    report_id: int,
     report_data: EEGReportUpdate,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Update an existing report"""
 
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-        )
+    forbid_patients(current_user, "Patients cannot edit reports")
 
     try:
         # Snapshot current state before mutating (so it's recoverable)
@@ -331,27 +273,13 @@ async def update_report(
 
 @router.delete("/{report_id}")
 async def delete_report(
-    report_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Delete a report"""
 
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-        )
+    forbid_patients(current_user, "Patients cannot delete reports")
 
     try:
         db.delete(report)
@@ -369,29 +297,15 @@ async def delete_report(
 
 @router.get("/{report_id}/versions", response_model=List[EEGReportVersionResponse])
 async def list_report_versions(
-    report_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """List all version snapshots for a report, ordered by version number"""
 
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-
     versions = (
         db.query(EEGReportVersion)
-        .filter(EEGReportVersion.report_id == report_id)
+        .filter(EEGReportVersion.report_id == report.id)
         .order_by(EEGReportVersion.version_number)
         .all()
     )
@@ -410,32 +324,18 @@ async def list_report_versions(
 
 @router.get("/{report_id}/versions/{version_id}", response_model=EEGReportVersionResponse)
 async def get_report_version(
-    report_id: int,
     version_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Get a single version snapshot"""
 
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-
     version = (
         db.query(EEGReportVersion)
         .filter(
             EEGReportVersion.id == version_id,
-            EEGReportVersion.report_id == report_id,
+            EEGReportVersion.report_id == report.id,
         )
         .first()
     )
@@ -454,32 +354,20 @@ async def get_report_version(
 
 @router.post("/{report_id}/versions/{version_id}/restore", response_model=EEGReportResponse)
 async def restore_report_version(
-    report_id: int,
     version_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Restore a report to a historical snapshot. Saves a new version to track the rollback."""
 
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    forbid_patients(current_user, "Patients cannot restore report versions")
 
     version = (
         db.query(EEGReportVersion)
         .filter(
             EEGReportVersion.id == version_id,
-            EEGReportVersion.report_id == report_id,
+            EEGReportVersion.report_id == report.id,
         )
         .first()
     )
@@ -527,30 +415,13 @@ async def restore_report_version(
 
 @router.get("/file/{file_id}", response_model=Optional[EEGReportResponse])
 async def get_report_by_file(
-    file_id: int,
+    signal_file: SignalFile = Depends(get_accessible_file),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Get report for a specific file"""
 
-    # Check if file exists and belongs to the user
-    signal_file = (
-        db.query(SignalFile)
-        .join(User)
-        .filter(
-            SignalFile.id == file_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not signal_file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Signal file not found or access denied",
-        )
-
-    report = db.query(EEGReport).filter(EEGReport.file_id == file_id).first()
+    report = db.query(EEGReport).filter(EEGReport.file_id == signal_file.id).first()
 
     if not report:
         return None
@@ -568,29 +439,15 @@ async def get_report_by_file(
 
 @router.post("/{report_id}/generate-pdf")
 async def generate_report_pdf(
-    report_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Generate PDF for an existing report"""
 
+    forbid_patients(current_user, "Patients cannot generate report PDFs")
+
     # Get the report
-    report = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(
-            EEGReport.id == report_id,
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-        )
-        .first()
-    )
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-        )
-
     try:
         # Get signal file and doctor info
         signal_file = report.signal_file
@@ -612,9 +469,13 @@ async def generate_report_pdf(
         return {
             "message": "PDF generated successfully",
             "pdf_path": pdf_path,
-            "report_id": report_id,
+            "report_id": report.id,
         }
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -625,35 +486,11 @@ async def generate_report_pdf(
 
 @router.get("/{report_id}/download-pdf")
 async def download_report_pdf(
-    report_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Download the PDF for a report"""
-
-    # Get the report
-    report_query = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(EEGReport.id == report_id)
-    )
-
-    if current_user.user_type == UserType.PATIENT.value:
-        report_query = report_query.filter(User.patient_auth_user_id == current_user.id)
-    elif current_user.user_type == UserType.TECHNICIAN.value:
-        report_query = report_query
-    else:
-        report_query = report_query.filter(
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
-        )
-
-    report = report_query.first()
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-        )
 
     from app.services.storage_service import storage_service, SIGNALS_BUCKET
 
@@ -699,40 +536,16 @@ async def download_report_pdf(
 
 @router.get("/{report_id}/pdf-status")
 async def get_pdf_status(
-    report_id: int,
+    report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Check if PDF exists for a report"""
 
-    # Get the report
-    report_query = (
-        db.query(EEGReport)
-        .join(SignalFile)
-        .join(User)
-        .filter(EEGReport.id == report_id)
-    )
-
-    if current_user.user_type == UserType.PATIENT.value:
-        report_query = report_query.filter(User.patient_auth_user_id == current_user.id)
-    elif current_user.user_type == UserType.TECHNICIAN.value:
-        report_query = report_query
-    else:
-        report_query = report_query.filter(
-            or_(User.auth_user_id == current_user.id, User.auth_user_id == None)
-        )
-
-    report = report_query.first()
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-        )
-
     pdf_exists = bool(report.pdf_file_path)
 
     return {
-        "report_id": report_id,
+        "report_id": report.id,
         "pdf_exists": pdf_exists,
         "pdf_path": report.pdf_file_path if pdf_exists else None,
     }

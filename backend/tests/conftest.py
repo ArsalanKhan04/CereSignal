@@ -42,6 +42,7 @@ from app.core.database import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.models.auth import AuthUser, UserType  # noqa: E402
 from app.models.hospital import Hospital  # noqa: E402
+from app.models.report import EEGReport  # noqa: E402
 from app.models.signal import SignalFile  # noqa: E402
 from app.models.user import User  # noqa: E402
 
@@ -156,6 +157,19 @@ def doctor_a(db_session, password_hash, hospital_a):
 
 
 @pytest.fixture
+def doctor_a2(db_session, password_hash, hospital_a):
+    """
+    A second doctor in hospital A. access.py splits its denials on the hospital —
+    404 across tenants, 403 within one — so the 403 arm needs a colleague to own
+    the patient the caller is refused.
+    """
+    return _make_auth_user(
+        db_session, password_hash,
+        username="doctor_a2", user_type=UserType.DOCTOR.value, hospital=hospital_a,
+    )
+
+
+@pytest.fixture
 def doctor_b(db_session, password_hash, hospital_b):
     return _make_auth_user(
         db_session, password_hash,
@@ -176,6 +190,23 @@ def admin_a(db_session, password_hash, hospital_a):
     return _make_auth_user(
         db_session, password_hash,
         username="admin_a", user_type=UserType.ADMIN.value, hospital=hospital_a,
+    )
+
+
+@pytest.fixture
+def patient_a(db_session, password_hash, hospital_a):
+    """A PATIENT auth account. Its `users` row is attached by make_patient."""
+    return _make_auth_user(
+        db_session, password_hash,
+        username="patient_a", user_type=UserType.PATIENT.value, hospital=hospital_a,
+    )
+
+
+@pytest.fixture
+def patient_b(db_session, password_hash, hospital_b):
+    return _make_auth_user(
+        db_session, password_hash,
+        username="patient_b", user_type=UserType.PATIENT.value, hospital=hospital_b,
     )
 
 
@@ -217,13 +248,22 @@ def auth_headers():
 
 @pytest.fixture
 def make_patient(db_session):
-    """Create a patient (users row) owned by an auth user."""
+    """
+    Create a patient (users row) owned by an auth user.
 
-    def _make(name, hospital, auth_user=None):
+    The two auth columns are not interchangeable. ``auth_user_id`` is the treating
+    doctor, which is what visible_signal_files scopes a doctor's rows on;
+    ``patient_auth_user_id`` is the patient's own login, which is what
+    _own_patient_record (access.py:29) resolves a PATIENT token to. A patient who
+    logs in and finds nothing usually has only the first one set.
+    """
+
+    def _make(name, hospital, auth_user=None, patient_auth_user=None):
         patient = User(
             name=name,
             hospital_id=hospital.id if hospital else None,
             auth_user_id=auth_user.id if auth_user else None,
+            patient_auth_user_id=patient_auth_user.id if patient_auth_user else None,
         )
         db_session.add(patient)
         db_session.commit()
@@ -252,6 +292,26 @@ def make_signal_file(db_session):
         db_session.commit()
         db_session.refresh(signal_file)
         return signal_file
+
+    return _make
+
+
+@pytest.fixture
+def make_report(db_session):
+    """Create an eeg_reports row for a signal file."""
+
+    def _make(signal_file, hospital, author, patient_name="Report Patient", **kwargs):
+        report = EEGReport(
+            file_id=signal_file.id,
+            auth_user_id=author.id,
+            hospital_id=hospital.id if hospital else None,
+            patient_name=patient_name,
+            **kwargs,
+        )
+        db_session.add(report)
+        db_session.commit()
+        db_session.refresh(report)
+        return report
 
     return _make
 

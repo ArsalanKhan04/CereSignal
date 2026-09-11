@@ -9,7 +9,6 @@ from app.api.v1.endpoints import (
     config,
     dev_admin,
     signals,
-    processing,
     users,
     reports,
     notifications,
@@ -27,7 +26,6 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(signals.router, prefix="/signals", tags=["signals"])
-api_router.include_router(processing.router, prefix="/processing", tags=["processing"])
 api_router.include_router(logs.router, prefix="/logs", tags=["logs"])
 api_router.include_router(contact.router, prefix="/contact", tags=["contact"])
 api_router.include_router(dev_admin.router, prefix="/dev-admin", tags=["dev-admin"])

@@ -77,12 +77,6 @@ class PatientRegister(BaseModel):
     current_medications: Optional[str] = None
 
 
-class PatientIdLogin(BaseModel):
-    """Schema for patient ID login"""
-
-    patient_id: int = Field(..., ge=1)
-
-
 class Token(BaseModel):
     """Schema for JWT token response"""
 

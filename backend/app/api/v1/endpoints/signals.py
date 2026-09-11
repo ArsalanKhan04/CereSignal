@@ -12,6 +12,11 @@ from datetime import datetime
 from typing import List, Optional
 
 import mne
+from app.core.access import (
+    forbid_patients,
+    get_accessible_file,
+    visible_signal_files,
+)
 from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
@@ -25,7 +30,6 @@ from app.schemas.signal import (
     EEGBookmarkCreate,
     EEGBookmarkResponse,
     FileUploadResponse,
-    ProcessingRequest,
     SignalFileResponse,
     SignalResponse,
     SignalLabelUpdate,
@@ -37,7 +41,6 @@ from app.utils.file_processing import process_signal_file, save_uploaded_file
 from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
                      status)
 from fastapi.responses import FileResponse, Response, RedirectResponse
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 EEG_CHANNEL_ORDER = [
@@ -283,6 +286,10 @@ async def upload_signal_file(
             processing_status=db_file.processing_status,
         )
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         db.rollback()
         log_error(e, f"File upload failed for user {current_user.id}")
@@ -295,45 +302,14 @@ async def upload_signal_file(
 
 @router.get("/files/{file_id}/bookmarks", response_model=List[EEGBookmarkResponse])
 async def get_file_bookmarks(
-    file_id: int,
-    current_user: AuthUser = Depends(get_current_active_user),
+    file: SignalFile = Depends(get_accessible_file),
     db: Session = Depends(get_db),
 ):
     """Get EEG bookmarks for a signal file"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
-    if current_user.user_type == UserType.PATIENT.value:
-        patient_user = (
-            db.query(User).filter(User.patient_auth_user_id == current_user.id).first()
-        )
-        if not patient_user or file.user_id != patient_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access your own files",
-            )
-    elif current_user.user_type == UserType.DOCTOR.value:
-        owner = (
-            db.query(User)
-            .filter(
-                User.id == file.user_id,
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-            )
-            .first()
-        )
-        if not owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access files for your patients",
-            )
-
     bookmarks = (
         db.query(EEGBookmark)
-        .filter(EEGBookmark.file_id == file_id)
+        .filter(EEGBookmark.file_id == file.id)
         .order_by(EEGBookmark.created_at.desc())
         .all()
     )
@@ -361,46 +337,21 @@ async def get_file_bookmarks(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_file_bookmark(
-    file_id: int,
     bookmark_data: EEGBookmarkCreate,
+    file: SignalFile = Depends(get_accessible_file),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Create EEG bookmark for a signal file"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
-    if current_user.user_type == UserType.PATIENT.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Patients cannot create bookmarks",
-        )
-
-    if current_user.user_type == UserType.DOCTOR.value:
-        owner = (
-            db.query(User)
-            .filter(
-                User.id == file.user_id,
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-            )
-            .first()
-        )
-        if not owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access files for your patients",
-            )
+    forbid_patients(current_user, "Patients cannot create bookmarks")
 
     if bookmark_data.replace_id:
         bookmark_to_replace = (
             db.query(EEGBookmark)
             .filter(
                 EEGBookmark.id == bookmark_data.replace_id,
-                EEGBookmark.file_id == file_id,
+                EEGBookmark.file_id == file.id,
             )
             .first()
         )
@@ -427,7 +378,7 @@ async def create_file_bookmark(
         )
 
     bookmark = EEGBookmark(
-        file_id=file_id,
+        file_id=file.id,
         comment=bookmark_data.comment,
         created_by=current_user.id,
         image_path="",
@@ -436,7 +387,7 @@ async def create_file_bookmark(
     db.commit()
     db.refresh(bookmark)
 
-    object_path = f"bookmarks/{file_id}/bookmark_{bookmark.id}.png"
+    object_path = f"bookmarks/{file.id}/bookmark_{bookmark.id}.png"
     storage_service.upload(ASSETS_BUCKET, object_path, image_bytes)
 
     bookmark.image_path = object_path
@@ -457,43 +408,18 @@ async def create_file_bookmark(
 
 @router.delete("/files/{file_id}/bookmarks/{bookmark_id}")
 async def delete_file_bookmark(
-    file_id: int,
     bookmark_id: int,
+    file: SignalFile = Depends(get_accessible_file),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Delete EEG bookmark for a signal file"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
-    if current_user.user_type == UserType.PATIENT.value:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Patients cannot delete bookmarks",
-        )
-
-    if current_user.user_type == UserType.DOCTOR.value:
-        owner = (
-            db.query(User)
-            .filter(
-                User.id == file.user_id,
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-            )
-            .first()
-        )
-        if not owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access files for your patients",
-            )
+    forbid_patients(current_user, "Patients cannot delete bookmarks")
 
     bookmark = (
         db.query(EEGBookmark)
-        .filter(EEGBookmark.id == bookmark_id, EEGBookmark.file_id == file_id)
+        .filter(EEGBookmark.id == bookmark_id, EEGBookmark.file_id == file.id)
         .first()
     )
     if not bookmark:
@@ -522,70 +448,10 @@ async def get_signal_files(
 ):
     """Get list of uploaded signal files for the authenticated user's patients"""
 
-    # Handle different user types
-    if current_user.user_type == UserType.PATIENT.value:
-        # Patients can only see files for their own patient record
-        patient_user = (
-            db.query(User).filter(User.patient_auth_user_id == current_user.id).first()
-        )
-        if not patient_user:
-            return []  # No patient record found
-        query = db.query(SignalFile).filter(SignalFile.user_id == patient_user.id)
-    elif current_user.user_type == UserType.TECHNICIAN.value:
-        # Technicians can see files for all patients in their hospital
-        query = db.query(SignalFile).filter(
-            SignalFile.hospital_id == current_user.hospital_id
-        )
-    else:
-        # Doctors can see files for their assigned or unassigned patients in their hospital
-        query = (
-            db.query(SignalFile)
-            .join(User)
-            .filter(
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-                SignalFile.hospital_id == current_user.hospital_id,
-            )
-        )
-
+    query = visible_signal_files(db, current_user)
     if patient_id:
-        # Verify access based on user type
-        if current_user.user_type == UserType.DOCTOR.value:
-            # Verify the patient belongs to the doctor or is unassigned
-            patient = (
-                db.query(User)
-                .filter(
-                    User.id == patient_id,
-                    or_(
-                        User.auth_user_id == current_user.id, User.auth_user_id == None
-                    ),
-                )
-                .first()
-            )
-            if not patient:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Patient not found or you don't have access to this patient",
-                )
-
-            if not patient:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Patient not found or you don't have access to this patient",
-                )
-        elif current_user.user_type == UserType.PATIENT.value:
-            # Patients can only access their own files
-            patient_user = (
-                db.query(User)
-                .filter(User.patient_auth_user_id == current_user.id)
-                .first()
-            )
-            if not patient_user or patient_user.id != patient_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only access your own files",
-                )
-        # For technicians, no additional check needed - they can see all patients
-
+        # A patient_id outside the caller's scope simply matches nothing, which is
+        # the same answer the rest of this endpoint gives.
         query = query.filter(SignalFile.user_id == patient_id)
 
     files = query.offset(skip).limit(limit).all()
@@ -601,22 +467,11 @@ async def get_signal_files(
 
 
 @router.get("/files/{file_id}/events")
-async def get_file_events(
-    file_id: int,
-    current_user: AuthUser = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
+async def get_file_events(file: SignalFile = Depends(get_accessible_file)):
     """Get events data for a specific file"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
     return {
-        "file_id": file_id,
+        "file_id": file.id,
         "filename": file.filename,
         "condition": file.condition,
         "events": file.events or {},
@@ -625,49 +480,33 @@ async def get_file_events(
 
 
 @router.get("/files/{file_id}", response_model=SignalFileResponse)
-async def get_signal_file(file_id: int, db: Session = Depends(get_db)):
+async def get_signal_file(file: SignalFile = Depends(get_accessible_file)):
     """Get specific signal file by ID"""
-
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
 
     return file
 
 
 @router.get("/files/{file_id}/signals", response_model=List[SignalResponse])
-async def get_file_signals(file_id: int, db: Session = Depends(get_db)):
+async def get_file_signals(
+    file: SignalFile = Depends(get_accessible_file),
+    db: Session = Depends(get_db),
+):
     """Get all signals from a specific file"""
 
-    # Check if file exists
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
-    signals = db.query(Signal).filter(Signal.file_id == file_id).all()
+    signals = db.query(Signal).filter(Signal.file_id == file.id).all()
     return signals
 
 
 @router.get("/files/{file_id}/signal-data")
 async def get_signal_data(
-    file_id: int,
     start_time: float = 0.0,
     duration: float = 10.0,
+    file: SignalFile = Depends(get_accessible_file),
     db: Session = Depends(get_db),
 ):
     """Get signal data for a specific time range"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
-    signals = db.query(Signal).filter(Signal.file_id == file_id).all()
+    signals = db.query(Signal).filter(Signal.file_id == file.id).all()
 
     # For now, return basic signal info
     # In a real implementation, you'd load the actual signal data from the file
@@ -687,7 +526,7 @@ async def get_signal_data(
         )
 
     return {
-        "file_id": file_id,
+        "file_id": file.id,
         "file_info": {
             "filename": file.filename,
             "condition": file.condition,
@@ -704,27 +543,17 @@ async def get_signal_data(
 
 @router.get("/files/{file_id}/plot-data")
 async def get_plot_data(
-    file_id: int,
     start_time: float = 0.0,
     duration: float = 10.0,
     channels: Optional[str] = None,
     montage: str = "original",
-    current_user: AuthUser = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
+    file: SignalFile = Depends(get_accessible_file),
 ):
     """Return actual signal samples for plotting (JSON with lists). Channels is optional comma-separated names."""
-    # Verify file exists and access
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
-
-    # Optionally, could check user permissions here (omitted for brevity)
 
     # Ensure file is loaded into cache
     try:
-        meta = eeg_cache.load_file(file_id, file.file_path)
+        meta = eeg_cache.load_file(file.id, file.file_path)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -751,7 +580,7 @@ async def get_plot_data(
 
     try:
         seg = eeg_cache.get_segment(
-            file_id, start_time=start_time, duration=duration, channels=channels_list
+            file.id, start_time=start_time, duration=duration, channels=channels_list
         )
 
         if montage != "original" and seg.get("channels"):
@@ -865,11 +694,15 @@ async def get_plot_data(
                 ),
             )
 
-        return {"file_id": file_id, "filename": file.filename, "plot_data": seg}
+        return {"file_id": file.id, "filename": file.filename, "plot_data": seg}
     except KeyError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not loaded in cache"
         )
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -878,15 +711,14 @@ async def get_plot_data(
 
 
 @router.get("/files/{file_id}/topomap")
-async def get_file_topomap(file_id: int, db: Session = Depends(get_db)):
+async def get_file_topomap(file: SignalFile = Depends(get_accessible_file)):
     """Return generated topomap PNG for a file if it exists"""
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
 
-    base = os.path.splitext(file.filename)[0]
+    # Name it after file_path, not filename: preprocessing swaps file_path to
+    # "<name>_processed.edf" (see check_inference_status) and leaves filename at the
+    # raw upload, while the topomap is generated from the processed recording. Keying
+    # off filename looked for "<name>_topomap.png" and never matched.
+    base = os.path.splitext(os.path.basename(file.file_path))[0]
     object_path = f"topomaps/{base}_topomap.png"
 
     try:
@@ -907,13 +739,8 @@ async def get_signal_stats(
 ):
     """Get statistics for the dashboard"""
 
-    # Get all files for the authenticated user's patients
-    files = (
-        db.query(SignalFile)
-        .join(User)
-        .filter(User.auth_user_id == current_user.id)
-        .all()
-    )
+    # Same scope as the file list, so the dashboard totals match what it shows.
+    files = visible_signal_files(db, current_user).all()
 
     if not files:
         return {
@@ -991,15 +818,14 @@ async def get_signal_stats(
 
 
 @router.get("/files/{file_id}/inference-status")
-async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
+async def check_inference_status(
+    file_id: int,
+    file: SignalFile = Depends(get_accessible_file),
+    db: Session = Depends(get_db),
+):
     """Check the status of inference for a specific file"""
 
     report_task_id = None
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
 
     # If no task ID, inference hasn't started
     if not file.task_id:
@@ -1107,16 +933,16 @@ async def check_inference_status(file_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/files/{file_id}/report-status")
-async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
+async def get_file_report_status(
+    file_id: int,
+    file: SignalFile = Depends(get_accessible_file),
+    db: Session = Depends(get_db),
+):
     """
     Check the status of the LLM report generation task for a specific file.
     If completed, stores the report in the database.
     """
     try:
-        file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-        if not file:
-            raise HTTPException(status_code=404, detail="Signal file not found")
-
         # If no report task ID, report generation hasn't started
         if not file.report_task_id:
             return {
@@ -1172,6 +998,10 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
             "has_report": False,
         }
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error checking report status: {str(e)}"
@@ -1179,14 +1009,15 @@ async def get_file_report_status(file_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/files/{file_id}")
-async def delete_signal_file(file_id: int, db: Session = Depends(get_db)):
+async def delete_signal_file(
+    file: SignalFile = Depends(get_accessible_file),
+    current_user: AuthUser = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
     """Delete a signal file and its associated data"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
+    forbid_patients(current_user, "Patients cannot delete files")
+
 
     try:
         # Delete signal file from Supabase Storage
@@ -1212,14 +1043,9 @@ async def delete_signal_file(file_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/files/{file_id}/download")
-async def download_file(file_id: int, db: Session = Depends(get_db)):
+async def download_file(file: SignalFile = Depends(get_accessible_file)):
     """Download/serve a signal file for viewing"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
 
     try:
         data = storage_service.download(SIGNALS_BUCKET, file.file_path)
@@ -1237,46 +1063,29 @@ async def download_file(file_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/files/{file_id}/label", response_model=SignalFileResponse)
 async def update_file_label(
-    file_id: int,
     label_data: SignalLabelUpdate,
-    current_user: Optional[AuthUser] = Depends(get_current_active_user),
+    file: SignalFile = Depends(get_accessible_file),
+    current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     """Update label for a signal file"""
 
-    file = db.query(SignalFile).filter(SignalFile.id == file_id).first()
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Signal file not found"
-        )
+    # get_accessible_file has already settled which files this user may touch;
+    # what follows only rejects the roles that may not label at all.
 
-    if current_user.user_type == UserType.PATIENT.value:
-        patient_user = (
-            db.query(User)
-            .filter(User.patient_auth_user_id == current_user.id)
-            .first()
-        )
-        if not patient_user or file.user_id != patient_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access your own files",
-            )
-    elif current_user.user_type == UserType.DOCTOR.value:
-        owner = (
-            db.query(User)
-            .filter(
-                User.id == file.user_id,
-                or_(User.auth_user_id == current_user.id, User.auth_user_id == None),
-            )
-            .first()
-        )
-        if not owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only access files for your patients",
-            )
+    # Patients used to be allowed here, which made this the one write route of ten
+    # that let a patient change their own record - a portal session could set its
+    # own study to "normal". The rule lives in forbid_patients so it stays in one
+    # place; four hand-copied access checks drifting apart is what access.py was
+    # written to end.
+    forbid_patients(current_user, "Patients cannot relabel files")
 
-    elif current_user.user_type != UserType.TECHNICIAN.value:
+    # Admins are excluded deliberately - they can see their hospital's files but
+    # not relabel them.
+    if current_user.user_type not in (
+        UserType.DOCTOR.value,
+        UserType.TECHNICIAN.value,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update labels",

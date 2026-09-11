@@ -3,7 +3,7 @@
 from .hospital import Hospital, StaffInvitation
 from .auth import AuthUser, UserSession, UserType
 from .user import User
-from .signal import SignalFile, Signal, ProcessingResult, EEGBookmark
+from .signal import SignalFile, Signal, EEGBookmark
 from .report import EEGReport, EEGReportVersion
 from .notification import Notification
 from .contact import ContactSubmission

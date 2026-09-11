@@ -21,7 +21,6 @@ import {
   ApiResponse,
   ApiError,
   NotificationItem,
-  PatientIdLoginRequest,
   EEGBookmark,
   EEGBookmarkCreate,
   HospitalAdminRegisterRequest,
@@ -100,7 +99,7 @@ class ApiClient {
         );
         if (error.response?.status === 401) {
           const url = error.config?.url || '';
-          const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/patient-login');
+          const isAuthEndpoint = url.includes('/auth/login');
           localStorage.removeItem('auth_token');
           localStorage.removeItem('current_user');
           if (!isAuthEndpoint) {
@@ -125,11 +124,6 @@ class ApiClient {
 
   async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     const response = await this.client.post('/auth/login', data);
-    return { data: response.data, status: response.status };
-  }
-
-  async loginPatient(data: PatientIdLoginRequest): Promise<ApiResponse<AuthResponse>> {
-    const response = await this.client.post('/auth/patient-login', data);
     return { data: response.data, status: response.status };
   }
 
@@ -398,6 +392,15 @@ class ApiClient {
 
   async downloadReportPDF(reportId: number): Promise<Blob> {
     const response = await this.client.get(`/reports/${reportId}/download-pdf`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  // The topomap endpoint is authenticated, so it cannot be an <img src> —
+  // fetch the bytes here and let the caller render an object URL.
+  async getTopomap(fileId: number): Promise<Blob> {
+    const response = await this.client.get(`/signals/files/${fileId}/topomap`, {
       responseType: 'blob'
     });
     return response.data;

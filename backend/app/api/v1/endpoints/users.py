@@ -198,6 +198,10 @@ async def create_user(
 
         return db_user
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -492,6 +496,10 @@ async def update_user(
 
         return user
 
+    except HTTPException:
+        # The 4xx raised above is the answer, not a server fault. Without
+        # this the generic handler below re-wraps it as a 500.
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(

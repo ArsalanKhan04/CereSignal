@@ -191,7 +191,6 @@ padlock icon there marks which routes carry an auth dependency.
 ### Authentication
 
 - `POST /auth/login` - Login and get a JWT
-- `POST /auth/patient-login` - Patient login by patient ID
 - `GET /auth/patient-portal/{token}` - Exchange an emailed portal link for a token
 - `POST /auth/register` - Register an authentication user
 - `POST /auth/register/hospital` - Create a hospital and its first admin
@@ -274,23 +273,6 @@ padlock icon there marks which routes carry an auth dependency.
 - `GET /notifications/` - Notification feed
 - `POST /notifications/{notification_id}/read` - Mark as read
 
-### Signal Processing
-
-A synchronous DSP path, separate from the ML inference pipeline described under
-[Architecture](#architecture) and not used by the frontend.
-
-- `POST /processing/process` - Process signal data
-- `GET /processing/results` - Get processing results
-- `GET /processing/results/{result_id}` - Get specific result
-- `DELETE /processing/results/{result_id}` - Delete result
-
-Operations accepted by `POST /processing/process`:
-
-- **FFT** - Fast Fourier Transform analysis
-- **Filter** - Signal filtering (lowpass, highpass, bandpass)
-- **Feature Extraction** - Statistical and signal features
-- **Spectral Analysis** - Power spectral density analysis
-
 ### Misc
 
 - `POST /contact/` - Public contact form submission (unauthenticated)
@@ -358,10 +340,10 @@ Backend tests live in `backend/tests/` (config in `backend/pytest.ini`, dependen
 in `backend/requirements-dev.txt`). Frontend tests sit next to the code they cover
 as `*.test.ts`.
 
-A handful of tests are marked `xfail(strict=True)`. Those assert how a route or
-function *should* behave and fail today because it does not — each one names the
-defect it pins, and fixing the defect makes the test pass, which `strict` reports as
-a failure so the marker gets removed rather than forgotten.
+No test is currently marked `xfail(strict=True)`, but the convention is worth
+knowing: it pins a defect that has been found and not yet fixed. The test asserts
+how the code *should* behave, fails today, and turns into a reported failure the
+moment the bug is fixed — so the marker gets removed rather than forgotten.
 
 There is still **no linter configuration** — no black/mypy/ruff in any requirements
 file. Earlier versions of this README documented `black app/ tests/` and `mypy app/`;
