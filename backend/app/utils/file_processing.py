@@ -19,10 +19,14 @@ from app.services.storage_service import storage_service, SIGNALS_BUCKET
 async def save_uploaded_file(file: UploadFile, filename: str) -> str:
     """Upload file to Supabase Storage. Returns the storage object path."""
     original_path = Path(filename)
-    name_without_ext = original_path.stem
+    # Capped so stem + suffix + extension stays inside signal_files.filename's 255.
+    name_without_ext = original_path.stem[:200]
     extension = original_path.suffix
 
-    unique_suffix = secrets.token_hex(2)[:3]
+    # Uploads from every hospital share one namespace and upload() overwrites, so the
+    # suffix is all that keeps two same-named files apart. It was 3 hex characters —
+    # a 1-in-4096 chance per pair of replacing another tenant's recording.
+    unique_suffix = secrets.token_hex(8)
     new_filename = f"{name_without_ext}_{unique_suffix}{extension}"
     object_path = f"signals/{new_filename}"
 

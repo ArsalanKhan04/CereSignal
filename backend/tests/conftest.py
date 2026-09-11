@@ -326,12 +326,18 @@ def local_storage(tmp_path, monkeypatch):
 
     storage_service is built at import (storage_service.py:176), so the module
     attribute is what has to be replaced — patching the class would have no effect on
-    the already-constructed instance.
+    the already-constructed instance. Modules that did `from ... import
+    storage_service` at the top hold their own reference and are patched too;
+    without that, every upload test wrote into the developer's real
+    backend/local_storage.
     """
+    from app.api.v1.endpoints import dev_admin, signals
     from app.services import storage_service as storage_module
+    from app.utils import file_processing
 
     service = storage_module.LocalStorageService(str(tmp_path))
-    monkeypatch.setattr(storage_module, "storage_service", service)
+    for module in (storage_module, signals, file_processing, dev_admin):
+        monkeypatch.setattr(module, "storage_service", service)
     return service
 
 

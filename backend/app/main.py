@@ -3,20 +3,19 @@ CereSignal FastAPI Application
 Main application entry point
 """
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
-from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from contextlib import asynccontextmanager
 import os
 import uvicorn
 from sqlalchemy.exc import OperationalError
 
-from app.core.config import settings
+from app.core.config import PLACEHOLDER_SECRET_KEYS, settings
 from app.core.database import engine, Base
 from app.api.v1.api import api_router
 from app.core.middleware import setup_middleware
@@ -138,6 +137,15 @@ async def lifespan(app: FastAPI):
 def create_application() -> FastAPI:
     """Create and configure the FastAPI application"""
 
+    # Checked here rather than in config.py: the Celery worker and migrate.py import
+    # settings too, and neither signs anything.
+    if settings.SECRET_KEY in PLACEHOLDER_SECRET_KEYS:
+        raise RuntimeError(
+            "SECRET_KEY is unset or still a placeholder, so anyone could forge a login "
+            "token. Run ./scripts/setup.sh, or set SECRET_KEY in backend/.env "
+            "(e.g. `openssl rand -hex 32`)."
+        )
+
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
@@ -175,20 +183,35 @@ def create_application() -> FastAPI:
     setup_middleware(app)
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
-    # In local mode (no Supabase configured) files live on disk and must be served
-    # by this app — that is what LocalStorageService.public_url() points at.
+    # In local mode (no Supabase configured) assets live on disk and must be served
+    # by this app — that is what LocalStorageService.signed_url() points at. Only the
+    # assets bucket, and only with a valid signature: this used to be a StaticFiles
+    # mount over all of local_storage, which served every EDF and report PDF to
+    # anyone who could guess a path.
     if not settings.SUPABASE_URL:
-        from app.services.storage_service import (
-            LOCAL_STORAGE_ROOT,
-            LOCAL_STORAGE_URL_PREFIX,
-        )
+        from app.services import storage_service as storage_module
 
-        os.makedirs(LOCAL_STORAGE_ROOT, exist_ok=True)
-        app.mount(
-            LOCAL_STORAGE_URL_PREFIX,
-            StaticFiles(directory=LOCAL_STORAGE_ROOT),
-            name="local-storage",
+        @app.get(
+            f"{storage_module.LOCAL_STORAGE_URL_PREFIX}/{storage_module.ASSETS_BUCKET}"
+            "/{object_path:path}",
+            include_in_schema=False,
         )
+        async def local_asset(object_path: str, expires: int = 0, signature: str = ""):
+            bucket = storage_module.ASSETS_BUCKET
+            if not storage_module.LocalStorageService.verify_signature(
+                bucket, object_path, expires, signature
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Invalid or expired link",
+                )
+            try:
+                path = storage_module.storage_service._path(bucket, object_path)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            if not os.path.isfile(path):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            return FileResponse(path)
 
     return app
 

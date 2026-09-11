@@ -7,6 +7,7 @@ Priority:
   3. Log warning and skip
 """
 
+import html
 import logging
 from app.core.config import settings
 
@@ -14,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def _build_html(hospital_name: str, role_display: str, invite_url: str) -> str:
+    # The hospital name comes from the public signup form, so unescaped it let
+    # anyone put their own markup and links into an email sent as CereSignal.
+    hospital_name = html.escape(hospital_name)
+    role_display = html.escape(role_display)
+    invite_url = html.escape(invite_url)
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -64,6 +70,8 @@ def _build_html(hospital_name: str, role_display: str, invite_url: str) -> str:
 
 
 def _build_portal_html(patient_name: str, portal_url: str) -> str:
+    patient_name = html.escape(patient_name)
+    portal_url = html.escape(portal_url)
     return f"""<!DOCTYPE html>
 <html>
 <head>

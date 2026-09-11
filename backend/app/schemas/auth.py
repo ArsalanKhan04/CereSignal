@@ -21,8 +21,8 @@ class UserRegister(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=50)
     email: LenientEmailStr
-    password: str = Field(..., min_length=6)
-    confirm_password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
     user_type: UserType = Field(default=UserType.DOCTOR)
     # Professional information (for doctors and technicians)
     first_name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -46,8 +46,8 @@ class PatientRegister(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=50)
     email: LenientEmailStr
-    password: str = Field(..., min_length=6)
-    confirm_password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
     # Patient information
     name: str = Field(..., min_length=1, max_length=255)
     phone: Optional[str] = Field(

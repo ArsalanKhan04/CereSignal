@@ -8,13 +8,21 @@ Two interchangeable backends:
 
 Both expose the same five methods; call sites import the module-level
 ``storage_service`` and never care which one is active.
+
+Nothing is served publicly. The only objects a browser loads directly are assets
+(bookmark screenshots), and it gets them through a short-lived signed URL. Both
+buckets are private; everything else goes through an authenticated API route.
 """
 
 from contextlib import contextmanager
+import hashlib
+import hmac
 import os
 import shutil
 import tempfile
+import time
 from typing import Generator
+from urllib.parse import quote
 
 from supabase import create_client, Client
 
@@ -27,8 +35,12 @@ LOCAL_STORAGE_ROOT = os.path.join(
     "local_storage",
 )
 
-# URL prefix that main.py mounts LOCAL_STORAGE_ROOT on, in local mode.
+# URL prefix main.py serves signed asset URLs under, in local mode.
 LOCAL_STORAGE_URL_PREFIX = "/static"
+
+# How long a signed asset URL stays valid. Long enough for a viewing session; the
+# bookmark list is re-fetched (and re-signed) whenever the viewer reopens a study.
+SIGNED_URL_TTL_SECONDS = 3600
 
 
 class SupabaseStorageService:
@@ -62,9 +74,14 @@ class SupabaseStorageService:
         except Exception:
             pass
 
-    def public_url(self, object_path: str) -> str:
-        """Return the public CDN URL for an object in eeg-assets (public bucket)."""
-        return self._get_client().storage.from_(ASSETS_BUCKET).get_public_url(object_path)
+    def signed_url(
+        self, object_path: str, expires_in: int = SIGNED_URL_TTL_SECONDS
+    ) -> str:
+        """Return a short-lived signed URL for an object in eeg-assets (private bucket)."""
+        signed = self._get_client().storage.from_(ASSETS_BUCKET).create_signed_url(
+            object_path, expires_in
+        )
+        return signed["signedURL"]
 
     @contextmanager
     def temp_local_file(
@@ -128,13 +145,32 @@ class LocalStorageService:
         except (OSError, ValueError):
             pass
 
-    def public_url(self, object_path: str) -> str:
+    def signed_url(
+        self, object_path: str, expires_in: int = SIGNED_URL_TTL_SECONDS
+    ) -> str:
         """
-        Root-relative URL served by the /static mount in main.py.
+        Root-relative signed URL for an object in eeg-assets, served by main.py.
 
-        Relative on purpose: the frontend prefixes this with the API origin.
+        Relative on purpose: the frontend prefixes this with the API origin. The
+        signature is what authorises the request — an <img src> cannot carry the
+        bearer token — so the path alone, however guessable, reads nothing.
         """
-        return f"{LOCAL_STORAGE_URL_PREFIX}/{ASSETS_BUCKET}/{object_path}"
+        expires = int(time.time()) + expires_in
+        signature = _local_signature(ASSETS_BUCKET, object_path, expires)
+        return (
+            f"{LOCAL_STORAGE_URL_PREFIX}/{ASSETS_BUCKET}/{quote(object_path)}"
+            f"?expires={expires}&signature={signature}"
+        )
+
+    @staticmethod
+    def verify_signature(
+        bucket: str, object_path: str, expires: int, signature: str
+    ) -> bool:
+        """True when signature was issued by signed_url() for this object and has not expired."""
+        if expires < time.time():
+            return False
+        expected = _local_signature(bucket, object_path, expires)
+        return hmac.compare_digest(expected, signature)
 
     @contextmanager
     def temp_local_file(
@@ -162,6 +198,14 @@ class LocalStorageService:
                 os.unlink(tmp.name)
             except OSError:
                 pass
+
+
+def _local_signature(bucket: str, object_path: str, expires: int) -> str:
+    """HMAC over the object and its expiry, keyed with the JWT signing secret."""
+    from app.core.config import settings
+
+    message = f"{bucket}/{object_path}:{expires}".encode()
+    return hmac.new(settings.SECRET_KEY.encode(), message, hashlib.sha256).hexdigest()
 
 
 def _build_storage_service():

@@ -198,3 +198,131 @@ class TestUploadAuthorisationErrors:
         response = post_upload(technician_a, patient_id="999999")
 
         assert "Error uploading file" not in response.json()["detail"]
+
+
+class TestUploadIsScopedToTheUploadersHospital:
+    """
+    The technician branch resolved patient_id with no hospital filter, so a study
+    could be attached to another hospital's patient record; a patient who left out
+    patient_id fell through to the default-patient path and uploaded anyway; and
+    that default patient was created with no hospital at all.
+    """
+
+    @pytest.fixture
+    def post_upload(self, client, local_storage, auth_headers):
+        def _post(user, **form):
+            return client.post(
+                "/api/v1/signals/upload",
+                files={"file": ("a.edf", io.BytesIO(b"data"), "application/octet-stream")},
+                data={"skip_inference": "true", **form},
+                headers=auth_headers(user),
+            )
+
+        return _post
+
+    def test_a_technician_cannot_upload_to_another_hospitals_patient(
+        self, post_upload, technician_a, make_patient, hospital_b, doctor_b, db_session
+    ):
+        from app.models.signal import SignalFile
+
+        foreign = make_patient("Patient B", hospital_b, doctor_b)
+
+        response = post_upload(technician_a, patient_id=str(foreign.id))
+
+        assert response.status_code == 404
+        assert db_session.query(SignalFile).filter_by(user_id=foreign.id).count() == 0
+
+    def test_a_technician_uploads_to_their_own_hospitals_patient(
+        self, post_upload, technician_a, make_patient, hospital_a
+    ):
+        patient = make_patient("Patient A", hospital_a)
+
+        response = post_upload(technician_a, patient_id=str(patient.id))
+
+        assert response.status_code == 200
+
+    def test_a_patient_cannot_upload_by_omitting_patient_id(
+        self, post_upload, patient_a, db_session
+    ):
+        from app.models.signal import SignalFile
+
+        response = post_upload(patient_a)
+
+        assert response.status_code == 403
+        assert db_session.query(SignalFile).count() == 0
+
+    def test_the_default_patient_belongs_to_the_uploaders_hospital(
+        self, post_upload, doctor_a, hospital_a, db_session
+    ):
+        from app.models.user import User
+
+        response = post_upload(doctor_a)
+
+        assert response.status_code == 200
+        default = db_session.query(User).filter_by(auth_user_id=doctor_a.id).one()
+        assert default.hospital_id == hospital_a.id
+
+    def test_stored_names_carry_enough_randomness_not_to_collide(
+        self, post_upload, doctor_a, db_session
+    ):
+        """
+        Every hospital's uploads share one namespace and upload() overwrites. With
+        3 hex characters two same-named files replaced each other 1 time in 4096.
+        """
+        from app.models.signal import SignalFile
+
+        post_upload(doctor_a)
+        post_upload(doctor_a)
+
+        paths = [f.file_path for f in db_session.query(SignalFile).all()]
+        assert len(set(paths)) == 2
+        for path in paths:
+            suffix = path.rsplit("_", 1)[1].split(".")[0]
+            assert len(suffix) >= 16
+
+
+class TestBookmarkImagesAreSigned:
+    """
+    Bookmark screenshots were handed out as public_url(): a public Supabase bucket
+    in deployment, an unauthenticated /static path locally.
+    """
+
+    PNG = "iVBORw0KGgo="  # base64 of the PNG magic bytes; content is not inspected
+
+    @pytest.fixture
+    def own_file(self, make_patient, make_signal_file, hospital_a, doctor_a):
+        patient = make_patient("Patient A", hospital_a, doctor_a)
+        return make_signal_file(patient, hospital_a)
+
+    def test_the_returned_url_is_signed_and_serves_the_image(
+        self, client, local_storage, doctor_a, auth_headers, own_file
+    ):
+        created = client.post(
+            f"/api/v1/signals/files/{own_file.id}/bookmarks",
+            json={"comment": "spike", "image_base64": self.PNG},
+            headers=auth_headers(doctor_a),
+        )
+        assert created.status_code == 201
+        url = created.json()["image_url"]
+        assert "signature=" in url and "expires=" in url
+
+        # No Authorization header: the signature is the credential.
+        assert client.get(url).status_code == 200
+        assert client.get(url.split("?")[0]).status_code == 403
+
+    def test_listed_bookmarks_are_signed_too(
+        self, client, local_storage, doctor_a, auth_headers, own_file
+    ):
+        client.post(
+            f"/api/v1/signals/files/{own_file.id}/bookmarks",
+            json={"comment": "spike", "image_base64": self.PNG},
+            headers=auth_headers(doctor_a),
+        )
+
+        listed = client.get(
+            f"/api/v1/signals/files/{own_file.id}/bookmarks",
+            headers=auth_headers(doctor_a),
+        )
+
+        assert listed.status_code == 200
+        assert "signature=" in listed.json()[0]["image_url"]

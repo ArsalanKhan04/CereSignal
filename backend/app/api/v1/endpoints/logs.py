@@ -15,6 +15,9 @@ async def ingest_client_log(entry: ClientLogEntry):
     """Ingest a client log entry and write to server logs"""
 
     level = entry.level.lower()
+    # Unauthenticated input: a raw newline would let a caller forge whole log lines
+    # (a fake "AUTH: LOGIN | status=SUCCESS", say). Keep it on one visible line.
+    message = entry.message.replace("\r", "\\r").replace("\n", "\\n")
     extra = {
         "context": entry.context,
         "data": entry.data,
@@ -24,12 +27,12 @@ async def ingest_client_log(entry: ClientLogEntry):
     }
 
     if level in ["warn", "warning"]:
-        logger.warning(entry.message, extra=extra)
+        logger.warning(message, extra=extra)
     elif level == "error":
-        logger.error(entry.message, extra=extra)
+        logger.error(message, extra=extra)
     elif level == "debug":
-        logger.debug(entry.message, extra=extra)
+        logger.debug(message, extra=extra)
     else:
-        logger.info(entry.message, extra=extra)
+        logger.info(message, extra=extra)
 
     return {"status": "ok"}

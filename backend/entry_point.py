@@ -20,6 +20,16 @@ for directory in required_dirs:
         os.makedirs(directory, exist_ok=True)
 
 # 4. Imports
+# The packaged app ships no .env, and main.py refuses to start without a real
+# SECRET_KEY. A per-process random key is enough for a single local server — its
+# only cost is that sessions end when the app restarts. Must precede the app import:
+# app/core/auth.py copies the key at import time.
+import secrets
+from app.core.config import PLACEHOLDER_SECRET_KEYS, settings
+
+if settings.SECRET_KEY in PLACEHOLDER_SECRET_KEYS:
+    settings.SECRET_KEY = secrets.token_hex(32)
+
 from app.main import app as fastapi_app
 
 IS_DESKTOP_MODE = os.getenv("DESKTOP_MODE", "false").lower() == "true"
