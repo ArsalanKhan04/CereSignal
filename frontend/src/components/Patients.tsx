@@ -50,6 +50,7 @@ import {
 } from '../utils/validation';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import RequiredFieldsNote from '../components/RequiredFieldsNote';
 import { pdfNameFromEdf } from '../utils/fileNames';
 import { User, Patient, PatientCreate, PatientUpdate, SignalFile, EventsData, EEGReport } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -60,6 +61,19 @@ import EEGPlot from './EEGPlot';
 import TopographicMap from './TopographicMap';
 import ReportForm from './ReportForm';
 import ReportVersionHistory from './ReportVersionHistory';
+
+/**
+ * Dialog state. `gender` and `blood_type` widen their PatientCreate unions with
+ * '' so the selects can start genuinely unchosen instead of silently defaulting
+ * to Male / A+. Both are narrowed again on submit: gender is guarded by
+ * validateRequired, blood_type is sent as `|| undefined`.
+ */
+type PatientFormData = Omit<PatientCreate, 'gender' | 'blood_type'> & {
+  gender: PatientCreate['gender'] | '';
+  blood_type: NonNullable<PatientCreate['blood_type']> | '';
+  doctor_id?: number;
+  age?: number;
+};
 
 const FIRST_NAMES = ['Emma', 'Liam', 'Olivia', 'Noah', 'Ava', 'Ethan', 'Sophia', 'Mason', 'Isabella', 'James'];
 const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
@@ -145,7 +159,7 @@ const Patients: React.FC<{
 
   const activeStatusFilter = statusFilter ?? localStatusFilter;
 
-  const generateDemoPatientData = (variant: 'normal' | 'abnormal'): PatientCreate & { doctor_id?: number; age?: number } => {
+  const generateDemoPatientData = (variant: 'normal' | 'abnormal'): PatientFormData => {
     const first = pickRandom(FIRST_NAMES);
     const last = pickRandom(LAST_NAMES);
     const fullName = `${first} ${last}`;
@@ -162,7 +176,7 @@ const Patients: React.FC<{
     const now = new Date();
     const calculatedAge = now.getFullYear() - birthYear - (now.getMonth() < parseInt(dob.split('-')[1]) - 1 ? 1 : 0);
 
-    const base: PatientCreate & { doctor_id?: number; age?: number } = {
+    const base: PatientFormData = {
       name: fullName,
       email: `${emailUser}@demo.local`,
       phone,
@@ -173,7 +187,7 @@ const Patients: React.FC<{
       address,
       emergency_contact_name: `${pickRandom(FIRST_NAMES)} ${pickRandom(LAST_NAMES)}`,
       emergency_contact_phone: `+1 (${String(200 + Math.floor(Math.random() * 800))}) ${String(100 + Math.floor(Math.random() * 900))}-${String(1000 + Math.floor(Math.random() * 9000))}`,
-      blood_type: pickRandom(BLOOD_TYPES) as PatientCreate['blood_type'],
+      blood_type: pickRandom(BLOOD_TYPES) as NonNullable<PatientCreate['blood_type']>,
       allergies: '',
       medical_conditions: '',
       current_medications: '',
@@ -197,17 +211,17 @@ const Patients: React.FC<{
     return base;
   };
 
-  const [formData, setFormData] = useState<PatientCreate & { doctor_id?: number; age?: number }>({
+  const [formData, setFormData] = useState<PatientFormData>({
     name: '',
     email: '',
     phone: '',
     medical_id: '',
-    gender: 'M',
+    gender: '',
     date_of_birth: '',
     address: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
-    blood_type: 'A+',
+    blood_type: '',
     allergies: '',
     medical_conditions: '',
     current_medications: '',
@@ -419,12 +433,12 @@ const Patients: React.FC<{
       email: '',
       phone: '',
       medical_id: '',
-      gender: 'M',
+      gender: '',
       date_of_birth: '',
       address: '',
       emergency_contact_name: '',
       emergency_contact_phone: '',
-      blood_type: 'A+',
+      blood_type: '',
       allergies: '',
       medical_conditions: '',
       current_medications: '',
@@ -455,12 +469,12 @@ const Patients: React.FC<{
               email: fullPatient.email || '',
               phone: fullPatient.phone || '',
               medical_id: fullPatient.medical_id || '',
-              gender: fullPatient.gender || 'M',
+              gender: fullPatient.gender || '',
               date_of_birth: fullPatient.date_of_birth || '',
               address: fullPatient.address || '',
               emergency_contact_name: fullPatient.emergency_contact_name || '',
               emergency_contact_phone: fullPatient.emergency_contact_phone || '',
-              blood_type: fullPatient.blood_type || 'A+',
+              blood_type: fullPatient.blood_type || '',
               allergies: fullPatient.allergies || '',
               medical_conditions: fullPatient.medical_conditions || '',
               current_medications: fullPatient.current_medications || '',
@@ -484,12 +498,12 @@ const Patients: React.FC<{
         email: '',
         phone: '',
         medical_id: '',
-        gender: 'M',
+        gender: '',
         date_of_birth: '',
         address: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
-        blood_type: 'A+',
+        blood_type: '',
         allergies: '',
         medical_conditions: '',
         current_medications: '',
@@ -520,12 +534,12 @@ const Patients: React.FC<{
       email: '',
       phone: '',
       medical_id: '',
-      gender: 'M',
+      gender: '',
       date_of_birth: '',
       address: '',
       emergency_contact_name: '',
       emergency_contact_phone: '',
-      blood_type: 'A+',
+      blood_type: '',
       allergies: '',
       medical_conditions: '',
       current_medications: '',
@@ -547,6 +561,7 @@ const Patients: React.FC<{
   const handleSubmit = async () => {
     const errors = collectErrors(
       validateName(formData.name, 'name', 'Full name', 255),
+      validateRequired(formData.phone, 'phone', 'Phone'),
       validatePhone(formData.phone),
       validateRequired(formData.gender, 'gender', 'Gender'),
       ...(formData.date_of_birth ? [validateDateOfBirth(formData.date_of_birth)] : []),
@@ -589,7 +604,7 @@ const Patients: React.FC<{
           email: formData.email || undefined,
           phone: formData.phone || undefined,
           medical_id: formData.medical_id || undefined,
-          gender: formData.gender,
+          gender: formData.gender as NonNullable<PatientCreate['gender']>,
           date_of_birth: formData.date_of_birth || undefined,
           address: formData.address || undefined,
           emergency_contact_name: formData.emergency_contact_name || undefined,
@@ -616,7 +631,7 @@ const Patients: React.FC<{
           email: formData.email || undefined,
           phone: formData.phone || undefined,
           medical_id: formData.medical_id || undefined,
-          gender: formData.gender,
+          gender: formData.gender as NonNullable<PatientCreate['gender']>,
           date_of_birth: formData.date_of_birth || undefined,
           address: formData.address || undefined,
           emergency_contact_name: formData.emergency_contact_name || undefined,
@@ -1766,6 +1781,7 @@ const Patients: React.FC<{
               </Box>
             )}
             <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} />
+            <RequiredFieldsNote />
             {(!editingPatient || allowDesktopCreate) && (
               <Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
@@ -1806,7 +1822,7 @@ const Patients: React.FC<{
             )}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Required Details
+                Patient Details
               </Typography>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -1851,6 +1867,7 @@ const Patients: React.FC<{
                       onChange={(e) => { setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'Other' }); clearFieldError('gender'); }}
                       label="Gender"
                     >
+                      <MenuItem value="" disabled><em>Select gender…</em></MenuItem>
                       <MenuItem value="M">Male</MenuItem>
                       <MenuItem value="F">Female</MenuItem>
                       <MenuItem value="Other">Other</MenuItem>
@@ -1981,10 +1998,11 @@ const Patients: React.FC<{
                     <InputLabel id="blood-type-label">Blood Type</InputLabel>
                     <Select
                       labelId="blood-type-label"
-                      value={formData.blood_type || 'A+'}
-                      onChange={(e) => { setFormData({ ...formData, blood_type: e.target.value as any }); clearFieldError('blood_type'); }}
+                      value={formData.blood_type}
+                      onChange={(e) => { setFormData({ ...formData, blood_type: e.target.value as PatientFormData['blood_type'] }); clearFieldError('blood_type'); }}
                       label="Blood Type"
                     >
+                      <MenuItem value=""><em>Not specified</em></MenuItem>
                       <MenuItem value="A+">A+</MenuItem>
                       <MenuItem value="A-">A-</MenuItem>
                       <MenuItem value="B+">B+</MenuItem>

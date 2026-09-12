@@ -166,6 +166,9 @@ const ContactPage: React.FC = () => {
               <p className="lp-form-sub">
                 All fields are confidential. We never share your hospital information with third parties.
               </p>
+              <p className="lp-form-sub">
+                Fields marked <span className="lp-req">*</span> are required.
+              </p>
 
               <FormAlert error={formError} success={formSuccess} onDismiss={() => { setFormError(''); setFormSuccess(''); }} />
 
@@ -187,7 +190,7 @@ const ContactPage: React.FC = () => {
 
                 <div className="lp-form-row">
                   <div className="lp-form-field">
-                    <label>First name</label>
+                    <label>First name<span className="lp-req" aria-hidden="true">*</span></label>
                     <input
                       required
                       value={form.firstName}
@@ -197,7 +200,7 @@ const ContactPage: React.FC = () => {
                     {fieldErrors.firstName && <span className="lp-field-error">{fieldErrors.firstName}</span>}
                   </div>
                   <div className="lp-form-field">
-                    <label>Last name</label>
+                    <label>Last name<span className="lp-req" aria-hidden="true">*</span></label>
                     <input
                       required
                       value={form.lastName}
@@ -210,7 +213,7 @@ const ContactPage: React.FC = () => {
 
                 <div className="lp-form-row">
                   <div className="lp-form-field">
-                    <label>Work email</label>
+                    <label>Work email<span className="lp-req" aria-hidden="true">*</span></label>
                     <input
                       type="email"
                       required
@@ -221,7 +224,7 @@ const ContactPage: React.FC = () => {
                     {fieldErrors.email && <span className="lp-field-error">{fieldErrors.email}</span>}
                   </div>
                   <div className="lp-form-field">
-                    <label>Your role</label>
+                    <label>Your role<span className="lp-req" aria-hidden="true">*</span></label>
                     <select required value={form.role} onChange={(e) => update('role', e.target.value)}>
                       <option value="">Select your role…</option>
                       <option>Hospital administrator</option>
@@ -237,7 +240,7 @@ const ContactPage: React.FC = () => {
 
                 <div className="lp-form-row">
                   <div className="lp-form-field">
-                    <label>Hospital or clinic</label>
+                    <label>Hospital or clinic<span className="lp-req" aria-hidden="true">*</span></label>
                     <input
                       required
                       value={form.hospital}
@@ -247,7 +250,7 @@ const ContactPage: React.FC = () => {
                     {fieldErrors.hospital && <span className="lp-field-error">{fieldErrors.hospital}</span>}
                   </div>
                   <div className="lp-form-field">
-                    <label>Country</label>
+                    <label>Country<span className="lp-req" aria-hidden="true">*</span></label>
                     <input
                       required
                       value={form.country}

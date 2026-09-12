@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginRequest, RegisterRequest, PatientRegisterRequest } from '../types';
+import { User, LoginRequest, RegisterRequest } from '../types';
 import { apiClient } from '../services/api';
 
 interface AuthContextType {
@@ -9,7 +9,6 @@ interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<void>;
   loginWithToken: (accessToken: string) => void;
   register: (userData: RegisterRequest) => Promise<void>;
-  registerPatient: (userData: PatientRegisterRequest) => Promise<void>;
   logout: () => void;
 }
 
@@ -92,24 +91,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const registerPatient = async (userData: PatientRegisterRequest) => {
-    try {
-      const response = await apiClient.registerPatient(userData);
-      if (response.status === 201) {
-        // Registration successful, now login
-        await login({
-          username: userData.username,
-          password: userData.password
-        });
-      } else {
-        throw new Error('Registration failed');
-      }
-    } catch (error) {
-      console.error('Patient registration error:', error);
-      throw error;
-    }
-  };
-
   const loginWithToken = (accessToken: string) => {
     apiClient.setAuthToken(accessToken);
     apiClient.getCurrentUser().then((r) => {
@@ -132,7 +113,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     loginWithToken,
     register,
-    registerPatient,
     logout,
   };
 

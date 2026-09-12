@@ -91,6 +91,11 @@
   text-transform: uppercase;
   color: var(--lp-ink-500);
 }
+.lp-req {
+  color: #dc2626;
+  margin-left: 3px;
+  font-weight: 700;
+}
 .lp-form-field input,
 .lp-form-field select,
 .lp-form-field textarea {

@@ -2,8 +2,9 @@
 Admin and hospital schemas
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from app.schemas.email_types import LenientEmailStr
+from app.schemas.field_types import BlankAsNone, BlankAsNoneEmail
 from typing import Optional, List
 from datetime import datetime
 
@@ -12,21 +13,14 @@ class HospitalAdminRegister(BaseModel):
     """Combined hospital + admin account creation (public signup)"""
     # Hospital details
     hospital_name: str = Field(..., min_length=2, max_length=255)
-    hospital_address: Optional[str] = None
-    hospital_phone: Optional[str] = Field(
+    hospital_address: BlankAsNone = None
+    hospital_phone: BlankAsNone = Field(
         None,
         max_length=50,
         pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
         description="Hospital phone number",
     )
-    hospital_email: Optional[LenientEmailStr] = None
-
-    @field_validator("hospital_address", "hospital_phone", "hospital_email", mode="before")
-    @classmethod
-    def empty_string_to_none(cls, v):
-        if v == "":
-            return None
-        return v
+    hospital_email: BlankAsNoneEmail = None
     # Admin account
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
@@ -89,7 +83,7 @@ class StaffInviteRegister(BaseModel):
     title: Optional[str] = Field(None, max_length=50)
     specialization: Optional[str] = Field(None, max_length=100)
     license_number: Optional[str] = Field(None, max_length=100)
-    phone: Optional[str] = Field(
+    phone: BlankAsNone = Field(
         None,
         max_length=50,
         pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",

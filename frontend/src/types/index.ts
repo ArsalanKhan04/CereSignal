@@ -134,28 +134,6 @@ export interface RegisterRequest {
   years_experience?: number;
 }
 
-export interface PatientRegisterRequest {
-  username: string;
-  email: string;
-  password: string;
-  confirm_password: string;
-  name: string;
-  phone?: string;
-  date_of_birth?: string;
-  age?: number;
-  gender?: 'M' | 'F' | 'Other';
-  medical_id?: string;
-  address?: string;
-  referred_by?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
-  allergies?: string;
-  medical_conditions?: string;
-  current_medications?: string;
-  notes?: string;
-}
-
 export interface AuthResponse {
   access_token: string;
   token_type: string;

@@ -148,7 +148,8 @@ const StaffInviteRegistrationPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      await apiClient.registerFromInvite(token!, formData);
+      // blank phone must be sent as absent, not "": the schema's pattern rejects ""
+      await apiClient.registerFromInvite(token!, { ...formData, phone: formData.phone || undefined });
       setSuccess('Registration successful! Redirecting...');
       await login({ username: formData.username, password: formData.password });
       navigate('/dashboard');
