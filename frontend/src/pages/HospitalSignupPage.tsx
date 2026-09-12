@@ -32,6 +32,7 @@ import SecurityIcon from '@mui/icons-material/Security';
 import LocationIcon from '@mui/icons-material/LocationOn';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import RequiredFieldsNote from '../components/RequiredFieldsNote';
 import DemoButton from '../components/DemoButton';
 import { useDemo } from '../contexts/DemoContext';
 import {
@@ -89,7 +90,7 @@ const HospitalSignupPage: React.FC = () => {
       validatePassword(formData.password),
       validateConfirmPassword(formData.password, formData.confirm_password),
       validatePhone(formData.hospital_phone, 'hospital_phone'),
-      validateEmail(formData.hospital_email, 'hospital_email'),
+      ...(formData.hospital_email ? [validateEmail(formData.hospital_email, 'hospital_email')] : []),
     );
     if (errors.length > 0) {
       const fieldErrMap: Record<string, string> = {};
@@ -210,6 +211,8 @@ const HospitalSignupPage: React.FC = () => {
 
             <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} autoHideMs={3000} />
 
+            <RequiredFieldsNote sx={{ mb: 2 }} />
+
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={4}>
 
@@ -230,7 +233,7 @@ const HospitalSignupPage: React.FC = () => {
                     </Grid>
                     <Grid size={{ xs: 12 }}>
                       <FormTextField
-                        fullWidth label="Address (optional)" name="hospital_address"
+                        fullWidth label="Address" name="hospital_address"
                         value={formData.hospital_address} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_address}
@@ -239,7 +242,7 @@ const HospitalSignupPage: React.FC = () => {
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <FormTextField
-                        fullWidth label="Hospital Phone (optional)" name="hospital_phone"
+                        fullWidth label="Hospital Phone" name="hospital_phone"
                         value={formData.hospital_phone} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_phone}
@@ -248,7 +251,7 @@ const HospitalSignupPage: React.FC = () => {
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <FormTextField
-                        fullWidth label="Hospital Email (optional)" name="hospital_email"
+                        fullWidth label="Hospital Email" name="hospital_email"
                         type="email" value={formData.hospital_email} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_email}

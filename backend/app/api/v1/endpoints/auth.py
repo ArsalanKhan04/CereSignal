@@ -378,7 +378,10 @@ async def register_patient(
             "patient_auth_user_id": db_auth_user.id,  # Link patient to their auth account
         }
 
-        # Convert empty strings to None for all optional fields
+        # Blank -> None for the plain optional fields. The constrained ones (phone,
+        # gender, blood_type, emergency_contact_phone, email) never arrive as "" any
+        # more -- BlankAsNone normalises them in the schema -- but address, allergies,
+        # medical_id and friends are unconstrained and still reach this point as "".
         for field in [
             "medical_id",
             "email",

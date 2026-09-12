@@ -4,6 +4,7 @@ Pydantic schemas for EEG reports
 
 from pydantic import BaseModel, Field
 from typing import Optional
+from app.schemas.field_types import BlankAsNone
 from datetime import datetime
 
 
@@ -11,7 +12,7 @@ class EEGReportBase(BaseModel):
     """Base schema for EEG report"""
     patient_name: str = Field(..., min_length=1, max_length=255)
     patient_age: Optional[int] = Field(None, ge=0, le=150)
-    patient_gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
+    patient_gender: BlankAsNone = Field(None, pattern="^(M|F|Other)$")
     ref_physician: Optional[str] = Field(None, max_length=255)
     indications: Optional[str] = None
     technique: Optional[str] = None
@@ -29,7 +30,7 @@ class EEGReportUpdate(BaseModel):
     """Schema for updating an EEG report"""
     patient_name: Optional[str] = Field(None, min_length=1, max_length=255)
     patient_age: Optional[int] = Field(None, ge=0, le=150)
-    patient_gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
+    patient_gender: BlankAsNone = Field(None, pattern="^(M|F|Other)$")
     ref_physician: Optional[str] = Field(None, max_length=255)
     indications: Optional[str] = None
     technique: Optional[str] = None

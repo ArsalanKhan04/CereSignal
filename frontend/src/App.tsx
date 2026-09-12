@@ -9,7 +9,6 @@ import DemoGuide from './components/DemoGuide';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import ContactPage from './pages/ContactPage';
-import SignupPage from './pages/SignupPage';
 import DoctorRegistrationPage from './pages/DoctorRegistrationPage';
 import TechnicianRegistrationPage from './pages/TechnicianRegistrationPage';
 import DashboardPage from './pages/DashboardPage';

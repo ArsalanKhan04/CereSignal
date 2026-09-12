@@ -401,6 +401,7 @@ const AdminDashboard: React.FC = () => {
                         </>
                       )}
                       <FormTextField
+                        required
                         size="small" label="Email address" type="email"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}

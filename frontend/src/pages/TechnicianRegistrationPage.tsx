@@ -100,7 +100,8 @@ const TechnicianRegistrationPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await register(formData);
+      // blank phone must be sent as absent, not "": the schema's pattern rejects ""
+      await register({ ...formData, phone: formData.phone || undefined });
       setSuccess('Registration successful! Redirecting...');
       navigate('/dashboard');
     } catch (err: any) {

@@ -125,7 +125,10 @@ async def create_user(
         # Scope patient to the creating user's hospital
         user_dict["hospital_id"] = current_user.hospital_id
 
-        # Convert empty strings to None for optional fields to avoid unique constraint issues
+        # Blank -> None for the fields that still need it here. The constrained fields
+        # (email, phone) are already normalised by BlankAsNone in the schema; medical_id
+        # and notes/referred_by are plain strings that do reach this point as "", and
+        # medical_id must become None because its column is UNIQUE.
         if user_dict.get("medical_id") == "":
             user_dict["medical_id"] = None
         if user_dict.get("email") == "":
@@ -309,13 +312,15 @@ async def update_user(
                 detail="Email already registered",
             )
 
-    if user_data.phone is not None and not user_data.phone.strip():
+    # Sent-but-blank must stay an error: a blank value normalises to None before it gets
+    # here (BlankAsNone), so test explicit presence rather than `is not None`.
+    if "phone" in user_data.model_fields_set and not user_data.phone:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Phone is required",
         )
 
-    if user_data.gender is not None and not user_data.gender:
+    if "gender" in user_data.model_fields_set and not user_data.gender:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Gender is required",
@@ -377,7 +382,10 @@ async def update_user(
                 )
                 db.add(notification)
 
-        # Convert empty strings to None for optional fields to avoid unique constraint issues
+        # Blank -> None for the fields that still need it here. The constrained fields
+        # (email, phone) are already normalised by BlankAsNone in the schema; medical_id
+        # and notes/referred_by are plain strings that do reach this point as "", and
+        # medical_id must become None because its column is UNIQUE.
         for field in ["medical_id", "email", "phone", "notes", "referred_by"]:
             if field in update_data and update_data[field] == "":
                 update_data[field] = None

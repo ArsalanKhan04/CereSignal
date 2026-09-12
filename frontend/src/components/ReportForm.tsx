@@ -39,6 +39,7 @@ import {
 } from '../utils/validation';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
+import RequiredFieldsNote from '../components/RequiredFieldsNote';
 
 interface ReportFormProps {
   fileId?: number;
@@ -465,7 +466,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
         const updateData: EEGReportUpdate = {
           patient_name: formData.patient_name,
           patient_age: formData.patient_age,
-          patient_gender: formData.patient_gender,
+          patient_gender: formData.patient_gender || undefined,
           ref_physician: formData.ref_physician,
           indications: formData.indications,
           technique: formData.technique,
@@ -477,6 +478,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       } else {
         const createData: EEGReportCreate = {
           ...formData,
+          patient_gender: formData.patient_gender || undefined,
           doctor_info: buildDoctorInfo() || (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
         };
         response = await apiClient.createReport(createData);
@@ -508,6 +510,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
   const formContent = (
     <Box>
       <FormAlert error={error} success={success} onDismiss={() => { setError(''); setSuccess(''); }} />
+      <RequiredFieldsNote sx={{ mb: 1 }} />
       
       <Box sx={{ maxWidth: 800, mx: 'auto' }}>
         {/* Patient Information Section */}
@@ -539,11 +542,11 @@ const ReportForm: React.FC<ReportFormProps> = ({
                 <FormControl sx={{ minWidth: 120 }} error={!!fieldErrors.patient_gender}>
                   <InputLabel>Gender</InputLabel>
                   <Select
-                    value={formData.patient_gender || 'M'}
+                    value={formData.patient_gender || ''}
                     onChange={handleChange('patient_gender')}
                     label="Gender"
                   >
-                    <MenuItem value="">None</MenuItem>
+                    <MenuItem value=""><em>Not specified</em></MenuItem>
                     <MenuItem value="M">Male</MenuItem>
                     <MenuItem value="F">Female</MenuItem>
                     <MenuItem value="Other">Other</MenuItem>

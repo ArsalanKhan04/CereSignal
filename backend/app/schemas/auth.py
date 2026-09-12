@@ -4,6 +4,7 @@ Authentication schemas
 
 from pydantic import BaseModel, Field
 from app.schemas.email_types import LenientEmailStr
+from app.schemas.field_types import BlankAsNone
 from typing import Optional
 from datetime import datetime
 from app.models.auth import UserType
@@ -30,7 +31,7 @@ class UserRegister(BaseModel):
     title: Optional[str] = Field(None, max_length=50)
     specialization: Optional[str] = Field(None, max_length=100)
     license_number: Optional[str] = Field(None, max_length=100)
-    phone: Optional[str] = Field(
+    phone: BlankAsNone = Field(
         None,
         max_length=50,
         pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
@@ -50,7 +51,7 @@ class PatientRegister(BaseModel):
     confirm_password: str = Field(..., min_length=8)
     # Patient information
     name: str = Field(..., min_length=1, max_length=255)
-    phone: Optional[str] = Field(
+    phone: BlankAsNone = Field(
         None,
         max_length=50,
         pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
@@ -58,18 +59,18 @@ class PatientRegister(BaseModel):
     )
     date_of_birth: Optional[datetime] = None
     age: Optional[int] = Field(None, ge=0, le=130)
-    gender: Optional[str] = Field(None, pattern="^(M|F|Other)$")
+    gender: BlankAsNone = Field(None, pattern="^(M|F|Other)$")
     medical_id: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = None
     referred_by: Optional[str] = Field(None, max_length=255)
     emergency_contact_name: Optional[str] = Field(None, max_length=255)
-    emergency_contact_phone: Optional[str] = Field(
+    emergency_contact_phone: BlankAsNone = Field(
         None,
         max_length=50,
         pattern=r"^\+?[\d\s\-\(\)\.]{7,20}$",
         description="Emergency contact phone number",
     )
-    blood_type: Optional[str] = Field(
+    blood_type: BlankAsNone = Field(
         None, pattern="^(A\\+|A-|B\\+|B-|AB\\+|AB-|O\\+|O-)$"
     )
     allergies: Optional[str] = None
