@@ -3,9 +3,9 @@ EEG in-memory cache service with simple LRU eviction.
 Keeps loaded MNE Raw objects (preloaded) in memory keyed by file_id.
 Provides segment extraction by time range and channel list.
 """
-from collections import OrderedDict
 import threading
-from typing import Optional, List, Dict, Any
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional
 
 
 class EEGCacheService:
@@ -31,7 +31,7 @@ class EEGCacheService:
 
             # Download from Supabase to a temp file; preload=True puts all data in RAM
             # so the temp file can be deleted immediately after this call.
-            from app.services.storage_service import storage_service, SIGNALS_BUCKET
+            from app.services.storage_service import SIGNALS_BUCKET, storage_service
             with storage_service.temp_local_file(SIGNALS_BUCKET, file_path, suffix=".edf") as local_path:
                 raw = mne.io.read_raw_edf(local_path, preload=True, verbose=False)
             meta = {

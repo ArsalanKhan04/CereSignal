@@ -21,7 +21,6 @@ import {
 import PersonIcon from '@mui/icons-material/Person';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
-import BadgeIcon from '@mui/icons-material/Badge';
 import HospitalIcon from '@mui/icons-material/LocalHospital';
 import PhoneIcon from '@mui/icons-material/Phone';
 import ArrowIcon from '@mui/icons-material/ArrowForward';

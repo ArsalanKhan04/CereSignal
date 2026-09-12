@@ -34,8 +34,8 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<SignalFile | null>(null);
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [signals] = useState<Signal[]>([]);
+  const [signalsLoading] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportFile, setReportFile] = useState<SignalFile | null>(null);
   const [polling, setPolling] = useState(false);
@@ -45,6 +45,10 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
 
   useEffect(() => {
     loadFiles();
+    // `loadFiles` is recreated on every render, so listing it here would
+    // re-fire this effect on every render — an unconditional fetch loop.
+    // The array below is the intended trigger set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
   // Poll for inference status updates on files that are processing
@@ -200,14 +204,6 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'processing': return 'info';
-      case 'failed': return 'error';
-      default: return 'default';
-    }
-  };
 
   const getConditionColor = (condition: string) => {
     switch (condition) {

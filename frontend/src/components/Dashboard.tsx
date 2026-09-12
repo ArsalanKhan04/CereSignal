@@ -9,7 +9,7 @@ import {
   Chip,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { apiClient } from '../services/api';
 import { DashboardStats } from '../types';
 

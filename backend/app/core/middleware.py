@@ -2,14 +2,16 @@
 Custom middleware for the application
 """
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import time
 import uuid
 
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
 from app.core.config import settings
-from app.core.logging_config import log_request, log_response, log_error
+from app.core.logging_config import log_error, log_request, log_response
+
 
 def setup_middleware(app: FastAPI) -> None:
     """Setup all middleware for the application"""
@@ -37,7 +39,7 @@ def setup_middleware(app: FastAPI) -> None:
         request_id = header_request_id or str(uuid.uuid4())
         request.state.request_id = request_id
         user_id = None
-        if hasattr(request.state, "user") and getattr(request.state, "user"):
+        if hasattr(request.state, "user") and request.state.user:
             user_id = getattr(request.state.user, "id", None)
         log_request(
             request.method,

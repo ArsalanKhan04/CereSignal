@@ -6,6 +6,8 @@ import logging
 
 import pytest
 
+from app.core.config import PLACEHOLDER_SECRET_KEYS
+
 
 class TestSecretKeyIsRequired:
     """
@@ -14,9 +16,10 @@ class TestSecretKeyIsRequired:
     any username — the dev-admin superuser included.
     """
 
-    @pytest.mark.parametrize(
-        "placeholder", ["", "your-secret-key-change-in-production", "change-me-for-local-dev"]
-    )
+    # Driven off PLACEHOLDER_SECRET_KEYS itself rather than a copy of it, so a value
+    # added to that set is covered the moment it lands. A hardcoded list here would
+    # silently stop testing the newest placeholder — the one most likely to be in use.
+    @pytest.mark.parametrize("placeholder", sorted(PLACEHOLDER_SECRET_KEYS))
     def test_the_api_refuses_to_start_on_a_placeholder(self, monkeypatch, placeholder):
         from app.core.config import settings
         from app.main import create_application
@@ -25,6 +28,15 @@ class TestSecretKeyIsRequired:
 
         with pytest.raises(RuntimeError, match="SECRET_KEY"):
             create_application()
+
+    def test_every_key_that_has_ever_shipped_is_still_listed(self):
+        """
+        Both of these were real defaults in this repository's history. Removing one
+        from the set would let a deploy that still carries it start up again.
+        """
+        assert "your-secret-key-change-in-production" in PLACEHOLDER_SECRET_KEYS
+        assert "change-me-for-local-dev" in PLACEHOLDER_SECRET_KEYS
+        assert "" in PLACEHOLDER_SECRET_KEYS
 
     def test_a_real_key_starts(self, monkeypatch):
         from app.core.config import settings

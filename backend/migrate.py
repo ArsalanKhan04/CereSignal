@@ -4,9 +4,10 @@ Creates any missing tables and ensures the dev superuser exists.
 Pass --reset to drop all tables first (destroys all data).
 """
 
-from app.core.database import engine, Base, SessionLocal
-from app.models import *  # noqa: F401,F403 — register all models
 from sqlalchemy import text
+
+from app.core.database import Base, SessionLocal, engine
+from app.models import *  # noqa: F403 — register all models
 
 TABLES = [
     "eeg_report_versions",
@@ -31,6 +32,7 @@ TABLES = [
 def _ensure_superuser():
     """Idempotent: create the dev-admin superuser if missing."""
     import os
+
     from app.core.auth import get_password_hash
     from app.models.auth import AuthUser, UserType
 

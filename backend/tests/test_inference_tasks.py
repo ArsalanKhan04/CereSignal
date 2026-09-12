@@ -226,8 +226,8 @@ class TestPreprocessEdf:
     def test_a_non_conforming_file_is_converted_and_uploaded(
         self, local_storage, stored_edf, monkeypatch
     ):
-        from app.services.storage_service import SIGNALS_BUCKET
         import inference.infer as infer_module
+        from app.services.storage_service import SIGNALS_BUCKET
 
         queued = MagicMock()
         queued.id = "chained-task-id"

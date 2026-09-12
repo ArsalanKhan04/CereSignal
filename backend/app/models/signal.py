@@ -2,20 +2,22 @@
 Signal processing models
 """
 
+from typing import Optional
+
 from sqlalchemy import (
+    JSON,
+    Boolean,
     Column,
-    Integer,
-    String,
     DateTime,
     Float,
-    Text,
-    Boolean,
     ForeignKey,
-    JSON,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from typing import Optional
+
 from app.core.database import Base
 
 

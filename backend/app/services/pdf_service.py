@@ -1,23 +1,15 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from xml.sax.saxutils import escape
 
-from app.core.config import settings
-from app.models.auth import AuthUser
-from app.models.report import EEGReport
-from app.models.signal import EEGBookmark, SignalFile
-from reportlab.lib import colors
-from reportlab.lib.colors import HexColor, black
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
-from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib.colors import black
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch, mm
-from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     Image,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -26,12 +18,16 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.flowables import HRFlowable
 
+from app.core.logging_config import logger
+from app.models.auth import AuthUser
+from app.models.report import EEGReport
+from app.models.signal import SignalFile
+
 
 class PDFReportGenerator:
     """Generate professional PDF reports for EEG analysis"""
 
     def __init__(self):
-        pass
 
         # Define styles
         self.styles = getSampleStyleSheet()
@@ -125,7 +121,8 @@ class PDFReportGenerator:
     ) -> str:
         """Generate a PDF report and upload to Supabase Storage. Returns storage object path."""
         import tempfile
-        from app.services.storage_service import storage_service, SIGNALS_BUCKET
+
+        from app.services.storage_service import SIGNALS_BUCKET, storage_service
 
         source_name = signal_file.original_filename or signal_file.filename
         stem = Path(Path(source_name).name).stem or f"EEG_Report_{report.id}"
@@ -251,7 +248,8 @@ class PDFReportGenerator:
     def _create_bookmark_section(self, signal_file: SignalFile, temp_paths: list) -> list:
         """Create bookmark section with attached EEG images downloaded from Supabase."""
         import tempfile
-        from app.services.storage_service import storage_service, ASSETS_BUCKET
+
+        from app.services.storage_service import ASSETS_BUCKET, storage_service
 
         story = []
         bookmarks = list(signal_file.bookmarks) if hasattr(signal_file, "bookmarks") else []
@@ -270,8 +268,12 @@ class PDFReportGenerator:
                     tmp.close()
                     temp_paths.append(tmp.name)
                     story.append(Image(tmp.name, width=6.5 * inch, height=3.2 * inch))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # A missing or unreadable screenshot must not sink the whole
+                    # report, but it should leave a trace.
+                    logger.warning(
+                        "pdf: skipped bookmark image %s: %s", bookmark.image_path, exc
+                    )
             if bookmark.comment:
                 story.append(Paragraph(escape(bookmark.comment), self.styles["ClinicalText"]))
             story.append(Spacer(1, 8))
@@ -281,7 +283,8 @@ class PDFReportGenerator:
     def _create_topomap_section(self, signal_file: SignalFile, temp_paths: list) -> list:
         """Create topomap section, downloading the PNG from Supabase."""
         import tempfile
-        from app.services.storage_service import storage_service, ASSETS_BUCKET
+
+        from app.services.storage_service import ASSETS_BUCKET, storage_service
 
         story = []
         base = os.path.splitext(signal_file.filename)[0]

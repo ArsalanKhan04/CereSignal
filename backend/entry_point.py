@@ -1,6 +1,8 @@
-import os
-import sys
 import multiprocessing
+import os
+import secrets
+import sys
+
 import uvicorn
 
 # 1. Setup Paths
@@ -24,13 +26,12 @@ for directory in required_dirs:
 # SECRET_KEY. A per-process random key is enough for a single local server — its
 # only cost is that sessions end when the app restarts. Must precede the app import:
 # app/core/auth.py copies the key at import time.
-import secrets
-from app.core.config import PLACEHOLDER_SECRET_KEYS, settings
+from app.core.config import PLACEHOLDER_SECRET_KEYS, settings  # noqa: E402
 
 if settings.SECRET_KEY in PLACEHOLDER_SECRET_KEYS:
     settings.SECRET_KEY = secrets.token_hex(32)
 
-from app.main import app as fastapi_app
+from app.main import app as fastapi_app  # noqa: E402
 
 IS_DESKTOP_MODE = os.getenv("DESKTOP_MODE", "false").lower() == "true"
 

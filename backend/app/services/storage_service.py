@@ -14,17 +14,19 @@ Nothing is served publicly. The only objects a browser loads directly are assets
 buckets are private; everything else goes through an authenticated API route.
 """
 
-from contextlib import contextmanager
 import hashlib
 import hmac
 import os
 import shutil
 import tempfile
 import time
+from contextlib import contextmanager
 from typing import Generator
 from urllib.parse import quote
 
-from supabase import create_client, Client
+from supabase import Client, create_client
+
+from app.core.logging_config import logger
 
 SIGNALS_BUCKET = "eeg-signals"
 ASSETS_BUCKET = "eeg-assets"
@@ -58,8 +60,11 @@ class SupabaseStorageService:
         client = self._get_client()
         try:
             client.storage.from_(bucket).remove([object_path])
-        except Exception:
-            pass
+        except Exception as exc:
+            # Overwrite semantics: the object usually does not exist yet, so this
+            # is expected noise rather than a failure. The upload below is what
+            # actually has to succeed.
+            logger.debug("storage: pre-upload remove of %s failed: %s", object_path, exc)
         client.storage.from_(bucket).upload(object_path, data)
         return object_path
 
@@ -71,8 +76,10 @@ class SupabaseStorageService:
         """Delete a file from Supabase Storage. Silent on failure."""
         try:
             self._get_client().storage.from_(bucket).remove([object_path])
-        except Exception:
-            pass
+        except Exception as exc:
+            # Documented as silent on failure — deleting an object that is already
+            # gone is not an error worth propagating to the caller.
+            logger.warning("storage: delete of %s failed: %s", object_path, exc)
 
     def signed_url(
         self, object_path: str, expires_in: int = SIGNED_URL_TTL_SECONDS

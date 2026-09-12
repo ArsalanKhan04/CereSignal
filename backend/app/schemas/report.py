@@ -2,10 +2,12 @@
 Pydantic schemas for EEG reports
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
-from app.schemas.field_types import BlankAsNone
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from app.schemas.field_types import BlankAsNone, BodyResourceId
 
 
 class EEGReportBase(BaseModel):
@@ -23,7 +25,7 @@ class EEGReportBase(BaseModel):
 
 class EEGReportCreate(EEGReportBase):
     """Schema for creating an EEG report"""
-    file_id: int = Field(..., description="ID of the signal file")
+    file_id: BodyResourceId = Field(..., description="ID of the signal file")
 
 
 class EEGReportUpdate(BaseModel):

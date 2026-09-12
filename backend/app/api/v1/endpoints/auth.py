@@ -2,10 +2,11 @@
 Authentication endpoints
 """
 
-import uuid
-from datetime import date as date_type, timezone
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -16,7 +17,7 @@ from app.core.auth import (
     verify_password,
 )
 from app.core.database import get_db
-from app.core.logging_config import log_auth, logger
+from app.core.logging_config import log_auth
 from app.models.auth import AuthUser, UserType
 from app.models.hospital import Hospital, StaffInvitation
 from app.models.user import User
@@ -33,8 +34,6 @@ from app.schemas.auth import (
     UserLogin,
     UserRegister,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 

@@ -1,0 +1,39 @@
+# Dependency updates.
+#
+# This is the actionable half of dependency security. `npm audit` is deliberately
+# NOT a CI gate: react-scripts 5.0.1 pulls 64 advisories (12 low / 17 moderate /
+# 31 high / 4 critical) and `--omit=dev` returns an identical count, because CRA
+# ships react-scripts in `dependencies`. 28 of them resolve only to
+# "upgrade react-scripts to 0.0.0 (semver-major)" — i.e. eject. A permanently red
+# advisory list trains people to ignore it. Dependabot instead opens PRs only for
+# advisories that have a real fix.
+#
+# Grouping is load-bearing: ungrouped, 1638 npm packages produce an unmanageable
+# stream of individual PRs.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

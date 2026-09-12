@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import sys
 import time
 
@@ -255,6 +254,7 @@ def _process_neurotransformer(mne_data, threshold=0.5):
     """
     import torch
     import torch.nn.functional as F
+
     from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
 
     all_events = np.array(["normal wave", "spike wave", "slow wave"])
@@ -460,12 +460,13 @@ def _generate_report(ab_prob, region_report, pdr_text):
 
 @app.task(name="preprocess_edf")
 def preprocess_edf(mne_file_path):
-    from app.services.storage_service import storage_service, SIGNALS_BUCKET
+    from app.services.storage_service import SIGNALS_BUCKET, storage_service
     start_time = time.time()
 
     print("Preprocess: starting EDF conversion...")
     with storage_service.temp_local_file(SIGNALS_BUCKET, mne_file_path, suffix=".edf") as local_path:
         import tempfile
+
         from external.edf_preprocess import needs_preprocessing, process_edf
 
         processed_path = None
@@ -512,7 +513,7 @@ def preprocess_edf(mne_file_path):
 @app.task(name="infer", bind=True)
 def infer(self, mne_file_path):
     from app.core.config import settings
-    from app.services.storage_service import storage_service, SIGNALS_BUCKET
+    from app.services.storage_service import SIGNALS_BUCKET, storage_service
     start_time = time.time()
 
     if not settings.AI_INFERENCE_ENABLED:
@@ -567,7 +568,7 @@ def infer(self, mne_file_path):
         print("Inference: generating topomap...")
         out_path = generate_topomap_from_events(
             base,
-            {ch: {k: v for k, v in events[ch].items()} for ch in events},
+            {ch: dict(events[ch]) for ch in events},
             "",
             vmax=None,
         )

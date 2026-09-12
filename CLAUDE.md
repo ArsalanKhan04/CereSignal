@@ -83,15 +83,66 @@ or a network connection — the backend builds its own in-memory SQLite database
 `backend/cere_signal.db`. `.github/workflows/test.yml` runs both on every PR. Run the backend
 suite directly with `cd backend && ./cere_env/bin/python -m pytest`.
 
-**There are still no linters.** No black/mypy/ruff in any requirements file — do not suggest
-those commands until that changes.
+**Linting: `./scripts/test.sh --lint`.** ruff for the backend (pinned `ruff==0.16.7` in
+`requirements-dev.txt`, configured in `backend/pyproject.toml`), plus `tsc --noEmit` and
+`eslint --max-warnings 0` for the frontend (`npm run typecheck` / `npm run lint`). All three
+are blocking in CI — ruff in its own `Lint (ruff)` job, the other two folded into the
+frontend job. The pin is exact on purpose: ruff 0.16 widened its default `select`, so an
+unpinned ruff can turn a green gate red on an unrelated PR.
+
+Four things in that config are deliberate and should not be "fixed":
+
+- **`E501` (line-too-long) is not selected** — 299 hits, none of them defects.
+- **`E711`/`E712` are ignored.** `Model.col == True` inside `.filter()` builds a SQL clause;
+  ruff's rewrite to `not Model.col` changes the query.
+- **`B008` is defused via `extend-immutable-calls`.** FastAPI's whole dependency system lives
+  in default arguments, so it otherwise fires 146 times on `= Depends(...)`.
+- **`app/models/__init__.py` is exempt from `F401` and `I001`.** Those imports are what
+  register the ten tables on `Base.metadata`, and the file documents its own required order.
+
+**There is still no formatter and no type-checker for Python.** No black, no prettier, no
+mypy. `ruff format` is deliberately not used: it would rewrite ~95 files for no
+defect-detection value and destroy `git blame`, which here is audit evidence. `bandit` is
+also unnecessary — ruff's `S` ruleset *is* flake8-bandit and is already enabled.
+
+**Frontend component tests use React Testing Library over a mocked axios instance.**
+`axios-mock-adapter` is attached to the real client (`new MockAdapter(apiClient.client)`),
+never `jest.mock('../services/api')` — `services/api.ts` is 558 lines and its interceptors
+(bearer-token injection, and the 401 handler that clears credentials and redirects *except*
+on `/auth/login`) are the most security-relevant code on the frontend. Mocking the module
+out would test none of it. msw is deliberately not used: it is ESM-first and needs a
+`transformIgnorePatterns` override plus jsdom polyfills under CRA 5 / jest 27.
+
+Four things that will bite when writing a new frontend test:
+
+- **`react-scripts` sets jest's `resetMocks: true`.** `jest.fn(() => 'value')` loses its
+  implementation between tests, silently returning `undefined`. Set it in `beforeEach` with
+  `mockImplementation` instead.
+- **`window.location` is stubbed in `src/setupTests.ts`** and its `href` must stay an
+  absolute URL — axios evaluates `new URL(window.location.href)` at import.
+- **`jest.requireActual('react-router-dom')` does not work**: it bypasses the
+  `moduleNameMapper` in `package.json` and fails to resolve `react-router/dom`. Assert on
+  real routing with `MemoryRouter` + `Routes` rather than mocking `useNavigate`.
+- **`TextEncoder`/`TextDecoder` are polyfilled** in `setupTests.ts`; jsdom under jest 27
+  ships neither and react-router's dev build needs them at import.
+
+**Coverage has a floor.** `fail_under = 68` lives in `backend/.coveragerc`, so
+`./scripts/test.sh --cov` and CI enforce the identical number and it can only ratchet up.
+It is in `.coveragerc` rather than `pytest.ini` addopts on purpose: `.coveragerc` is inert
+unless `--cov` is passed, so a plain `pytest` pays no tracing overhead. `external/models/*`
+is omitted alongside the submodules — those two files need torch, which CI deliberately does
+not install, so measuring them pinned the floor ~3 points below the honest number. Caveat:
+`./scripts/test.sh --cov -k <subset>` will trip the floor; escape with `--cov-fail-under=0`.
 
 `xfail(strict=True)` is the house convention for pinning a defect that is found but not yet
 fixed: the test asserts the behaviour a route *should* have, fails today, and turns into an
 XPASS — which `strict` reports as a failure — the moment the bug is fixed, so the marker cannot
-be left behind. **There are none right now.** The last three (the region report's spike-count
-string, upload's 4xx responses masked as 500, and `update_file_label` letting a patient relabel
-their own study) were all fixed together, and every marker came off with them.
+be left behind. **There are four right now, all in `tests/test_pdr.py`**, covering two defects
+in `external/pdr.py`: `fit()` raises `ValueError` for any `sfreq <= 140` (a 70 Hz filter cutoff
+above Nyquist — 100 Hz and 128 Hz are ordinary clinical rates, and production only escapes it
+because `inference/infer.py:301` hardcodes 200), and the RMS z-score channel rejection discards
+O1/O2 precisely when they carry a strong posterior rhythm, so clean alpha reports as
+"Not well-formed" while adding unrelated noise to another channel makes it succeed.
 
 ## Architecture
 
@@ -217,6 +268,43 @@ either workflow is broken — they ran green 39 times through 2026-05-15.
 settings; it's free). The code no longer relies on it being public — bookmark images are signed
 URLs — but a bucket left public still serves every object to anyone who knows its path. `eeg-signals`
 must stay private too.
+
+## Security Scanning
+
+Five mechanisms, none of which cost anything on a public repo:
+
+| Mechanism | Where | Blocking |
+|-----------|-------|----------|
+| `pip-audit` | `Backend (pytest)` job, before pytest | yes |
+| ruff `S` (flake8-bandit) | `Lint (ruff)` job | yes |
+| CodeQL | GitHub **default setup** (repo settings, no workflow file) | yes, once required |
+| Secret scanning + push protection | GitHub native, repo settings | push protection blocks |
+| Dependabot | `.github/dependabot.yml`, weekly, grouped | no — opens PRs |
+
+**`npm audit` is deliberately not a gate.** react-scripts 5.0.1 carries 64 advisories
+(12 low / 17 moderate / 31 high / 4 critical) and `--omit=dev` returns an *identical* count,
+because CRA ships `react-scripts` in `dependencies`. 28 of them resolve only to
+"upgrade react-scripts to 0.0.0 (semver-major)" — eject. A permanently red list trains people
+to ignore it, so Dependabot handles the fixable subset instead. Do not re-add it.
+
+**`pip-audit` audits the installed environment, not `-r requirements.txt`** — that file is
+largely unpinned, so `-r` makes pip-audit resolve its own set rather than auditing what the
+tests actually ran against. It carries exactly one ignore, and it is load-bearing rather than
+convenient: `PYSEC-2026-1325` (ecdsa, Minerva P-256 timing) has **no upstream fix and won't
+get one**. `ecdsa` arrives transitively via `python-jose`; `app/core/auth.py` sets
+`ALGORITHM = "HS256"` and decodes with `algorithms=["HS256"]`, so no ECDSA path is reachable.
+The CI step upgrades `setuptools>=83.0.0` first, which clears the only other finding.
+
+**gitleaks is not used.** GitHub's native secret scanning is free here and covers every
+partner token this app handles (OpenAI, Supabase, Resend). It would not have caught the
+`SECRET_KEY` default — but neither would gitleaks usefully, since its generic-entropy rules
+are its noisiest and this repo commits 1.8 MB and 3.9 MB binary model weights. That gap is
+closed precisely instead, by `PLACEHOLDER_SECRET_KEYS` in `app/core/config.py` and the
+`TestSecretKeyIsRequired` tests, which are parametrized off that set so a newly added
+placeholder is covered automatically.
+
+**Workflows alone only report.** What actually makes a check blocking is the branch ruleset
+on `main` requiring `Lint (ruff)`, `Backend (pytest)`, `Frontend (jest)` and `CodeQL`.
 
 ## Key Files
 

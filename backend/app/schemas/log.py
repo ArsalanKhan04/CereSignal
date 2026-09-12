@@ -2,7 +2,8 @@
 Schemas for client log ingestion
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
 

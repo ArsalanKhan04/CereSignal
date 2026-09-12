@@ -1,10 +1,12 @@
 import os
-import numpy as np
+
 import matplotlib
+import numpy as np
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle, Polygon, Wedge
 import mne
+from matplotlib.patches import Circle, Polygon, Wedge
 
 # Directory to store generated plots
 PLOT_DIR = os.path.join(os.path.dirname(__file__), '..', 'static', 'plots')
@@ -74,10 +76,7 @@ def generate_topomap_from_events(recording_basename: str, events: dict, title_su
             if mapped == manual_name:
                 found = st
                 break
-        if found is None:
-            total, abnormal = 0, 0
-        else:
-            total, abnormal = found['total'], found['abnormal']
+        abnormal = 0 if found is None else found['abnormal']
         val = abnormal
         plot_vals.append(val)
         plot_pos.append(coords)
@@ -90,8 +89,9 @@ def generate_topomap_from_events(recording_basename: str, events: dict, title_su
     fig, ax = plt.subplots(figsize=(6, 6), constrained_layout=False)
 
     # Use mne's plotting utility where possible
-    kwargs = dict(axes=ax, show=False, cmap='RdBu_r', contours=0, extrapolate='head',
-                  sphere=(0, 0, 0, 1.0), border='mean', outlines=None, sensors=False)
+    kwargs = {'axes': ax, 'show': False, 'cmap': 'RdBu_r', 'contours': 0,
+              'extrapolate': 'head', 'sphere': (0, 0, 0, 1.0), 'border': 'mean',
+              'outlines': None, 'sensors': False}
 
     try:
         im, _ = mne.viz.plot_topomap(plot_vals, plot_pos, vlim=(0, vmax), **kwargs)
@@ -121,7 +121,8 @@ def generate_topomap_from_events(recording_basename: str, events: dict, title_su
 
     # Save to temp, upload to Supabase assets bucket, remove temp
     import tempfile
-    from app.services.storage_service import storage_service, ASSETS_BUCKET
+
+    from app.services.storage_service import ASSETS_BUCKET, storage_service
     tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     tmp_path = tmp.name
     tmp.close()

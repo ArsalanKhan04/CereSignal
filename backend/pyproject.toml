@@ -1,0 +1,67 @@
+# Ruff configuration.
+#
+# This file deliberately contains *only* [tool.ruff*] sections — no [project] and
+# no [build-system]. pytest.ini still wins rootdir resolution, so adding this file
+# changes nothing about how the test suite is collected or run.
+#
+# Ruff is pinned exactly in requirements-dev.txt. 0.16 widened the default `select`
+# (766 findings on defaults here), so an unpinned ruff can silently turn a green
+# gate red on an unrelated PR. Pin and bump deliberately.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+extend-exclude = [
+    "cere_env",
+    # Git submodules — vendored from another repository, not ours to lint.
+    # actions/checkout does not fetch them, so in CI these are empty anyway.
+    "external/CereProcess",
+    "external/full_edf_viewer",
+]
+
+[tool.ruff.lint]
+# E501 (line-too-long) is deliberately absent: 299 hits, none of them defects.
+# `ruff format` is also deliberately not used — it would rewrite ~95 files for no
+# defect-detection value and destroy `git blame`, which on a medical codebase is
+# audit evidence.
+select = ["E4", "E7", "E9", "F", "I", "B", "S", "C4", "PIE", "RUF100"]
+
+ignore = [
+    # `Model.col == True` inside .filter() builds a SQL clause; it is not a Python
+    # truth test. Ruff's suggested rewrite to `not Model.col` changes the query
+    # (SQLAlchemy cannot coerce a ClauseElement to bool). 20 sites.
+    "E711",
+    "E712",
+    # `raise HTTPException(...) from err` — 36 sites, all in endpoints. Worth doing,
+    # but it rewrites every handler's traceback, so it gets its own PR.
+    "B904",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's entire dependency system lives in default arguments. Without this,
+# B008 (function-call-in-default-argument) fires 146 times on `= Depends(...)`.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Deliberate re-exports. app/models/__init__.py is imported by tests/conftest.py
+# precisely to register all ten tables on Base.metadata — autofixing F401 here
+# would delete those imports and break every test.
+"**/__init__.py" = ["F401"]
+# The import order here is deliberate and documented in the file itself ("Hospital
+# must be imported first since other models hold FKs to it"). Leave it alone.
+"app/models/__init__.py" = ["F401", "I001"]
+# assert is the point of a test, and fixture credentials are fake by construction.
+"tests/*" = ["S101", "S105", "S106", "S107"]
+# seed_demo.py carries the published demo password and one literal admin query.
+"scripts/*" = ["S105", "S608"]

@@ -5,6 +5,10 @@
 #   ./scripts/test.sh --backend    backend only
 #   ./scripts/test.sh --frontend   frontend only
 #   ./scripts/test.sh --cov        add coverage reports
+#   ./scripts/test.sh --lint       run linters/type-checks instead of the suites
+#
+# --lint runs ruff over backend/ and `npm run typecheck && npm run lint` over
+# frontend/. It honours --backend/--frontend the same way the suites do.
 #
 # Neither suite needs Redis, a Celery worker, a .env file, model weights or a
 # network connection. The backend suite builds its own in-memory SQLite database
@@ -18,6 +22,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 RUN_BACKEND=1
 RUN_FRONTEND=1
 COVERAGE=0
+LINT_ONLY=0
 PYTEST_ARGS=()
 
 while [ $# -gt 0 ]; do
@@ -25,6 +30,7 @@ while [ $# -gt 0 ]; do
         --backend)  RUN_FRONTEND=0 ;;
         --frontend) RUN_BACKEND=0 ;;
         --cov)      COVERAGE=1 ;;
+        --lint)     LINT_ONLY=1 ;;
         -h|--help)  awk 'NR>1{ if (!/^#/) exit; sub(/^# ?/,""); print }' "${BASH_SOURCE[0]}"; exit 0 ;;
         *)          PYTEST_ARGS+=("$1") ;;
     esac
@@ -32,6 +38,51 @@ while [ $# -gt 0 ]; do
 done
 
 failed=0
+
+if [ "$LINT_ONLY" = "1" ]; then
+    if [ "$RUN_BACKEND" = "1" ]; then
+        require_venv
+        if [ ! -x "$VENV/bin/ruff" ]; then
+            die "ruff is not installed in $VENV
+      Run: $PIP install -r $BACKEND/requirements-dev.txt"
+        fi
+        log "running ruff"
+        # Config is backend/pyproject.toml; run from there so its excludes apply.
+        if (cd "$BACKEND" && "$VENV/bin/ruff" check .); then
+            ok "ruff"
+        else
+            warn "ruff found problems"
+            failed=1
+        fi
+    fi
+
+    if [ "$RUN_FRONTEND" = "1" ]; then
+        require_cmd npm
+        if [ ! -d "$FRONTEND/node_modules" ]; then
+            die "no $FRONTEND/node_modules
+      Run: npm --prefix $FRONTEND install"
+        fi
+        log "running tsc"
+        if npm --prefix "$FRONTEND" run typecheck --silent; then
+            ok "typecheck"
+        else
+            warn "typecheck failed"
+            failed=1
+        fi
+
+        log "running eslint"
+        if npm --prefix "$FRONTEND" run lint --silent; then
+            ok "eslint"
+        else
+            warn "eslint found problems"
+            failed=1
+        fi
+    fi
+
+    [ "$failed" = "0" ] || die "one or more checks failed"
+    ok "all checks passed"
+    exit 0
+fi
 
 if [ "$RUN_BACKEND" = "1" ]; then
     require_venv

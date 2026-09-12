@@ -5,9 +5,9 @@ Provides daily rotating log files with detailed request/response logging
 
 import logging
 import os
-from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+
 
 def _resolve_logs_dir() -> Path:
     env_dir = os.getenv("CERE_LOG_DIR")

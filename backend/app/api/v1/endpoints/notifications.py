@@ -4,13 +4,15 @@ Notification endpoints
 
 from datetime import datetime
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.auth import get_current_active_user
-from app.models.notification import Notification
+from app.core.database import get_db
 from app.models.auth import AuthUser, UserType
+from app.models.notification import Notification
+from app.schemas.field_types import ResourceId
 from app.schemas.notification import NotificationResponse
 
 router = APIRouter()
@@ -41,7 +43,7 @@ async def get_notifications(
 
 @router.post("/{notification_id}/read", response_model=NotificationResponse)
 async def mark_notification_read(
-    notification_id: int,
+    notification_id: ResourceId,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):

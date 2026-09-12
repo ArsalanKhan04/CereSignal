@@ -30,7 +30,6 @@ import FolderZipIcon from '@mui/icons-material/FolderZip';
 import PeopleIcon from '@mui/icons-material/People';
 import FolderIcon from '@mui/icons-material/Folder';
 import PersonIcon from '@mui/icons-material/Person';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import { apiClient } from '../../services/api';
 import { DevAdminHospitalDetail } from '../../types';
 

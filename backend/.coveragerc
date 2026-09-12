@@ -5,6 +5,10 @@ omit =
     # not this project's to test. See .gitmodules.
     external/CereProcess/*
     external/full_edf_viewer/*
+    # Torch model definitions. CI deliberately does not install the ML stack
+    # (see requirements-ai.txt), so these 211 statements are unreachable there
+    # and measuring them pins the floor ~3 points below the honest number.
+    external/models/*
     # Entry points and one-shot scripts rather than importable behaviour.
     entry_point.py
     migrate.py
@@ -12,6 +16,16 @@ omit =
     tests/*
 
 [report]
+# The ratchet. Lives here rather than in pytest.ini addopts (which would make every
+# local `pytest` pay tracing overhead) or in the workflow (where ./scripts/test.sh
+# --cov could not see it and the number would drift). .coveragerc is inert unless
+# --cov is passed, so a plain `pytest` stays fast.
+#
+# Note: `./scripts/test.sh --cov -k <subset>` will trip this. Escape with
+# --cov-fail-under=0.
+fail_under = 68
+precision = 1
+
 exclude_lines =
     pragma: no cover
     if __name__ == .__main__.:

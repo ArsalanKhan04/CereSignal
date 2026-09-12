@@ -1479,6 +1479,14 @@
 .lp-footer ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
 .lp-footer a { color: rgba(255,255,255,0.6); text-decoration: none; cursor: pointer; }
 .lp-footer a:hover { color: white; }
+/* Footer entries that run a handler rather than navigate are <button>s (an <a href="#">
+   is not reachable by keyboard as a link). Strip the button chrome so they match. */
+.lp-footer-link {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; text-align: left;
+  color: rgba(255,255,255,0.6); text-decoration: none; cursor: pointer;
+}
+.lp-footer-link:hover { color: white; }
 .lp-footer-about p {
   font-size: 13px;
   line-height: 1.6;

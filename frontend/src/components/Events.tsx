@@ -88,23 +88,7 @@ const Events: React.FC = () => {
     return `${file.user_name || 'Unknown Patient'} - ${file.filename} (${uploadDate})`;
   };
 
-  const getEventTypeColor = (eventType: string) => {
-    switch (eventType) {
-      case 'normal wave': return 'success';
-      case 'spike wave': return 'error';
-      case 'slow wave': return 'warning';
-      default: return 'default';
-    }
-  };
 
-  const getEventTypeIcon = (eventType: string) => {
-    switch (eventType) {
-      case 'normal wave': return '🌊';
-      case 'spike wave': return '⚡';
-      case 'slow wave': return '🐌';
-      default: return '📊';
-    }
-  };
 
 
   if (loading) {

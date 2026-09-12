@@ -2,12 +2,14 @@
 Authentication schemas
 """
 
+from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, Field
+
+from app.models.auth import UserType
 from app.schemas.email_types import LenientEmailStr
 from app.schemas.field_types import BlankAsNone
-from typing import Optional
-from datetime import datetime
-from app.models.auth import UserType
 
 
 class UserLogin(BaseModel):
@@ -82,7 +84,7 @@ class Token(BaseModel):
     """Schema for JWT token response"""
 
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105  (RFC 6750 scheme name, not a secret)
     expires_in: int
 
 

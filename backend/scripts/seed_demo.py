@@ -6,22 +6,22 @@ Run: python -m backend.scripts.seed_demo  (from project root)
      or: python seed_demo.py              (from backend/scripts/)
 """
 
-import sys
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.models.auth import AuthUser
 from app.models.hospital import Hospital, StaffInvitation
-from app.models.user import User
-from app.models.signal import SignalFile
 from app.models.notification import Notification
+from app.models.signal import SignalFile
+from app.models.user import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DEMO_PASSWORD = "password"

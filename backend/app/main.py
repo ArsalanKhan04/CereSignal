@@ -3,23 +3,20 @@ CereSignal FastAPI Application
 Main application entry point
 """
 
+import os
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.encoders import jsonable_encoder
-from pathlib import Path
-from contextlib import asynccontextmanager
-import os
-import uvicorn
 from sqlalchemy.exc import OperationalError
 
-from app.core.config import PLACEHOLDER_SECRET_KEYS, settings
-from app.core.database import engine, Base
 from app.api.v1.api import api_router
+from app.core.config import PLACEHOLDER_SECRET_KEYS, settings
+from app.core.database import Base, engine
 from app.core.middleware import setup_middleware
-from app.models import user, signal, auth, contact
 
 # ---------------------------------------------------------------------------
 # Human-readable error messages for common Pydantic validation failures

@@ -123,6 +123,10 @@ const ReportVersionHistory: React.FC<ReportVersionHistoryProps> = ({
       fetchVersions();
       setViewingVersion(null);
     }
+    // `fetchVersions` is recreated on every render, so listing it here would
+    // re-fire this effect on every render — an unconditional fetch loop.
+    // The array below is the intended trigger set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, reportId]);
 
   const fetchVersions = async () => {

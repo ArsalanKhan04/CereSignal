@@ -579,6 +579,9 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
     };
 
     return { traces, layout };
+  // focusPoints only annotates traces that are already built here; adding it
+  // would rebuild every trace whenever the focus changes — the expensive path.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plotData, eventsData, plotStart, plotDuration, montage, sensitivity]);
 
   return (

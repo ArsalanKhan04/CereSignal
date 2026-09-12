@@ -3,11 +3,12 @@ Authentication utilities
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.core.config import settings

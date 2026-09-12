@@ -15,7 +15,6 @@ from app.core.auth import get_current_admin_user
 from app.core.database import get_db
 from app.models.auth import AuthUser, UserType
 from app.models.hospital import Hospital, StaffInvitation
-from app.models.report import EEGReport
 from app.models.signal import SignalFile
 from app.models.user import User
 from app.schemas.admin import (
@@ -25,6 +24,7 @@ from app.schemas.admin import (
     InviteResponse,
     StaffMemberResponse,
 )
+from app.schemas.field_types import ResourceId
 from app.services.email_service import send_invitation_email
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ async def list_staff(
 
 @router.put("/staff/{user_id}/toggle-active")
 async def toggle_staff_active(
-    user_id: int,
+    user_id: ResourceId,
     current_user: AuthUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
@@ -184,7 +184,7 @@ async def list_invitations(
 
 @router.delete("/invitations/{invitation_id}")
 async def delete_invitation(
-    invitation_id: int,
+    invitation_id: ResourceId,
     current_user: AuthUser = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):

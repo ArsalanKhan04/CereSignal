@@ -6,6 +6,19 @@
 # httpx is not listed here on purpose: it is already in requirements.txt, and it is
 # what fastapi.testclient uses under the hood.
 
-pytest
-pytest-asyncio
-pytest-cov
+pytest>=9.0,<10        # schemathesis 4 requires pytest>=9,<10
+pytest-asyncio>=1.0,<2
+pytest-cov>=6,<8
+
+# Linter. Pinned exactly: ruff 0.16 widened its default `select`, so an unpinned
+# ruff can turn a green gate red on an unrelated PR. Config lives in pyproject.toml.
+ruff==0.16.7
+
+# Dependency CVE audit. Runs against the *installed environment* in CI, not against
+# requirements.txt — that file is largely unpinned, so `-r` would make pip-audit
+# resolve its own set rather than auditing what the tests actually ran against.
+pip-audit==2.10.1
+
+# OpenAPI contract fuzzing. Drives the FastAPI app in-process over ASGI — no
+# server, no socket, no network. Pulls in hypothesis.
+schemathesis>=4.27,<5

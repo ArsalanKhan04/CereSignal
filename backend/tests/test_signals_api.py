@@ -10,6 +10,7 @@ import io
 
 import pytest
 
+
 class TestSmokeRoutes:
     def test_root_advertises_the_version_and_docs(self, client):
         response = client.get("/")
@@ -347,6 +348,7 @@ class TestReportStatusRejectsBlankText:
 
         def _stub(result):
             from unittest.mock import MagicMock
+
             from app.api.v1.endpoints import signals
 
             service = MagicMock()

@@ -12,8 +12,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.database import SessionLocal
 from app.core.auth import get_password_hash
+from app.core.database import SessionLocal
 from app.models.auth import AuthUser, UserType
 
 
