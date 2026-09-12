@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
 
+    # Local Ollama, used for report drafting when OPENAI_API_KEY is empty. With
+    # OLLAMA_MODEL empty, the most recently pulled model is used.
+    OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
+    OLLAMA_MODEL: str = ""
+
     # Supabase client credentials (for future use: storage, auth)
     SUPABASE_URL: str = ""
     SUPABASE_PUBLISHABLE_KEY: str = ""   # Safe for client-side; replaces legacy SUPABASE_ANON_KEY
