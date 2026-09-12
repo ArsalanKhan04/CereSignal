@@ -367,6 +367,16 @@ def _get_region_report(result_events, threshold):
     return region_report
 
 
+def _latest_ollama_model(client):
+    # Looked up per report, so pulling a new model takes effect without a worker restart.
+    # Iterate the page rather than reading .data: Ollama returns "data": null, not [],
+    # when no model is installed.
+    chat_models = [m for m in client.models.list() if "embed" not in m.id]
+    if not chat_models:
+        raise RuntimeError("no Ollama chat model installed")
+    return max(chat_models, key=lambda m: m.created).id
+
+
 def _generate_report(ab_prob, region_report, pdr_text):
     prompt_content = f"""
             PATIENT STATISTICS:
@@ -407,13 +417,27 @@ def _generate_report(ab_prob, region_report, pdr_text):
             }
             """
 
+    from app.core.config import settings
+
+    model = settings.OPENAI_MODEL if settings.OPENAI_API_KEY else "ollama"
+    options = {}
     try:
         import openai
 
-        client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        if settings.OPENAI_API_KEY:
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+        else:
+            # Ollama's OpenAI-compatible endpoint ignores the key, but the client requires one.
+            client = openai.OpenAI(base_url=settings.OLLAMA_BASE_URL, api_key="ollama")
+            model = settings.OLLAMA_MODEL or _latest_ollama_model(client)
+            # Thinking models (qwen3.5) otherwise reason until Ollama's 4096-token default
+            # context runs out and return empty content. OpenAI rejects this for gpt-4o-mini.
+            options["reasoning_effort"] = "none"
+
         response = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=model,
             response_format={"type": "json_object"},
+            **options,
             messages=[
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": prompt_content},
@@ -422,10 +446,13 @@ def _generate_report(ab_prob, region_report, pdr_text):
         json_str = response.choices[0].message.content
         data = json.loads(json_str)
 
-        factual_report = data.get("factual_report", "invalid")
-        impression = data.get("impression", "invalid")
+        # Blank, not a placeholder: report-status treats blank as a failed generation
+        # and leaves the form empty, where the literal "invalid" would be stored and
+        # shown to the doctor as the report text.
+        factual_report = data.get("factual_report", "")
+        impression = data.get("impression", "")
     except Exception as e:
-        print(f"OpenAI Error: {e}")
+        print(f"LLM report error ({model}): {e}")
         factual_report = ""
         impression = ""
     return factual_report, impression

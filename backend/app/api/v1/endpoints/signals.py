@@ -979,10 +979,19 @@ async def get_file_report_status(
 
         # If task completed, store the report
         if status_data["status"] == "completed":
-            result = status_data.get("result", {})
-            if result:
-                file.factual_report = result.get("factual_report", "")
-                file.impression = result.get("impression", "")
+            result = status_data.get("result") or {}
+            factual_report = result.get("factual_report", "")
+            impression = result.get("impression", "")
+
+            # _generate_report (inference/infer.py) swallows LLM failures and returns
+            # blank text so that inference still completes. Blank is a failed
+            # generation, not a report: reporting it as completed made the form
+            # announce "AI-generated report loaded successfully" over empty fields.
+            # Both fields are required, matching the already-stored check above — a
+            # half-blank report would fail that check on every later poll instead.
+            if factual_report and impression:
+                file.factual_report = factual_report
+                file.impression = impression
                 db.commit()
 
                 return {
@@ -995,6 +1004,13 @@ async def get_file_report_status(
                         "impression": file.impression,
                     },
                 }
+
+            return {
+                "file_id": file_id,
+                "report_status": "failed",
+                "message": "AI report generation produced no text",
+                "has_report": False,
+            }
 
         # Task still pending or failed
         return {

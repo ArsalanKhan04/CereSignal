@@ -29,7 +29,7 @@ Seeded demo login: `admin` / `password`
 
 There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere_env/`, and the scripts call its binaries directly rather than activating anything. The backend and worker must run with `backend/` as cwd: `inference/infer.py` resolves model weights relative to the current directory and `DATABASE_URL` is cwd-relative.
 
-`docker-compose up redis backend celery_worker` is the containerised equivalent, once `./scripts/setup.sh` has written `backend/.env`. The backend and worker services both bind-mount `./backend`, so they share the same `cere_signal.db` and `local_storage/` as the scripts above — the worker resolves the storage object paths it receives over Redis against its own filesystem, so they must. The compose `frontend` service still cannot build: `frontend/package.json` depends on `"ceresignal-desktop": "file:.."`, which resolves to `/` in that build context. Run the frontend on the host.
+`docker compose up` is the containerised equivalent of all four, once `./scripts/setup.sh` has written `backend/.env`. The backend and worker services both bind-mount `./backend`, so they share the same `cere_signal.db` and `local_storage/` as the scripts above — the worker resolves the storage object paths it receives over Redis against its own filesystem, so they must.
 
 Access points: Frontend → `localhost:3000`, API → `localhost:8000`, Docs → `localhost:8000/api/v1/docs`
 
@@ -109,8 +109,13 @@ their own study) were all fixed together, and every marker came off with them.
 6. It then computes focus points and PDR, builds a regional report, generates a topomap image, and
    queues the `generate_report` task
 7. `generate_report` calls the OpenAI Chat Completions API (`OPENAI_MODEL`, default `gpt-4o-mini`)
-   to write the factual report and impression. Without `OPENAI_API_KEY` set, inference still
-   completes and the report text is left blank for manual entry
+   to write the factual report and impression. Without `OPENAI_API_KEY` set, the same client
+   points at Ollama's OpenAI-compatible API (`OLLAMA_BASE_URL`) and uses `OLLAMA_MODEL`, or
+   when that is empty the most recently pulled non-embedding model. If that fails too,
+   inference still completes and the report text is left blank for manual entry.
+   `GET /signals/files/{id}/report-status` treats that blank text as `failed` rather
+   than as a finished report, so the form shows the failure instead of announcing a
+   report it never received
 8. Results are saved to the database; the frontend polls
    `GET /signals/files/{id}/inference-status` and `/report-status`, then displays the EEG
    visualization and report
@@ -245,6 +250,8 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
 - `SUPABASE_URL`, `SUPABASE_SECRET_KEY` — file storage. Leave `SUPABASE_URL` empty to store
   files on local disk instead (`SUPABASE_PUBLISHABLE_KEY` is the client-side key)
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation (default `gpt-4o-mini`)
+- `OLLAMA_BASE_URL`, `OLLAMA_MODEL` — local fallback used when `OPENAI_API_KEY` is empty
+  (default `http://localhost:11434/v1`; empty model = most recently pulled)
 - `RESEND_API_KEY` — invitation email; `MAIL_*` variables are the SMTP fallback
 - `FRONTEND_URL` — used to build invitation email links
 - `DESKTOP_MODE` — read only by `entry_point.py:35` and never acted on; currently has no effect

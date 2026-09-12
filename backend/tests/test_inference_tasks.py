@@ -99,6 +99,129 @@ class TestGenerateReportWithAiDisabled:
         generate_report.run(0.9, {"Frontal": {}}, "PDR 9 Hz")
 
 
+class TestGenerateReportBackend:
+    """
+    OpenAI when OPENAI_API_KEY is set, otherwise Ollama through the same client.
+    openai itself is stubbed: CI does not install it.
+    """
+
+    @pytest.fixture
+    def openai_stub(self, monkeypatch):
+        import sys
+        import types
+
+        client = MagicMock()
+        client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(
+                content='{"factual_report": "Alpha background.", "impression": "Normal EEG."}'
+            ))]
+        )
+        module = types.SimpleNamespace(OpenAI=MagicMock(return_value=client))
+        monkeypatch.setitem(sys.modules, "openai", module)
+        return module
+
+    @pytest.fixture
+    def settings(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "OPENAI_API_KEY", "")
+        monkeypatch.setattr(settings, "OLLAMA_MODEL", "")
+        return settings
+
+    def _installed(self, openai_stub, *models):
+        client = openai_stub.OpenAI.return_value
+        client.models.list.return_value = [
+            MagicMock(id=model_id, created=created) for model_id, created in models
+        ]
+        return client
+
+    def _model_used(self, openai_stub):
+        return openai_stub.OpenAI.return_value.chat.completions.create.call_args.kwargs["model"]
+
+    def test_with_a_key_it_calls_openai(self, openai_stub, settings, monkeypatch):
+        from inference.infer import _generate_report
+
+        monkeypatch.setattr(settings, "OPENAI_API_KEY", "sk-test")
+
+        result = _generate_report(50.0, {}, "PDR 9 Hz")
+
+        openai_stub.OpenAI.assert_called_once_with(api_key="sk-test")
+        assert self._model_used(openai_stub) == settings.OPENAI_MODEL
+        # gpt-4o-mini rejects reasoning_effort.
+        create = openai_stub.OpenAI.return_value.chat.completions.create
+        assert "reasoning_effort" not in create.call_args.kwargs
+        assert result == ("Alpha background.", "Normal EEG.")
+
+    def test_without_a_key_a_pinned_ollama_model_is_used(
+        self, openai_stub, settings, monkeypatch
+    ):
+        from inference.infer import _generate_report
+
+        monkeypatch.setattr(settings, "OLLAMA_MODEL", "llama3.2")
+
+        result = _generate_report(50.0, {}, "PDR 9 Hz")
+
+        assert openai_stub.OpenAI.call_args.kwargs["base_url"] == settings.OLLAMA_BASE_URL
+        assert self._model_used(openai_stub) == "llama3.2"
+        openai_stub.OpenAI.return_value.models.list.assert_not_called()
+        # A thinking model otherwise spends the whole context reasoning and returns nothing.
+        create = openai_stub.OpenAI.return_value.chat.completions.create
+        assert create.call_args.kwargs["reasoning_effort"] == "none"
+        assert result == ("Alpha background.", "Normal EEG.")
+
+    def test_without_a_model_the_newest_chat_model_is_used(self, openai_stub, settings):
+        from inference.infer import _generate_report
+
+        self._installed(
+            openai_stub,
+            ("qwen3:8b", 100),
+            ("nomic-embed-text", 300),
+            ("llama3.2", 200),
+        )
+
+        _generate_report(50.0, {}, "PDR 9 Hz")
+
+        assert self._model_used(openai_stub) == "llama3.2"
+
+    def test_with_only_embedding_models_the_report_is_blank(self, openai_stub, settings):
+        from inference.infer import _generate_report
+
+        client = self._installed(openai_stub, ("nomic-embed-text", 300))
+
+        assert _generate_report(50.0, {}, "PDR 9 Hz") == ("", "")
+        client.chat.completions.create.assert_not_called()
+
+    def test_with_no_models_installed_the_report_is_blank(self, openai_stub, settings):
+        from inference.infer import _generate_report
+
+        client = self._installed(openai_stub)
+
+        assert _generate_report(50.0, {}, "PDR 9 Hz") == ("", "")
+        client.chat.completions.create.assert_not_called()
+
+    def test_json_without_the_expected_keys_is_blank_not_a_placeholder(
+        self, openai_stub, settings
+    ):
+        from inference.infer import _generate_report
+
+        client = self._installed(openai_stub, ("qwen3:8b", 100))
+        client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content='{"summary": "off-format"}'))]
+        )
+
+        # "invalid" would reach report-status as a finished report and be shown to
+        # the doctor as the report text.
+        assert _generate_report(50.0, {}, "PDR 9 Hz") == ("", "")
+
+    def test_an_unreachable_llm_leaves_the_report_blank(self, openai_stub, settings):
+        from inference.infer import _generate_report
+
+        client = self._installed(openai_stub, ("qwen3:8b", 100))
+        client.chat.completions.create.side_effect = ConnectionError("refused")
+
+        assert _generate_report(50.0, {}, "PDR 9 Hz") == ("", "")
+
+
 class TestPreprocessEdf:
     def test_a_non_conforming_file_is_converted_and_uploaded(
         self, local_storage, stored_edf, monkeypatch

@@ -326,3 +326,90 @@ class TestBookmarkImagesAreSigned:
 
         assert listed.status_code == 200
         assert "signature=" in listed.json()[0]["image_url"]
+
+
+class TestReportStatusRejectsBlankText:
+    """
+    _generate_report swallows LLM failures and returns blank text so that inference
+    still completes, so the Celery task succeeds with empty fields. Reporting that as
+    a finished report made the form announce "AI-generated report loaded successfully"
+    over a blank form.
+    """
+
+    @pytest.fixture
+    def own_file(self, make_patient, make_signal_file, hospital_a, doctor_a):
+        patient = make_patient("Patient A", hospital_a, doctor_a)
+        return make_signal_file(patient, hospital_a, report_task_id="report-task-1")
+
+    @pytest.fixture
+    def task_result(self, monkeypatch):
+        """Stand in for the report task's Celery result — no broker involved."""
+
+        def _stub(result):
+            from unittest.mock import MagicMock
+            from app.api.v1.endpoints import signals
+
+            service = MagicMock()
+            service.get_task_status.return_value = {
+                "status": "completed",
+                "result": result,
+            }
+            monkeypatch.setattr(signals, "_get_inference_service", lambda: service)
+
+        return _stub
+
+    def _status(self, client, auth_headers, doctor_a, own_file):
+        return client.get(
+            f"/api/v1/signals/files/{own_file.id}/report-status",
+            headers=auth_headers(doctor_a),
+        )
+
+    def test_blank_text_is_reported_as_failed(
+        self, client, auth_headers, doctor_a, own_file, task_result
+    ):
+        task_result({"factual_report": "", "impression": ""})
+
+        body = self._status(client, auth_headers, doctor_a, own_file).json()
+
+        assert body["report_status"] == "failed"
+        assert body["has_report"] is False
+        assert "report" not in body
+
+    def test_blank_text_is_not_stored_on_the_file(
+        self, client, auth_headers, doctor_a, own_file, task_result, db_session
+    ):
+        task_result({"factual_report": "", "impression": ""})
+
+        self._status(client, auth_headers, doctor_a, own_file)
+
+        db_session.refresh(own_file)
+        assert not own_file.factual_report
+        assert not own_file.impression
+
+    def test_a_half_blank_report_is_reported_as_failed(
+        self, client, auth_headers, doctor_a, own_file, task_result
+    ):
+        # The stored-report check requires both fields, so accepting this one would
+        # leave every later poll re-deriving it from the task result.
+        task_result({"factual_report": "Alpha background.", "impression": ""})
+
+        body = self._status(client, auth_headers, doctor_a, own_file).json()
+
+        assert body["report_status"] == "failed"
+
+    def test_a_real_report_is_still_returned_and_stored(
+        self, client, auth_headers, doctor_a, own_file, task_result, db_session
+    ):
+        task_result({
+            "factual_report": "Alpha background.",
+            "impression": "Normal EEG.",
+        })
+
+        body = self._status(client, auth_headers, doctor_a, own_file).json()
+
+        assert body["report_status"] == "completed"
+        assert body["has_report"] is True
+        assert body["report"]["impression"] == "Normal EEG."
+
+        db_session.refresh(own_file)
+        assert own_file.factual_report == "Alpha background."

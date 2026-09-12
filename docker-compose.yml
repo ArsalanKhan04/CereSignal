@@ -62,8 +62,15 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:///./cere_signal.db
       - AI_INFERENCE_ENABLED=${AI_INFERENCE_ENABLED:-True}
-      # Optional. Without it inference still completes; the report text is blank.
+      # Optional. Without it the report text is drafted by Ollama on the host, which
+      # must listen beyond loopback (OLLAMA_HOST=0.0.0.0) for the container to reach
+      # it. If that fails too, inference still completes and the report text is blank.
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      # Empty means the most recently pulled model.
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/usr/src/app
     depends_on:
@@ -72,12 +79,6 @@ services:
 
 
   # 4. React Frontend Service (Development Mode)
-  #
-  # NOTE: this service cannot build yet — frontend/package.json depends on
-  # "ceresignal-desktop": "file:..", and inside this build context ".."
-  # resolves to "/", so npm install fails. See item 2 in the deferred-cleanups
-  # notes. Bring up redis, backend and celery_worker and run the frontend with
-  # `npm --prefix frontend run dev` until that entry is removed.
   frontend:
     build:
       context: ./frontend
