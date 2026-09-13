@@ -15,7 +15,7 @@ asttokens
 async-lru
 attrs
 babel
-bcrypt<4.0.0
+bcrypt<6.0.0
 beautifulsoup4
 bidict
 billiard
@@ -158,7 +158,7 @@ resampy
 stack-data
 # >=1.3.1 clears five advisories (PYSEC-2026-161/248/249/2280/2281). FastAPI
 # 0.141.1 declares no upper bound and the suite passes against starlette 1.6.
-starlette>=1.3.1
+starlette>=1.6.0
 sympy
 tenacity
 threadpoolctl
