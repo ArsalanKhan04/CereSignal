@@ -1,5 +1,5 @@
 # Simple Dev Image
-FROM node:18-alpine
+FROM node:26-alpine
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ WORKDIR /app
 # This is done first so it can be cached if source files change
 COPY package.json .
 COPY package-lock.json .
-RUN npm install
+RUN npm install -g npm@12 && npm ci
 
 # The source code will be mounted using the volume in docker-compose.yml
 # EXPOSE 3000 (or whatever port your dev server runs on)

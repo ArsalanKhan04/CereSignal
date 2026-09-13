@@ -142,10 +142,17 @@ const DoctorRegistrationPage: React.FC = () => {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 8 }}>
           <LogoIcon sx={{ fontSize: 40, mr: 2, color: 'white' }} />
-          <Typography variant="h5" fontWeight="800">CereSignal</Typography>
+          <Typography variant="h5" sx={{
+            fontWeight: "800"
+          }}>CereSignal</Typography>
         </Box>
 
-        <Typography variant="h4" fontWeight="700" sx={{ mb: 2 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: "700",
+            mb: 2
+          }}>
           The Future of Neurology
         </Typography>
         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)', mb: 6 }}>
@@ -167,7 +174,9 @@ const DoctorRegistrationPage: React.FC = () => {
               </ListItemIcon>
               <ListItemText 
                 primary={item.text} 
-                primaryTypographyProps={{ fontWeight: 500, color: 'rgba(255,255,255,0.9)' }} 
+                slotProps={{
+                  primary: { sx: { fontWeight: 500, color: 'rgba(255,255,255,0.9)' } }
+                }} 
               />
             </ListItem>
           ))}
@@ -195,15 +204,25 @@ const DoctorRegistrationPage: React.FC = () => {
             {/* Mobile Header */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', mb: 4 }}>
                <LogoIcon sx={{ color: primaryMain, mr: 1, fontSize: 32 }} />
-               <Typography variant="h6" fontWeight="800">CereSignal</Typography>
+               <Typography variant="h6" sx={{
+                 fontWeight: "800"
+               }}>CereSignal</Typography>
             </Box>
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 4 }}>
               <Box>
-                <Typography variant="h4" fontWeight="800" sx={{ color: '#1a1a1a', mb: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: "800",
+                    color: '#1a1a1a',
+                    mb: 1
+                  }}>
                   Doctor Registration
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Typography variant="body1" sx={{
+                  color: "text.secondary"
+                }}>
                   Verify your credentials to create a professional account.
                 </Typography>
               </Box>
@@ -217,36 +236,50 @@ const DoctorRegistrationPage: React.FC = () => {
                 
                 {/* --- Card 1: Account --- */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                   <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                   <Typography
+                     variant="h6"
+                     sx={{
+                       fontWeight: "700",
+                       mb: 3,
+                       display: 'flex',
+                       alignItems: 'center'
+                     }}>
                      <SecurityIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Account Credentials
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
                          <FormTextField required fullWidth label="Username" name="username" value={formData.username} onChange={handleChange}
                            fieldError={fieldErrors.username}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
                          <FormTextField required fullWidth label="Email Address" name="email" value={formData.email} onChange={handleChange}
                            fieldError={fieldErrors.email}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
                          <FormTextField required fullWidth type="password" label="Password" name="password" value={formData.password} onChange={handleChange}
                            fieldError={fieldErrors.password}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
                          <FormTextField required fullWidth type="password" label="Confirm Password" name="confirm_password" value={formData.confirm_password} onChange={handleChange}
                            fieldError={fieldErrors.confirm_password}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                    </Grid>
                 </Paper>
 
                 {/* --- Card 2: Personal --- */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                   <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                   <Typography
+                     variant="h6"
+                     sx={{
+                       fontWeight: "700",
+                       mb: 3,
+                       display: 'flex',
+                       alignItems: 'center'
+                     }}>
                      <BadgeIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Personal Details
                    </Typography>
                    <Grid container spacing={3}>
@@ -265,41 +298,48 @@ const DoctorRegistrationPage: React.FC = () => {
                      <Grid size={{ xs: 12 }}>
                          <FormTextField fullWidth label="Phone Number" name="phone" value={formData.phone} onChange={handleChange}
                            fieldError={fieldErrors.phone}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                    </Grid>
                 </Paper>
 
                 {/* --- Card 3: Professional --- */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                   <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                   <Typography
+                     variant="h6"
+                     sx={{
+                       fontWeight: "700",
+                       mb: 3,
+                       display: 'flex',
+                       alignItems: 'center'
+                     }}>
                      <HospitalIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Professional Profile
                    </Typography>
                    <Grid container spacing={3}>
                      <Grid size={{ xs: 12, sm: 6 }}>
                          <FormTextField fullWidth label="License Number" name="license_number" value={formData.license_number} onChange={handleChange}
                            fieldError={fieldErrors.license_number}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 6 }}>
                          <FormTextField fullWidth label="Specialization" name="specialization" value={formData.specialization} onChange={handleChange}
                            fieldError={fieldErrors.specialization}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 8 }}>
                          <FormTextField fullWidth label="Hospital Affiliation" name="hospital_affiliation" value={formData.hospital_affiliation} onChange={handleChange}
                            fieldError={fieldErrors.hospital_affiliation}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><HospitalIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><HospitalIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12, sm: 4 }}>
                          <FormTextField fullWidth type="number" label="Years Experience" name="years_experience" value={formData.years_experience} onChange={handleChange}
                            fieldError={fieldErrors.years_experience}
-                           InputProps={{ startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                      <Grid size={{ xs: 12 }}>
                          <FormTextField fullWidth multiline rows={3} label="Professional Bio" name="about" placeholder="Tell us about your background..." value={formData.about} onChange={handleChange}
                            fieldError={fieldErrors.about}
-                           InputProps={{ startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><BioIcon color="action" /></InputAdornment> }} />
+                           slotProps={{ input: { startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><BioIcon color="action" /></InputAdornment> } }} />
                      </Grid>
                    </Grid>
                 </Paper>
@@ -331,7 +371,9 @@ const DoctorRegistrationPage: React.FC = () => {
                 </Box>
                 
                 <Box sx={{ textAlign: 'center', pb: 4 }}>
-                   <Typography variant="body2" color="text.secondary">
+                   <Typography variant="body2" sx={{
+                     color: "text.secondary"
+                   }}>
                      Already a member?{' '}
                      <Link component={RouterLink} to="/" sx={{ fontWeight: 600, textDecoration: 'none', color: 'primary.main' }}>
                        Sign in here

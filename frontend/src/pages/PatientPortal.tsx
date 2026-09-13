@@ -167,7 +167,9 @@ const PatientPortal: React.FC = () => {
             </Box>
 
             {/* Profile & Actions */}
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "center"
+            }}>
               <Chip
                 avatar={<Avatar sx={{ bgcolor: theme.palette.secondary.main }}>{patientName[0].toUpperCase()}</Avatar>}
                 label={patientName}
@@ -204,7 +206,9 @@ const PatientPortal: React.FC = () => {
                   <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a1a1a', mb: 0.5 }}>
                     Medical Reports
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     View and download your latest EEG analysis and clinical findings.
                   </Typography>
                 </Box>
@@ -223,7 +227,9 @@ const PatientPortal: React.FC = () => {
                       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                         Patient Profile
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Personal details and clinical basics.
                       </Typography>
                     </Box>
@@ -234,35 +240,51 @@ const PatientPortal: React.FC = () => {
                   <Divider sx={{ mb: 2 }} />
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Name</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Name</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.name || patientName}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Age</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Age</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.age ?? '—'}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Gender</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Gender</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.gender || '—'}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Blood Group</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Blood Group</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.blood_type || '—'}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Phone</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Phone</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.phone || '—'}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Email</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Email</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.email || '—'}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Assigned Doctor</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Assigned Doctor</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.doctor_name || '—'}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Member Since</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Member Since</Typography>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>{patientProfile?.created_at ? new Date(patientProfile.created_at).toLocaleDateString() : '—'}</Typography>
                     </Grid>
                   </Grid>
@@ -296,7 +318,9 @@ const PatientPortal: React.FC = () => {
                      <FileIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
                   </Box>
                   <Typography variant="h6" gutterBottom>No Reports Available</Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Your doctor has not published any EEG reports for you yet. 
                     <br />Please check back later or contact your clinic.
                   </Typography>
@@ -311,11 +335,19 @@ const PatientPortal: React.FC = () => {
                             <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
                               Latest Report
                             </Typography>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {latestReport?.file_name || `EEG Analysis Report #${latestReport?.id}`}
                             </Typography>
                           </Box>
-                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{
+                              alignItems: "center",
+                              flexWrap: "wrap"
+                            }}>
                             <Chip
                               label={latestReport?.impression === 'normal' ? 'Normal' : 'Abnormal'}
                               color={latestReport?.impression === 'normal' ? 'success' : 'warning'}
@@ -342,31 +374,41 @@ const PatientPortal: React.FC = () => {
                         <Divider />
                         <Grid container spacing={2}>
                           <Grid size={{ xs: 12, md: 6 }}>
-                            <Typography variant="caption" color="text.secondary">Indications</Typography>
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>Indications</Typography>
                             <Typography variant="body2" sx={{ mt: 0.5 }}>
                               {latestReport?.indications || 'Not provided'}
                             </Typography>
                           </Grid>
                           <Grid size={{ xs: 12, md: 6 }}>
-                            <Typography variant="caption" color="text.secondary">Technique</Typography>
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>Technique</Typography>
                             <Typography variant="body2" sx={{ mt: 0.5 }}>
                               {latestReport?.technique || 'Not provided'}
                             </Typography>
                           </Grid>
                           <Grid size={{ xs: 12 }}>
-                            <Typography variant="caption" color="text.secondary">Factual Report</Typography>
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>Factual Report</Typography>
                             <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-line' }}>
                               {latestReport?.factual_report || 'Not provided'}
                             </Typography>
                           </Grid>
                           <Grid size={{ xs: 12 }}>
-                            <Typography variant="caption" color="text.secondary">Impression</Typography>
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>Impression</Typography>
                             <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-line' }}>
                               {latestReport?.impression ? latestReport.impression.toUpperCase() : 'Not provided'}
                             </Typography>
                           </Grid>
                           <Grid size={{ xs: 12 }}>
-                            <Typography variant="caption" color="text.secondary">Doctor Notes</Typography>
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>Doctor Notes</Typography>
                             <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-line' }}>
                               {latestReport?.doctor_info || 'Not provided'}
                             </Typography>
@@ -402,7 +444,9 @@ const PatientPortal: React.FC = () => {
                               <Typography variant="body2" sx={{ mt: 1 }}>
                                 {bookmark.comment || 'No comment provided.'}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography variant="caption" sx={{
+                                color: "text.secondary"
+                              }}>
                                 {new Date(bookmark.created_at).toLocaleString()}
                               </Typography>
                             </Box>
@@ -437,7 +481,9 @@ const PatientPortal: React.FC = () => {
                               }}
                             >
                               <CardContent sx={{ p: 3 }}>
-                                <Grid container spacing={2} alignItems="center">
+                                <Grid container spacing={2} sx={{
+                                  alignItems: "center"
+                                }}>
                                   
                                   {/* Icon Column */}
                                   {/* FIX: Replaced 'item xs={...}' with 'size={{ xs: ... }}' */}
@@ -480,7 +526,15 @@ const PatientPortal: React.FC = () => {
                                     </Stack>
 
                                     {report.factual_report && (
-                                      <Typography variant="body2" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          color: "text.secondary",
+                                          display: '-webkit-box',
+                                          WebkitLineClamp: 2,
+                                          WebkitBoxOrient: 'vertical',
+                                          overflow: 'hidden'
+                                        }}>
                                         {report.factual_report}
                                       </Typography>
                                     )}
@@ -532,10 +586,20 @@ const PatientPortal: React.FC = () => {
               textAlign: 'center',
             }}
           >
-            <Typography variant="h4" fontWeight={800} sx={{ mb: 1 }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                mb: 1
+              }}>
               🎉 Demo Complete!
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            <Typography
+              variant="body1"
+              sx={{
+                color: "text.secondary",
+                mb: 3
+              }}>
               You've seen the full CereSignal workflow in under 3 minutes.
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap', mb: 3 }}>

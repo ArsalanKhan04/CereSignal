@@ -1,0 +1,6 @@
+# Dockerfile runs `npm ci` and then `COPY . .`. Without this the host's node_modules
+# (built for glibc, by whatever npm the host has) would overwrite the fresh install.
+node_modules
+build
+coverage
+.env*.local

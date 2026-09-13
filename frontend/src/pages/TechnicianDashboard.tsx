@@ -69,7 +69,9 @@ const TechnicianDashboard: React.FC = () => {
             </Box>
 
             {/* User Profile */}
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "center"
+            }}>
               {user?.hospital_name && (
                 <Typography
                   variant="body2"
@@ -135,7 +137,9 @@ const TechnicianDashboard: React.FC = () => {
               gap: 2
             }}>
               <Box>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Create patients and attach EEG files in one step.
                 </Typography>
               </Box>

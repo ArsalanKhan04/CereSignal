@@ -366,7 +366,7 @@ def tiny_edf(tmp_path):
     * the channel layout is not the 22-channel 10-20 set process_edf produces, so
       needs_preprocessing() returns True and the reshape path is exercised.
     """
-    import pyedflib
+    from edfio import Edf, EdfSignal
 
     n_channels = 24
     sfreq = 256
@@ -378,24 +378,16 @@ def tiny_edf(tmp_path):
     data = rng.normal(loc=0.0, scale=10.0, size=(n_channels, n_samples))
 
     path = tmp_path / "tiny.edf"
-    writer = pyedflib.EdfWriter(str(path), n_channels, file_type=pyedflib.FILETYPE_EDFPLUS)
-    try:
-        writer.setSignalHeaders([
-            {
-                "label": f"CH{i + 1}",
-                "dimension": "uM",          # deliberately not "uV" — see docstring
-                "sample_frequency": sfreq,
-                "physical_max": 56.0,
-                "physical_min": -56.0,
-                "digital_max": 32767,
-                "digital_min": -32768,
-                "transducer": "",
-                "prefilter": "",
-            }
-            for i in range(n_channels)
-        ])
-        writer.writeSamples(data)
-    finally:
-        writer.close()
+    Edf([
+        EdfSignal(
+            data[i],
+            sfreq,
+            label=f"CH{i + 1}",
+            physical_dimension="uM",        # deliberately not "uV" — see docstring
+            physical_range=(-56.0, 56.0),
+            digital_range=(-32768, 32767),
+        )
+        for i in range(n_channels)
+    ]).write(path)
 
     return {"path": str(path), "data": data, "sfreq": sfreq, "n_channels": n_channels}

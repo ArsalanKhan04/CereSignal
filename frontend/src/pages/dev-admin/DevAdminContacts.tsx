@@ -38,7 +38,11 @@ const formatDate = (iso: string) =>
 
 const ExpandableMessage: React.FC<{ message?: string }> = ({ message }) => {
   const [open, setOpen] = useState(false);
-  if (!message) return <Typography variant="body2" color="text.secondary">—</Typography>;
+  if (!message) return (
+    <Typography variant="body2" sx={{
+      color: "text.secondary"
+    }}>—</Typography>
+  );
 
   const isLong = message.length > 80;
   return (
@@ -172,13 +176,17 @@ const DevAdminContacts: React.FC = () => {
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">Loading…</Typography>
+                      <Typography sx={{
+                        color: "text.secondary"
+                      }}>Loading…</Typography>
                     </TableCell>
                   </TableRow>
                 ) : contacts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">
+                      <Typography sx={{
+                        color: "text.secondary"
+                      }}>
                         {unreadOnly ? 'No unread messages.' : 'No contact submissions yet.'}
                       </Typography>
                     </TableCell>
@@ -196,22 +204,33 @@ const DevAdminContacts: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "text.secondary",
+                            fontSize: '0.8rem'
+                          }}>
                           {c.email}
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>
                           {c.hospital || '—'}
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>
                           {c.role || '—'}
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>
                           {c.country || '—'}
                         </Typography>
                       </TableCell>
@@ -224,14 +243,22 @@ const DevAdminContacts: React.FC = () => {
                             color="primary"
                           />
                         ) : (
-                          <Typography variant="body2" color="text.secondary">—</Typography>
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>—</Typography>
                         )}
                       </TableCell>
                       <TableCell sx={{ maxWidth: 220 }}>
                         <ExpandableMessage message={c.message ?? undefined} />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "text.secondary",
+                            fontSize: '0.75rem',
+                            whiteSpace: 'nowrap'
+                          }}>
                           {formatDate(c.created_at)}
                         </Typography>
                       </TableCell>

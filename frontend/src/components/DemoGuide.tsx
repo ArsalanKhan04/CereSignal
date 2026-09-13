@@ -75,7 +75,13 @@ const DemoGuide: React.FC = () => {
           onClick={() => setCollapsed((c) => !c)}
         >
           <PlayIcon sx={{ color: 'white', fontSize: 18 }} />
-          <Typography variant="caption" fontWeight={700} color="white" sx={{ flex: 1 }}>
+          <Typography
+            variant="caption"
+            color="white"
+            sx={{
+              fontWeight: 700,
+              flex: 1
+            }}>
             GUIDED DEMO — Step {stepIndex + 1} of {totalSteps}
           </Typography>
           <Chip
@@ -120,7 +126,13 @@ const DemoGuide: React.FC = () => {
         {/* Body */}
         <Collapse in={!collapsed}>
           <Box sx={{ p: 2 }}>
-            <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.6, mb: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.primary",
+                lineHeight: 1.6,
+                mb: 2
+              }}>
               {currentStep.instruction}
             </Typography>
 

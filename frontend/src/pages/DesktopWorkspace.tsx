@@ -46,7 +46,9 @@ const DesktopWorkspace: React.FC = () => {
                 sx={{ ml: 1.5, bgcolor: 'rgba(29, 78, 216, 0.08)', color: '#1d4ed8', fontWeight: 600 }}
               />
             </Box>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "center"
+            }}>
               <Chip
                 avatar={<Avatar sx={{ bgcolor: 'rgba(29, 78, 216, 0.16)', color: '#1d4ed8' }}>DT</Avatar>}
                 label="Desktop Operator"
@@ -92,7 +94,9 @@ const DesktopWorkspace: React.FC = () => {
               }}
             >
               <Box>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Overview of EEG reviews and reports in a single desktop workspace.
                 </Typography>
               </Box>

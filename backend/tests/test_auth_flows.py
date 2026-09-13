@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.core.auth import verify_password
+from app.core.auth import get_password_hash, verify_password
 from app.models.hospital import StaffInvitation
 
 BASE = "/api/v1/auth"
@@ -264,3 +264,25 @@ class TestListDoctors:
 
     def test_an_anonymous_caller_is_refused(self, client):
         assert client.get(f"{BASE}/doctors").status_code in (401, 403)
+
+
+class TestPasswordHashing:
+    # Written by passlib's CryptContext(schemes=["bcrypt"]) before passlib was replaced
+    # with direct bcrypt calls. Every hash already stored in a database was produced
+    # that way, so it has to keep verifying.
+    PASSLIB_HASH = "$2b$12$SVHJd3Z4KDIUQWGIj4CQaem4YSUtXVb77wTzvZltsOW7YEpF7A866"
+
+    def test_a_hash_written_by_passlib_still_verifies(self):
+        assert verify_password("passlib-era-password", self.PASSLIB_HASH)
+        assert not verify_password("passlib-era-passwore", self.PASSLIB_HASH)
+
+    def test_a_password_longer_than_72_bytes_round_trips(self):
+        # bcrypt 5 raises past 72 bytes. The old stack truncated, so this must too.
+        long_password = "\u00fc" * 50  # 100 bytes of UTF-8
+
+        hashed = get_password_hash(long_password)
+
+        assert verify_password(long_password, hashed)
+        # Only the first 72 bytes count, exactly as before.
+        assert verify_password("\u00fc" * 36, hashed)
+        assert not verify_password("\u00fc" * 35, hashed)

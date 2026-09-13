@@ -11,8 +11,8 @@ CereSignal runs as **4 components**:
 
 ## Prerequisites
 
-- Python 3.11
-- Node.js and npm
+- Python 3.14
+- Node.js 26 (see `.nvmrc`) and npm 12
 - Docker (for Redis) — or a local `redis-server` on 6379
 - No cloud account required
 
@@ -41,7 +41,7 @@ too; without it inference still runs and the report text is simply left blank.
 > `./scripts/setup.sh` as usual:
 >
 > ```bash
-> python3.11 -m venv backend/cere_env
+> python3.14 -m venv backend/cere_env
 > backend/cere_env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
 > ```
 

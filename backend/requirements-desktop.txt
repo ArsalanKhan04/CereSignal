@@ -3,8 +3,7 @@ uvicorn
 sqlalchemy
 python-multipart
 python-jose
-passlib
-bcrypt<4.0.0
+bcrypt
 pydantic
 pydantic-settings
 python-dotenv
@@ -16,7 +15,6 @@ numpy
 scipy
 pandas
 mne
-pyEDFlib
 reportlab
 orjson
 starlette

@@ -7,7 +7,6 @@ import secrets
 from pathlib import Path
 
 import pandas as pd
-import pyedflib
 from fastapi import UploadFile
 
 from app.core.logging_config import logger
@@ -84,41 +83,6 @@ def process_eeg_file_with_mne(storage_path: str) -> dict:
     except Exception as e:
         logger.error("Error processing EEG file with MNE", exc_info=True)
         raise ValueError(f"Failed to process EEG file: {str(e)}")
-
-
-def process_edf_file(file_path: str) -> dict:
-    """Process EDF file and extract signal information"""
-    
-    try:
-        with pyedflib.EdfReader(file_path) as f:
-            # Get file info
-            file_info = {
-                "channels": f.signals_in_file,
-                "duration": f.file_duration,
-                "start_time": f.getStartdatetime(),
-                "signals": []
-            }
-            
-            # Get signal info for each channel
-            for i in range(f.signals_in_file):
-                signal_info = {
-                    "channel_name": f.getLabel(i),
-                    "sampling_rate": f.getSampleFrequency(i),
-                    "samples": f.getNSamples()[i],
-                    "physical_max": f.getPhysicalMaximum(i),
-                    "physical_min": f.getPhysicalMinimum(i),
-                    "digital_max": f.getDigitalMaximum(i),
-                    "digital_min": f.getDigitalMinimum(i),
-                    "prefilter": f.getPrefilter(i),
-                    "transducer": f.getTransducer(i),
-                    "units": f.getPhysicalDimension(i)
-                }
-                file_info["signals"].append(signal_info)
-            
-            return file_info
-            
-    except Exception as e:
-        raise ValueError(f"Error processing EDF file: {str(e)}")
 
 
 def process_csv_file(file_path: str) -> dict:

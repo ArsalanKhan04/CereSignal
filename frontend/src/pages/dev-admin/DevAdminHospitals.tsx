@@ -65,7 +65,13 @@ const HospitalCard: React.FC<{ hospital: DevAdminHospitalSummary }> = ({ hospita
       </Box>
 
       {hospital.address && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.8rem' }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 1.5,
+            fontSize: '0.8rem'
+          }}>
           {hospital.address}
         </Typography>
       )}
@@ -172,12 +178,14 @@ const DevAdminHospitals: React.FC = () => {
           onChange={(e) => setSearch(e.target.value)}
           size="small"
           sx={{ mb: 3, width: 320 }}
-          InputProps={{
+          slotProps={{
+            input: {
             startAdornment: (
               <InputAdornment position="start">
                 <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
               </InputAdornment>
             ),
+            }
           }}
         />
 
@@ -191,7 +199,9 @@ const DevAdminHospitals: React.FC = () => {
           </Grid>
         ) : filtered.length === 0 ? (
           <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography color="text.secondary">
+            <Typography sx={{
+              color: "text.secondary"
+            }}>
               {search ? 'No hospitals match your search.' : 'No hospitals registered yet.'}
             </Typography>
           </Paper>

@@ -24,15 +24,14 @@ A modern React frontend for the CereSignal EEG analysis application, built with 
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
+- Node.js 26 (see `.nvmrc` at the repo root) and npm 12
 - Backend API running on `http://localhost:8000`
 
 ### Installation
 
 1. Install dependencies:
 ```bash
-npm install
+npm ci
 ```
 
 2. Create environment file:
@@ -49,7 +48,7 @@ REACT_APP_API_BASE_URL=http://localhost:8000/api/v1
 
 Start the development server:
 ```bash
-npm start
+npm run dev
 ```
 
 The application will open at `http://localhost:3000`.

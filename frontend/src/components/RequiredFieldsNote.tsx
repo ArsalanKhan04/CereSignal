@@ -8,7 +8,13 @@ import Typography, { TypographyProps } from '@mui/material/Typography';
  * the user can actually read rather than decoration.
  */
 const RequiredFieldsNote: React.FC<TypographyProps> = (props) => (
-  <Typography variant="caption" color="text.secondary" display="block" {...props}>
+  <Typography
+    variant="caption"
+    {...props}
+    sx={[{
+      color: "text.secondary",
+      display: "block"
+    }, ...(Array.isArray(props.sx) ? props.sx : [props.sx])]}>
     Fields marked <Box component="span" sx={{ color: 'error.main' }}>*</Box> are required.
   </Typography>
 );

@@ -12,7 +12,7 @@ elif docker start "$REDIS_CONTAINER" >/dev/null 2>&1; then
     ok "started existing $REDIS_CONTAINER container"
 else
     log "creating $REDIS_CONTAINER container"
-    docker run -d --name "$REDIS_CONTAINER" -p 6379:6379 redis:7-alpine >/dev/null
+    docker run -d --name "$REDIS_CONTAINER" -p 6379:6379 redis:8-alpine >/dev/null
     ok "created and started $REDIS_CONTAINER"
 fi
 

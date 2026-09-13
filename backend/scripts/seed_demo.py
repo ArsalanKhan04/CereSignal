@@ -12,10 +12,10 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from passlib.context import CryptContext
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.auth import get_password_hash
 from app.core.database import SessionLocal
 from app.models.auth import AuthUser
 from app.models.hospital import Hospital, StaffInvitation
@@ -23,9 +23,8 @@ from app.models.notification import Notification
 from app.models.signal import SignalFile
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DEMO_PASSWORD = "password"
-DEMO_PASSWORD_HASH = pwd_context.hash(DEMO_PASSWORD)
+DEMO_PASSWORD_HASH = get_password_hash(DEMO_PASSWORD)
 
 NOW = datetime.now(timezone.utc)
 

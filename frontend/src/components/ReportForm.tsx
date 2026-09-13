@@ -535,7 +535,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                   type="number"
                   value={formData.patient_age || ''}
                   onChange={handleChange('patient_age')}
-                  inputProps={{ min: 0, max: 150 }}
+                  slotProps={{ htmlInput: { min: 0, max: 150 } }}
                   sx={{ width: 120 }}
                   fieldError={fieldErrors.patient_age}
                 />
@@ -575,9 +575,11 @@ const ReportForm: React.FC<ReportFormProps> = ({
                     if (e.target.value) {
                     }
                   }}
-                  InputLabelProps={{ shrink: true }}
                   variant="outlined"
                   sx={{ minWidth: 200 }}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
                 
                 <FormTextField
@@ -707,7 +709,12 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" p={3}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          p: 3
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -718,19 +725,29 @@ const ReportForm: React.FC<ReportFormProps> = ({
     return (
       <Dialog open={true} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{
+            alignItems: "center"
+          }}>
             <WaitingIcon color="primary" />
             <Typography>Generating AI Report</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ py: 2 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Please wait while our AI analyzes the EEG data and generates the report. This may take up to 60 seconds.
             </Typography>
             <Box>
               <LinearProgress variant="determinate" value={llmProgress} />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  mt: 1,
+                  display: 'block'
+                }}>
                 Progress: {Math.round(llmProgress)}%
               </Typography>
             </Box>
@@ -789,7 +806,13 @@ const ReportForm: React.FC<ReportFormProps> = ({
   return (
     <Card>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 3
+          }}>
           <Typography variant="h5">
             {isEditing ? 'Edit EEG Report' : 'Create EEG Report'}
           </Typography>
@@ -803,7 +826,13 @@ const ReportForm: React.FC<ReportFormProps> = ({
         
         {formContent}
         
-        <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 2,
+            mt: 3
+          }}>
           {onCancel && (
             <Button onClick={handleCancel} disabled={saving}>
               Cancel

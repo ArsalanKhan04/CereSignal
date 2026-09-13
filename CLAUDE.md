@@ -232,6 +232,9 @@ is unset, rather than matching every orphan row.
 - Four roles in `UserType` (`app/models/auth.py`): `doctor`, `technician`, `patient`, `admin` —
   enforced via JWT middleware, plus the separate `is_superuser` flag above
 - Tokens expire in 30 min (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- Passwords are hashed with `bcrypt` directly in `app/core/auth.py`, truncated to bcrypt's
+  72-byte input exactly as the old passlib + bcrypt<4 stack did. passlib is gone: it is
+  unmaintained and breaks on bcrypt 5, which raises past 72 bytes instead of truncating
 - Desktop mode does **not** disable auth. `DESKTOP_MODE` is currently inert (see below), so JWT
   auth is enforced in every mode
 
@@ -271,7 +274,7 @@ must stay private too.
 
 ## Security Scanning
 
-Five mechanisms, none of which cost anything on a public repo:
+Four mechanisms, none of which cost anything on a public repo:
 
 | Mechanism | Where | Blocking |
 |-----------|-------|----------|
@@ -279,13 +282,15 @@ Five mechanisms, none of which cost anything on a public repo:
 | ruff `S` (flake8-bandit) | `Lint (ruff)` job | yes |
 | CodeQL | GitHub **default setup** (repo settings, no workflow file) | yes, once required |
 | Secret scanning + push protection | GitHub native, repo settings | push protection blocks |
-| Dependabot | `.github/dependabot.yml`, weekly, grouped | no — opens PRs |
 
 **`npm audit` is deliberately not a gate.** react-scripts 5.0.1 carries 64 advisories
 (12 low / 17 moderate / 31 high / 4 critical) and `--omit=dev` returns an *identical* count,
 because CRA ships `react-scripts` in `dependencies`. 28 of them resolve only to
 "upgrade react-scripts to 0.0.0 (semver-major)" — eject. A permanently red list trains people
-to ignore it, so Dependabot handles the fixable subset instead. Do not re-add it.
+to ignore it. Do not re-add it.
+
+**There is no automated dependency updater.** Dependabot was removed: nothing opens
+upgrade PRs, so dependency and toolchain upgrades are done by hand, deliberately.
 
 **`pip-audit` audits the installed environment, not `-r requirements.txt`** — that file is
 largely unpinned, so `-r` makes pip-audit resolve its own set rather than auditing what the
@@ -379,8 +384,11 @@ Celery worker are still required — `preprocess_edf` runs in both modes.
 
 ## Tech Stack
 
-- **Frontend:** React 19 + TypeScript, MUI v7, React Router v7, Plotly.js, Recharts
+- **Frontend:** React 19 + TypeScript 6, MUI v9, React Router v7, Plotly.js, Recharts
 - **Backend:** FastAPI, SQLAlchemy (SQLite locally, Postgres/Supabase in deployment), Celery + Redis, PyJWT
 - **ML:** PyTorch, MNE-Python, OpenAI API (`gpt-4o-mini`)
 - **Storage:** Supabase Storage in deployment; local disk for development
-- **Desktop:** Electron 28, PyInstaller, electron-builder (NSIS installer)
+- **Desktop:** Electron 44, PyInstaller, electron-builder (NSIS installer)
+- **Toolchain:** Node 26 (`.nvmrc`) with npm 12, Python 3.14. CI and both frontend
+  Dockerfiles install npm 12 explicitly: the npm bundled with Node is a different major,
+  and npm majors write lockfiles the other's `npm ci` rejects

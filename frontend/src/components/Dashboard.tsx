@@ -40,7 +40,13 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -152,7 +158,14 @@ const Dashboard: React.FC = () => {
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height={300}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: 300
+                  }}>
                   <Typography variant="body1" color="textSecondary">
                     No data available
                   </Typography>
@@ -186,7 +199,12 @@ const Dashboard: React.FC = () => {
                       }}
                     >
                       <Box>
-                        <Typography variant="body1" fontWeight="500" sx={{ mb: 1 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontWeight: "500",
+                            mb: 1
+                          }}>
                           {file.filename}
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
@@ -206,7 +224,14 @@ const Dashboard: React.FC = () => {
                   ))}
                 </Box>
               ) : (
-                <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height={200}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: 200
+                  }}>
                   <Typography variant="body1" color="textSecondary">
                     No recent files
                   </Typography>

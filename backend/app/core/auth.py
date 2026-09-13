@@ -5,19 +5,16 @@ Authentication utilities
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.auth import AuthUser, UserType
 from app.schemas.auth import TokenData
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings
 SECRET_KEY = settings.SECRET_KEY
@@ -28,14 +25,25 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 security = HTTPBearer(auto_error=False)
 
 
+# bcrypt reads only the first 72 bytes of a password. bcrypt<4, which passlib used
+# to wrap, truncated longer ones silently; bcrypt 5 raises ValueError instead. No
+# password schema sets a max_length, so truncate here: otherwise a long password is
+# a 500, and an account created with one under the old stack can never log in.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
+
+def _bcrypt_input(password: str) -> bytes:
+    return password.encode("utf-8")[:BCRYPT_MAX_PASSWORD_BYTES]
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(_bcrypt_input(plain_password), hashed_password.encode("utf-8"))
 
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
