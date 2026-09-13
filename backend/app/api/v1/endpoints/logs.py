@@ -2,7 +2,7 @@
 Client logging endpoints
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 
 from app.core.logging_config import logger
 from app.schemas.log import ClientLogEntry

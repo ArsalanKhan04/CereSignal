@@ -1,6 +1,7 @@
 import numpy as np
-from scipy.signal import welch, savgol_filter, find_peaks, butter, filtfilt, detrend
+from scipy.signal import butter, filtfilt, find_peaks, savgol_filter, welch
 from scipy.stats import zscore
+
 
 class PDREstimator:
     """
@@ -134,7 +135,6 @@ class PDREstimator:
         # Keep only continuous intervals > 10s
         # This requires finding connected components of 'True'
         min_samples = 10 * self.sfreq
-        labeled_mask = np.zeros_like(is_valid)
 
         # Simple run-length encoding equivalent
         is_valid_int = is_valid.astype(int)
@@ -145,7 +145,7 @@ class PDREstimator:
         total_valid_samples = 0
         final_mask = np.zeros_like(is_valid, dtype=bool)
 
-        for s, e in zip(starts, ends):
+        for s, e in zip(starts, ends, strict=True):
             if (e - s) >= min_samples:
                 final_mask[s:e] = True
                 total_valid_samples += (e - s)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -12,14 +12,12 @@ import {
   Grid, // In MUI v6 this is Grid2
   CircularProgress,
   Alert,
-  IconButton,
   Chip,
   Avatar,
   Paper,
   Fade,
   Stack,
   Divider,
-  Tooltip,
   useTheme
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';

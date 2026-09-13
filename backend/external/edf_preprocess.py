@@ -19,9 +19,8 @@ import argparse
 import sys
 from pathlib import Path
 
-import numpy as np
 import mne
-
+import numpy as np
 
 # Standard 10-20 channel names (final 22 channels after adding A1, A2)
 FINAL_CHANNEL_LABELS = [

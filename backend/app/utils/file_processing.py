@@ -5,15 +5,13 @@ File processing utilities
 import os
 import secrets
 from pathlib import Path
-from typing import Optional
-import pyedflib
+
 import pandas as pd
-import json
+import pyedflib
 from fastapi import UploadFile
 
-from app.core.config import settings
 from app.core.logging_config import logger
-from app.services.storage_service import storage_service, SIGNALS_BUCKET
+from app.services.storage_service import SIGNALS_BUCKET, storage_service
 
 
 async def save_uploaded_file(file: UploadFile, filename: str) -> str:
@@ -49,7 +47,6 @@ def process_eeg_file_with_mne(storage_path: str) -> dict:
     """Process EEG file using MNE and return complete signal data."""
     try:
         import mne
-        import numpy as np
 
         with storage_service.temp_local_file(SIGNALS_BUCKET, storage_path, suffix=".edf") as local_path:
             raw = mne.io.read_raw_edf(local_path, preload=True, verbose=False)
@@ -140,7 +137,7 @@ def process_csv_file(file_path: str) -> dict:
         }
         
         # Process each column as a signal
-        for i, column in enumerate(df.columns):
+        for column in df.columns:
             signal_info = {
                 "channel_name": column,
                 "sampling_rate": 1000,  # Default assumption

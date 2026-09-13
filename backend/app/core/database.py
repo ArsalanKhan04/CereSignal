@@ -5,6 +5,7 @@ Database configuration and session management
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+
 from app.core.config import settings
 
 
@@ -16,7 +17,7 @@ def _connect_args(url: str) -> dict:
     TypeError at connection time, which is what previously made local SQLite
     development impossible.
     """
-    if url.startswith("postgresql://") or url.startswith("postgres://"):
+    if url.startswith(("postgresql://", "postgres://")):
         return {"sslmode": "require"}
     if url.startswith("sqlite://"):
         # FastAPI serves requests from a threadpool, so the connection must not

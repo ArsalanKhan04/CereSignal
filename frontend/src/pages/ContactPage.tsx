@@ -358,7 +358,14 @@ const ContactPage: React.FC = () => {
               SEECS, NUST<br />
               H-12, Islamabad, Pakistan
             </p>
-            <a href="#" className="lp-tile-value">Get directions →</a>
+            <a
+              href="https://www.google.com/maps/search/?api=1&query=SEECS%2C+NUST%2C+H-12%2C+Islamabad%2C+Pakistan"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="lp-tile-value"
+            >
+              Get directions →
+            </a>
           </div>
         </div>
       </div>

@@ -4,10 +4,10 @@ All routes require is_superuser=True via get_current_superuser dependency.
 """
 
 import io
-import zipfile
 import logging
+import zipfile
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -32,6 +32,7 @@ from app.schemas.dev_admin import (
     DevAdminReport,
     DevAdminStaffMember,
 )
+from app.schemas.field_types import PageLimit, PageOffset, ResourceId
 from app.services.storage_service import SIGNALS_BUCKET, storage_service
 
 logger = logging.getLogger(__name__)
@@ -162,7 +163,7 @@ async def list_hospitals(
 
 @router.get("/hospitals/{hospital_id}", response_model=DevAdminHospitalDetail)
 async def get_hospital_detail(
-    hospital_id: int,
+    hospital_id: ResourceId,
     _: AuthUser = Depends(get_current_superuser),
     db: Session = Depends(get_db),
 ):
@@ -240,8 +241,8 @@ async def get_hospital_detail(
 
 @router.get("/contacts", response_model=DevAdminContactListResponse)
 async def list_contacts(
-    skip: int = 0,
-    limit: int = 20,
+    skip: PageOffset = 0,
+    limit: PageLimit = 20,
     unread_only: bool = False,
     _: AuthUser = Depends(get_current_superuser),
     db: Session = Depends(get_db),
@@ -269,7 +270,7 @@ async def list_contacts(
 
 @router.put("/contacts/{contact_id}/read", response_model=DevAdminContact)
 async def toggle_contact_read(
-    contact_id: int,
+    contact_id: ResourceId,
     _: AuthUser = Depends(get_current_superuser),
     db: Session = Depends(get_db),
 ):
@@ -286,8 +287,8 @@ async def toggle_contact_read(
 
 @router.get("/hospitals/{hospital_id}/files/{file_id}/download")
 async def download_hospital_file(
-    hospital_id: int,
-    file_id: int,
+    hospital_id: ResourceId,
+    file_id: ResourceId,
     _: AuthUser = Depends(get_current_superuser),
     db: Session = Depends(get_db),
 ):
@@ -317,8 +318,8 @@ async def download_hospital_file(
 
 @router.get("/hospitals/{hospital_id}/reports/{report_id}/download")
 async def download_hospital_report(
-    hospital_id: int,
-    report_id: int,
+    hospital_id: ResourceId,
+    report_id: ResourceId,
     _: AuthUser = Depends(get_current_superuser),
     db: Session = Depends(get_db),
 ):
@@ -349,7 +350,7 @@ async def download_hospital_report(
 
 @router.get("/hospitals/{hospital_id}/download")
 async def bulk_download_hospital(
-    hospital_id: int,
+    hospital_id: ResourceId,
     _: AuthUser = Depends(get_current_superuser),
     db: Session = Depends(get_db),
 ):

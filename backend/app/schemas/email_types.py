@@ -1,5 +1,6 @@
 import re
 from typing import Annotated, Any
+
 from pydantic import BeforeValidator
 
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")

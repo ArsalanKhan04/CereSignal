@@ -3,17 +3,18 @@ Main API router
 """
 
 from fastapi import APIRouter
+
 from app.api.v1.endpoints import (
     admin,
     auth,
     config,
+    contact,
     dev_admin,
+    logs,
+    notifications,
+    reports,
     signals,
     users,
-    reports,
-    notifications,
-    logs,
-    contact,
 )
 
 api_router = APIRouter()

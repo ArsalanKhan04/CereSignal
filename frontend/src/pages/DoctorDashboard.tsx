@@ -41,7 +41,7 @@ const DoctorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const theme = useTheme();
   const navigate = useNavigate();
-  const { isActive: isDemoActive, currentStepId, jumpToStep, demoData } = useDemo();
+  const { isActive: isDemoActive, currentStepId, jumpToStep } = useDemo();
 
   // Helper to get initials for the Avatar
   const getInitials = (first?: string, last?: string) => {

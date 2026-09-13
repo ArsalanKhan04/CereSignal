@@ -44,7 +44,7 @@ import ViewIcon from '@mui/icons-material/Visibility';
 import { apiClient } from '../services/api';
 import {
   validateName, validateRequired, validatePhone, validateEmail,
-  validateAge, validateDateOfBirth, validateGender, validateBloodType,
+  validateAge, validateDateOfBirth, validateBloodType,
   validateMaxLength,
   collectErrors, extractApiErrors
 } from '../utils/validation';
@@ -125,7 +125,7 @@ const Patients: React.FC<{
 }) => {
   const { user } = useAuth();
   const { aiInferenceEnabled } = useConfig();
-  const { isActive: isDemoActive, demoData, setDemoData, jumpToStep } = useDemo();
+  const { isActive: isDemoActive, setDemoData, jumpToStep } = useDemo();
   const isReadOnly = user?.user_type === 'doctor';
   const allowDoctorFileOps = false;
   const allowDesktopCreate = false;
@@ -248,6 +248,10 @@ const Patients: React.FC<{
     if (user?.user_type === 'technician' || allowDesktopCreate) {
       loadDoctors();
     }
+    // `loadPatients` is recreated on every render, so listing it here would
+    // re-fire this effect on every render — an unconditional fetch loop.
+    // The array below is the intended trigger set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, doctorViewMode, searchQuery, reportSentFilter]);
 
   useEffect(() => {
@@ -302,6 +306,10 @@ const Patients: React.FC<{
         pollingRef.current = null;
       }
     };
+    // `loadPatients` is recreated on every render, so listing it here would
+    // re-fire this effect on every render — an unconditional fetch loop.
+    // The array below is the intended trigger set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientFiles]);
 
   const loadPatients = async () => {
@@ -828,10 +836,6 @@ const Patients: React.FC<{
     };
   }, [activeEEGFileId, activeEEGAnalysis]);
 
-  const getReportStatusColor = (impression?: string) => {
-    if (impression === 'normal' || impression === 'abnormal') return 'success';
-    return 'default';
-  };
 
   const getPatientFile = (patient: Patient) => patientFiles[patient.id]?.[0] || null;
 

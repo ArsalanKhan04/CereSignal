@@ -4,9 +4,11 @@ Inference service for EEG analysis using Celery
 
 import os
 import sys
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from celery import Celery
 from celery.result import AsyncResult
+
 from app.core.logging_config import logger
 
 # Add the project root to Python path for imports
@@ -44,7 +46,7 @@ class InferenceService:
             task = preprocess_edf.delay(file_path)
             
             return task.id
-        except Exception as e:
+        except Exception:
             logger.error("Error starting inference task", exc_info=True)
             raise
     

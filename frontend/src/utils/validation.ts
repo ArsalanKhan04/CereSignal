@@ -11,7 +11,6 @@ export interface ValidationResult {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[\d\s\-().]{7,20}$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,50}$/;
-const NAME_REGEX = /^[\p{L}'\-\s]+$/u;
 
 export function validateRequired(value: string | undefined | null, field: string, label: string): ValidationError | null {
   if (!value || !value.trim()) {

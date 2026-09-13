@@ -194,6 +194,15 @@ def admin_a(db_session, password_hash, hospital_a):
 
 
 @pytest.fixture
+def admin_b(db_session, password_hash, hospital_b):
+    """The other hospital's admin — the counterparty for every cross-tenant check."""
+    return _make_auth_user(
+        db_session, password_hash,
+        username="admin_b", user_type=UserType.ADMIN.value, hospital=hospital_b,
+    )
+
+
+@pytest.fixture
 def patient_a(db_session, password_hash, hospital_a):
     """A PATIENT auth account. Its `users` row is attached by make_patient."""
     return _make_auth_user(

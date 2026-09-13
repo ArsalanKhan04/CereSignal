@@ -2,20 +2,22 @@
 User management endpoints
 """
 
+import uuid
+from datetime import date, datetime, timezone
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import date, datetime, timezone
-import os
-import uuid
 
 from app.core.access import forbid_patients, get_accessible_patient, visible_patients
-from app.core.database import get_db
 from app.core.auth import get_current_active_user
-from app.models.user import User
+from app.core.database import get_db
+from app.core.logging_config import logger
 from app.models.auth import AuthUser, UserType
-from app.models.signal import SignalFile
 from app.models.notification import Notification
+from app.models.signal import SignalFile
+from app.models.user import User
+from app.schemas.field_types import PageLimit, PageOffset
 from app.schemas.user import (
     PortalEmailResponse,
     UserCreate,
@@ -23,7 +25,6 @@ from app.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from app.core.logging_config import logger
 
 router = APIRouter()
 
@@ -200,9 +201,9 @@ async def create_user(
         doc = db.query(AuthUser).filter(AuthUser.id == db_user.auth_user_id).first()
         if doc:
             doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
-            setattr(db_user, "doctor_name", doc_name)
+            db_user.doctor_name = doc_name
         else:
-            setattr(db_user, "doctor_name", None)
+            db_user.doctor_name = None
 
         return db_user
 
@@ -220,8 +221,8 @@ async def create_user(
 
 @router.get("/", response_model=List[UserListResponse])
 async def get_users(
-    skip: int = 0,
-    limit: int = 50,
+    skip: PageOffset = 0,
+    limit: PageLimit = 50,
     search: Optional[str] = None,
     include_unassigned: bool = False,
     report_sent: Optional[bool] = None,
@@ -257,9 +258,9 @@ async def get_users(
         doc = db.query(AuthUser).filter(AuthUser.id == u.auth_user_id).first()
         if doc:
             doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
-            setattr(u, "doctor_name", doc_name)
+            u.doctor_name = doc_name
         else:
-            setattr(u, "doctor_name", None)
+            u.doctor_name = None
     return users
 
 
@@ -274,9 +275,9 @@ async def get_user(
     doc = db.query(AuthUser).filter(AuthUser.id == user.auth_user_id).first()
     if doc:
         doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
-        setattr(user, "doctor_name", doc_name)
+        user.doctor_name = doc_name
     else:
-        setattr(user, "doctor_name", None)
+        user.doctor_name = None
     return user
 
 
@@ -442,9 +443,9 @@ async def update_user(
         doc = db.query(AuthUser).filter(AuthUser.id == user.auth_user_id).first()
         if doc:
             doc_name = f"{(doc.title + ' ') if doc.title else ''}{doc.first_name or ''} {doc.last_name or ''}".strip()
-            setattr(user, "doctor_name", doc_name)
+            user.doctor_name = doc_name
         else:
-            setattr(user, "doctor_name", None)
+            user.doctor_name = None
 
         return user
 
@@ -482,7 +483,7 @@ async def delete_user(
 
     try:
         # Delete all associated signal files first (both physical files and database records)
-        from app.services.storage_service import storage_service, SIGNALS_BUCKET, ASSETS_BUCKET
+        from app.services.storage_service import ASSETS_BUCKET, SIGNALS_BUCKET, storage_service
 
         signal_files = db.query(SignalFile).filter(SignalFile.user_id == user.id).all()
         for file in signal_files:
@@ -528,7 +529,7 @@ async def mark_report_sent(
     user.report_sent = True
     db.commit()
     db.refresh(user)
-    setattr(user, "doctor_name", None)
+    user.doctor_name = None
     return user
 
 
@@ -571,5 +572,5 @@ async def send_portal_email(
             detail=f"Failed to send email: {str(e)}",
         )
 
-    setattr(user, "doctor_name", None)
+    user.doctor_name = None
     return user

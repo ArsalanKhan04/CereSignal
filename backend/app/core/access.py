@@ -20,6 +20,7 @@ from app.models.auth import AuthUser, UserType
 from app.models.report import EEGReport
 from app.models.signal import SignalFile
 from app.models.user import User
+from app.schemas.field_types import ResourceId
 
 FILE_NOT_FOUND = "Signal file not found"
 REPORT_NOT_FOUND = "Report not found"
@@ -134,7 +135,7 @@ def visible_patients(db: Session, current_user: AuthUser) -> Query:
 
 
 def get_accessible_patient(
-    user_id: int,
+    user_id: ResourceId,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> User:
@@ -193,7 +194,7 @@ def _file_denial(db: Session, current_user: AuthUser, file_id: int) -> HTTPExcep
 
 
 def get_accessible_file(
-    file_id: int,
+    file_id: ResourceId,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> SignalFile:
@@ -211,7 +212,7 @@ def get_accessible_file(
 
 
 def get_accessible_report(
-    report_id: int,
+    report_id: ResourceId,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> EEGReport:

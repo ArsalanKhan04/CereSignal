@@ -7,16 +7,16 @@ Usage (from backend/ directory):
     python scripts/create_admin.py
 """
 
-import sys
-import os
 import getpass
+import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.database import SessionLocal
 from app.core.auth import get_password_hash
-from app.models.hospital import Hospital
+from app.core.database import SessionLocal
 from app.models.auth import AuthUser, UserType
+from app.models.hospital import Hospital
 
 
 def main():

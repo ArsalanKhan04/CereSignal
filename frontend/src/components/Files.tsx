@@ -37,8 +37,8 @@ const Files: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [filter, setFilter] = useState<string>('all');
   const [selectedFile, setSelectedFile] = useState<SignalFile | null>(null);
-  const [signals, setSignals] = useState<Signal[]>([]);
-  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [signals] = useState<Signal[]>([]);
+  const [signalsLoading] = useState(false);
   const [polling, setPolling] = useState(false);
 
   useEffect(() => {

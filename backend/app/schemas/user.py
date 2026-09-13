@@ -2,10 +2,12 @@
 Pydantic schemas for user management
 """
 
-from pydantic import BaseModel, Field
-from app.schemas.field_types import BlankAsNone, BlankAsNoneEmail
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from app.schemas.field_types import BlankAsNone, BlankAsNoneEmail
 
 
 class UserBase(BaseModel):

@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import logger from './logger';
 import {
   User,
@@ -18,7 +18,6 @@ import {
   EEGReportUpdate,
   EEGReportVersion,
   ApiResponse,
-  ApiError,
   NotificationItem,
   EEGBookmark,
   EEGBookmarkCreate,
@@ -37,7 +36,9 @@ import {
 } from '../types';
 
 class ApiClient {
-  private client: AxiosInstance;
+  // `readonly` rather than `private` so tests can attach an axios mock adapter to
+  // the real instance and exercise the interceptors below. No runtime difference.
+  readonly client: AxiosInstance;
   private baseURL: string;
   constructor() {
     this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';

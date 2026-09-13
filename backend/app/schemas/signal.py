@@ -2,9 +2,12 @@
 Pydantic schemas for signal processing
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from app.schemas.field_types import OptionalBodyResourceId
 
 
 class SignalFileBase(BaseModel):
@@ -19,7 +22,6 @@ class SignalFileBase(BaseModel):
 class SignalFileCreate(SignalFileBase):
     """Schema for creating signal file"""
 
-    pass
 
 
 class SignalFileResponse(SignalFileBase):
@@ -78,7 +80,7 @@ class EEGBookmarkCreate(EEGBookmarkBase):
     """Schema for creating EEG bookmark"""
 
     image_base64: str = Field(..., description="Base64 encoded PNG image")
-    replace_id: Optional[int] = None
+    replace_id: OptionalBodyResourceId = None
 
 
 class EEGBookmarkResponse(EEGBookmarkBase):

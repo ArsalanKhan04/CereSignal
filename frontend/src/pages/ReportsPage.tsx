@@ -8,7 +8,6 @@ import {
   Grid, // In MUI v6 use Grid2 syntax
   Chip,
   IconButton,
-  Dialog,
   Alert,
   CircularProgress,
   FormControl,
@@ -19,8 +18,7 @@ import {
   Paper,
   Tooltip,
   Divider,
-  Stack,
-  useTheme
+  Stack
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -29,10 +27,7 @@ import ReportIcon from '@mui/icons-material/Description';
 import PDFIcon from '@mui/icons-material/PictureAsPdf';
 import DownloadIcon from '@mui/icons-material/Download';
 import TimeIcon from '@mui/icons-material/AccessTime';
-import PersonIcon from '@mui/icons-material/Person';
 import FileIcon from '@mui/icons-material/InsertDriveFile';
-import FinalizedIcon from '@mui/icons-material/CheckCircle';
-import DraftIcon from '@mui/icons-material/Drafts';
 import HistoryIcon from '@mui/icons-material/History';
 import { apiClient } from '../services/api';
 import { pdfNameFromEdf } from '../utils/fileNames';
@@ -44,7 +39,6 @@ import ReportVersionHistory from '../components/ReportVersionHistory';
 export {};
 
 const ReportsPage: React.FC = () => {
-  const theme = useTheme();
   
   // State
   const [reports, setReports] = useState<EEGReport[]>([]);

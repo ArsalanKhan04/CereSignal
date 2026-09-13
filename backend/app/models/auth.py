@@ -2,11 +2,13 @@
 Authentication models
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Enum
+import enum
+from typing import Optional
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from typing import Optional
-import enum
+
 from app.core.database import Base
 
 

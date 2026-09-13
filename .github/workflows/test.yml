@@ -12,16 +12,55 @@ on:
   push:
     branches: [main]
 
+# This workflow reads the repo and nothing else. A default-permissive GITHUB_TOKEN
+# on a public repo is what supply-chain attacks reach for.
+permissions:
+  contents: read
+
+# Supersede in-flight runs for the same PR, but always let pushes to main finish —
+# main is the baseline the coverage ratchet is measured against.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Its own job because ruff needs none of the project's dependencies: it installs
+  # in ~15s against the backend job's multi-minute install, so the lint verdict
+  # arrives first and a lint failure never masks the test result.
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # external/CereProcess and external/full_edf_viewer are submodules and are
+          # not ours to lint; pyproject.toml excludes them either way.
+          submodules: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install ruff==0.16.7
+
+      - name: Run ruff
+        run: ruff check .
+        working-directory: backend
+
   backend:
     name: Backend (pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - uses: actions/setup-python@v5
         with:
@@ -42,15 +81,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
+      # Audits the installed environment (see requirements-dev.txt for why not -r).
+      #
+      # One ignore, and it is load-bearing rather than convenient:
+      #   PYSEC-2026-1325 — ecdsa Minerva P-256 timing attack. No fix exists and
+      #   upstream has declined to ship one. ecdsa arrives transitively via
+      #   python-jose; app/core/auth.py pins ALGORITHM = "HS256" and decodes with
+      #   algorithms=["HS256"], so no ECDSA code path is reachable.
+      - name: Audit backend dependencies
+        run: |
+          pip install --upgrade 'setuptools>=83.0.0'
+          pip-audit --strict --ignore-vuln PYSEC-2026-1325
+
+      # --cov activates .coveragerc, which carries the fail_under ratchet. A plain
+      # `pytest` stays untraced (and fast) because the floor lives there, not here.
       - name: Run pytest
-        run: python -m pytest
+        run: python -m pytest --cov=app --cov=external --cov=inference --cov-report=term-missing
 
   frontend:
     name: Frontend (jest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - uses: actions/setup-node@v4
         with:
@@ -60,6 +116,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        working-directory: frontend
+
+      # tsc and eslint both need the node_modules installed above, so folding them
+      # into this job is free — no second npm ci.
+      - name: Type-check
+        run: npm run typecheck
+        working-directory: frontend
+
+      - name: Lint
+        run: npm run lint
         working-directory: frontend
 
       - name: Run tests

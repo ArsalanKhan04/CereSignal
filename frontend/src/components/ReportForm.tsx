@@ -21,8 +21,6 @@ import {
   Stack,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
-import EditIcon from '@mui/icons-material/Edit';
-import CheckIcon from '@mui/icons-material/Check';
 import WaitingIcon from '@mui/icons-material/HourglassEmpty';
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
@@ -174,6 +172,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
     };
 
     initializeForm();
+    // `checkForLLMReport / prefillFormData` is recreated on every render, so listing it here would
+    // re-fire this effect on every render — an unconditional fetch loop.
+    // The array below is the intended trigger set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId, signalFile, patient, doctor, propExistingReport, user]);
 
   useEffect(() => {
@@ -286,7 +288,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
   };
 
   const prefillFormData = () => {
-    const today = new Date().toISOString().split('T')[0];
     
     // Only prefill if we're not editing an existing report
     if (propExistingReport) {

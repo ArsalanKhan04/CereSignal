@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDemo } from '../contexts/DemoContext';
 import './LandingPage.css';
@@ -959,9 +959,9 @@ const LandingPage: React.FC = () => {
           <div>
             <h5>Get Started</h5>
             <ul>
-              <li><a href="#" onClick={(e) => { e.preventDefault(); handleTryNow(); }}>Try Now</a></li>
-              <li><a href="#" onClick={(e) => { e.preventDefault(); handleLogin(); }}>Login</a></li>
-              <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/register/hospital'); }}>Register</a></li>
+              <li><button type="button" className="lp-footer-link" onClick={() => { handleTryNow(); }}>Try Now</button></li>
+              <li><button type="button" className="lp-footer-link" onClick={() => { handleLogin(); }}>Login</button></li>
+              <li><button type="button" className="lp-footer-link" onClick={() => { navigate('/register/hospital'); }}>Register</button></li>
             </ul>
           </div>
           <div>

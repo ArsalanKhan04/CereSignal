@@ -2,15 +2,14 @@
 Report management endpoints
 """
 
+import os
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
-from typing import List, Optional
-from datetime import datetime
-import os
 
-from app.core.database import get_db
 from app.core.access import (
     forbid_patients,
     get_accessible_file,
@@ -19,15 +18,17 @@ from app.core.access import (
     visible_signal_files,
 )
 from app.core.auth import get_current_active_user
-from app.models.report import EEGReport, EEGReportVersion
-from app.models.signal import SignalFile
+from app.core.database import get_db
 from app.models.auth import AuthUser, UserType
 from app.models.notification import Notification
+from app.models.report import EEGReport, EEGReportVersion
+from app.models.signal import SignalFile
+from app.schemas.field_types import OptionalQueryResourceId, PageLimit, PageOffset, ResourceId
 from app.schemas.report import (
     EEGReportCreate,
-    EEGReportUpdate,
-    EEGReportResponse,
     EEGReportListResponse,
+    EEGReportResponse,
+    EEGReportUpdate,
     EEGReportVersionResponse,
 )
 from app.services.pdf_service import pdf_generator
@@ -163,9 +164,9 @@ async def create_report(
 
 @router.get("/", response_model=List[EEGReportListResponse])
 async def get_reports(
-    skip: int = 0,
-    limit: int = 100,
-    patient_id: Optional[int] = None,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    patient_id: OptionalQueryResourceId = None,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -324,7 +325,7 @@ async def list_report_versions(
 
 @router.get("/{report_id}/versions/{version_id}", response_model=EEGReportVersionResponse)
 async def get_report_version(
-    version_id: int,
+    version_id: ResourceId,
     report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
@@ -354,7 +355,7 @@ async def get_report_version(
 
 @router.post("/{report_id}/versions/{version_id}/restore", response_model=EEGReportResponse)
 async def restore_report_version(
-    version_id: int,
+    version_id: ResourceId,
     report: EEGReport = Depends(get_accessible_report),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
@@ -492,7 +493,7 @@ async def download_report_pdf(
 ):
     """Download the PDF for a report"""
 
-    from app.services.storage_service import storage_service, SIGNALS_BUCKET
+    from app.services.storage_service import SIGNALS_BUCKET, storage_service
 
     # A path outside reports/<id>/ predates per-report paths: it was named after the
     # upload, may have been overwritten by another hospital's same-named file, and

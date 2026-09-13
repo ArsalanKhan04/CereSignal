@@ -9,6 +9,7 @@ Priority:
 
 import html
 import logging
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,7 @@ async def send_patient_portal_email(
 
     if settings.MAIL_FROM and settings.MAIL_SERVER:
         try:
-            from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+            from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
             conf = ConnectionConfig(
                 MAIL_USERNAME=settings.MAIL_USERNAME,
                 MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -229,7 +230,7 @@ async def send_invitation_email(
     # --- Option 2: SMTP via fastapi-mail ---
     if settings.MAIL_FROM and settings.MAIL_SERVER:
         try:
-            from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+            from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
             conf = ConnectionConfig(
                 MAIL_USERNAME=settings.MAIL_USERNAME,
                 MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -252,7 +253,7 @@ async def send_invitation_email(
             return
         except ImportError:
             logger.warning("fastapi-mail not installed — skipping SMTP send")
-        except Exception as e:
+        except Exception:
             raise
 
     # A transport was configured but every attempt failed — surface that, rather

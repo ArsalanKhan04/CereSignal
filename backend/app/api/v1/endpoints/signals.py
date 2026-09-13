@@ -3,15 +3,15 @@ Signal management endpoints
 """
 
 import base64
-import json
 import os
-import pathlib
 import time
 import uuid
-from datetime import datetime
 from typing import List, Optional
 
-import mne
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
+
 from app.core.access import (
     forbid_patients,
     get_accessible_file,
@@ -21,28 +21,30 @@ from app.core.access import (
 from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.logging_config import (log_db_operation, log_error,
-                                     log_file_operation, log_request, logger)
+from app.core.logging_config import (
+    log_error,
+    log_file_operation,
+    log_request,
+    logger,
+)
 from app.models.auth import AuthUser, UserType
 from app.models.report import EEGReport
 from app.models.signal import EEGBookmark, Signal, SignalFile
 from app.models.user import User
+from app.schemas.field_types import OptionalQueryResourceId, PageLimit, PageOffset, ResourceId
 from app.schemas.signal import (
     EEGBookmarkCreate,
     EEGBookmarkResponse,
     FileUploadResponse,
     SignalFileResponse,
-    SignalResponse,
     SignalLabelUpdate,
+    SignalResponse,
 )
 from app.services.eeg_cache_service import eeg_cache
+from app.services.inference_service import inference_service as _inference_service
 from app.services.pdf_service import pdf_generator
-from app.services.storage_service import storage_service, SIGNALS_BUCKET, ASSETS_BUCKET
+from app.services.storage_service import ASSETS_BUCKET, SIGNALS_BUCKET, storage_service
 from app.utils.file_processing import process_signal_file, save_uploaded_file
-from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
-                     status)
-from fastapi.responses import FileResponse, Response, RedirectResponse
-from sqlalchemy.orm import Session
 
 EEG_CHANNEL_ORDER = [
     "FP1",
@@ -69,9 +71,6 @@ EEG_CHANNEL_ORDER = [
 ]
 
 router = APIRouter()
-
-
-from app.services.inference_service import inference_service as _inference_service
 
 
 def _get_inference_service():
@@ -414,7 +413,7 @@ async def create_file_bookmark(
 
 @router.delete("/files/{file_id}/bookmarks/{bookmark_id}")
 async def delete_file_bookmark(
-    bookmark_id: int,
+    bookmark_id: ResourceId,
     file: SignalFile = Depends(get_accessible_file),
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
@@ -446,9 +445,9 @@ async def delete_file_bookmark(
 
 @router.get("/files", response_model=List[SignalFileResponse])
 async def get_signal_files(
-    skip: int = 0,
-    limit: int = 100,
-    patient_id: Optional[int] = None,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    patient_id: OptionalQueryResourceId = None,
     current_user: AuthUser = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
@@ -812,7 +811,7 @@ async def get_signal_stats(
     }
 
     # Get unique patients count
-    unique_patients = len(set(file.user_id for file in files if file.user_id))
+    unique_patients = len({file.user_id for file in files if file.user_id})
 
     return {
         "total_files": len(files),
@@ -825,7 +824,7 @@ async def get_signal_stats(
 
 @router.get("/files/{file_id}/inference-status")
 async def check_inference_status(
-    file_id: int,
+    file_id: ResourceId,
     file: SignalFile = Depends(get_accessible_file),
     db: Session = Depends(get_db),
 ):
@@ -940,7 +939,7 @@ async def check_inference_status(
 
 @router.get("/files/{file_id}/report-status")
 async def get_file_report_status(
-    file_id: int,
+    file_id: ResourceId,
     file: SignalFile = Depends(get_accessible_file),
     db: Session = Depends(get_db),
 ):

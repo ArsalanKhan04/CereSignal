@@ -6,9 +6,9 @@ try:
     from pydantic_settings import BaseSettings
 except ImportError:
     from pydantic import BaseSettings
-from pydantic import field_validator
 from typing import List, Union
-import os
+
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # Server settings
-    HOST: str = "0.0.0.0"
+    # Containers and Railway route to the service from outside the namespace, so
+    # binding loopback only would make the API unreachable. Deliberate.
+    HOST: str = "0.0.0.0"  # noqa: S104
     PORT: int = 8000
     DEBUG: bool = False
 

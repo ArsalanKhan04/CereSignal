@@ -2,11 +2,13 @@
 Admin and hospital schemas
 """
 
+from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, Field
+
 from app.schemas.email_types import LenientEmailStr
 from app.schemas.field_types import BlankAsNone, BlankAsNoneEmail
-from typing import Optional, List
-from datetime import datetime
 
 
 class HospitalAdminRegister(BaseModel):
