@@ -144,10 +144,17 @@ const HospitalSignupPage: React.FC = () => {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 8 }}>
           <LogoIcon sx={{ fontSize: 40, mr: 2, color: 'white' }} />
-          <Typography variant="h5" fontWeight="800">CereSignal</Typography>
+          <Typography variant="h5" sx={{
+            fontWeight: "800"
+          }}>CereSignal</Typography>
         </Box>
 
-        <Typography variant="h4" fontWeight="700" sx={{ mb: 2 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: "700",
+            mb: 2
+          }}>
           Register Your Hospital
         </Typography>
         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)', mb: 6 }}>
@@ -169,7 +176,9 @@ const HospitalSignupPage: React.FC = () => {
               </ListItemIcon>
               <ListItemText
                 primary={item.text}
-                primaryTypographyProps={{ fontWeight: 500, color: 'rgba(255,255,255,0.9)' }}
+                slotProps={{
+                  primary: { sx: { fontWeight: 500, color: 'rgba(255,255,255,0.9)' } }
+                }}
               />
             </ListItem>
           ))}
@@ -193,15 +202,25 @@ const HospitalSignupPage: React.FC = () => {
             {/* Mobile header */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', mb: 4 }}>
               <LogoIcon sx={{ color: primaryMain, mr: 1, fontSize: 32 }} />
-              <Typography variant="h6" fontWeight="800">CereSignal</Typography>
+              <Typography variant="h6" sx={{
+                fontWeight: "800"
+              }}>CereSignal</Typography>
             </Box>
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 4 }}>
               <Box>
-                <Typography variant="h4" fontWeight="800" sx={{ color: '#1a1a1a', mb: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: "800",
+                    color: '#1a1a1a',
+                    mb: 1
+                  }}>
                   Hospital Registration
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Typography variant="body1" sx={{
+                  color: "text.secondary"
+                }}>
                   Create your hospital workspace and admin account.
                 </Typography>
               </Box>
@@ -217,7 +236,14 @@ const HospitalSignupPage: React.FC = () => {
 
                 {/* Card 1: Hospital Details */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: "700",
+                      mb: 3,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
                     <HospitalIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Hospital Details
                   </Typography>
                   <Grid container spacing={3}>
@@ -227,7 +253,7 @@ const HospitalSignupPage: React.FC = () => {
                         value={formData.hospital_name} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_name}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><HospitalIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><HospitalIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
@@ -236,7 +262,7 @@ const HospitalSignupPage: React.FC = () => {
                         value={formData.hospital_address} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_address}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><LocationIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><LocationIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -245,7 +271,7 @@ const HospitalSignupPage: React.FC = () => {
                         value={formData.hospital_phone} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_phone}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -254,7 +280,7 @@ const HospitalSignupPage: React.FC = () => {
                         type="email" value={formData.hospital_email} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.hospital_email}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                   </Grid>
@@ -262,7 +288,14 @@ const HospitalSignupPage: React.FC = () => {
 
                 {/* Card 2: Admin Account */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: "700",
+                      mb: 3,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
                     <SecurityIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Admin Account
                   </Typography>
                   <Grid container spacing={3}>
@@ -288,7 +321,7 @@ const HospitalSignupPage: React.FC = () => {
                         value={formData.username} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.username}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -297,7 +330,7 @@ const HospitalSignupPage: React.FC = () => {
                         type="email" value={formData.email} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.email}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><EmailIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -306,7 +339,7 @@ const HospitalSignupPage: React.FC = () => {
                         value={formData.password} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.password}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -315,7 +348,7 @@ const HospitalSignupPage: React.FC = () => {
                         value={formData.confirm_password} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.confirm_password}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                   </Grid>
@@ -372,7 +405,9 @@ const HospitalSignupPage: React.FC = () => {
                 </Box>
 
                 <Box sx={{ textAlign: 'center', pb: 4 }}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Already registered?{' '}
                     <Link component={RouterLink} to="/" sx={{ fontWeight: 600, textDecoration: 'none', color: 'primary.main' }}>
                       Sign in here

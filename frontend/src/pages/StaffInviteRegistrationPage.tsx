@@ -185,8 +185,18 @@ const StaffInviteRegistrationPage: React.FC = () => {
         <Fade in>
           <Paper elevation={0} sx={{ p: 6, borderRadius: 4, maxWidth: 480, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
             <ErrorIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
-            <Typography variant="h5" fontWeight="700" sx={{ mb: 2 }}>Invitation Invalid</Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>{tokenError}</Typography>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: "700",
+                mb: 2
+              }}>Invitation Invalid</Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                color: "text.secondary",
+                mb: 4
+              }}>{tokenError}</Typography>
             <Button component={RouterLink} to="/" variant="outlined">Back to Login</Button>
           </Paper>
         </Fade>
@@ -215,10 +225,17 @@ const StaffInviteRegistrationPage: React.FC = () => {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 8 }}>
           <LogoIcon sx={{ fontSize: 40, mr: 2, color: 'white' }} />
-          <Typography variant="h5" fontWeight="800">CereSignal</Typography>
+          <Typography variant="h5" sx={{
+            fontWeight: "800"
+          }}>CereSignal</Typography>
         </Box>
 
-        <Typography variant="h4" fontWeight="700" sx={{ mb: 2 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: "700",
+            mb: 2
+          }}>
           You're Invited!
         </Typography>
         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)', mb: 3 }}>
@@ -227,7 +244,9 @@ const StaffInviteRegistrationPage: React.FC = () => {
 
         <Box sx={{ mb: 4, p: 2, bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, border: '1px solid rgba(255,255,255,0.12)' }}>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', mb: 0.5 }}>Joining as</Typography>
-          <Typography variant="h6" fontWeight="700">{roleDisplay}</Typography>
+          <Typography variant="h6" sx={{
+            fontWeight: "700"
+          }}>{roleDisplay}</Typography>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>at {tokenInfo?.hospital_name}</Typography>
         </Box>
 
@@ -246,7 +265,9 @@ const StaffInviteRegistrationPage: React.FC = () => {
               </ListItemIcon>
               <ListItemText
                 primary={item.text}
-                primaryTypographyProps={{ fontWeight: 500, color: 'rgba(255,255,255,0.9)' }}
+                slotProps={{
+                  primary: { sx: { fontWeight: 500, color: 'rgba(255,255,255,0.9)' } }
+                }}
               />
             </ListItem>
           ))}
@@ -269,15 +290,25 @@ const StaffInviteRegistrationPage: React.FC = () => {
 
             <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', mb: 4 }}>
               <LogoIcon sx={{ color: primaryMain, mr: 1, fontSize: 32 }} />
-              <Typography variant="h6" fontWeight="800">CereSignal</Typography>
+              <Typography variant="h6" sx={{
+                fontWeight: "800"
+              }}>CereSignal</Typography>
             </Box>
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 4 }}>
               <Box>
-                <Typography variant="h4" fontWeight="800" sx={{ color: '#1a1a1a', mb: 1 }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: "800",
+                    color: '#1a1a1a',
+                    mb: 1
+                  }}>
                   Complete Registration
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Typography variant="body1" sx={{
+                  color: "text.secondary"
+                }}>
                   Joining <strong>{tokenInfo?.hospital_name}</strong> as a {roleDisplay}.
                 </Typography>
               </Box>
@@ -296,7 +327,14 @@ const StaffInviteRegistrationPage: React.FC = () => {
 
                 {/* Card 1: Account */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: "700",
+                      mb: 3,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
                     <SecurityIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Account Credentials
                   </Typography>
                   <Grid container spacing={3}>
@@ -306,13 +344,13 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.username} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.username}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <FormTextField
                         fullWidth label="Email" value={tokenInfo?.email || ''} disabled
-                        InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> } }}
                         helperText="Set by your invitation"
                       />
                     </Grid>
@@ -322,7 +360,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.password} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.password}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -331,7 +369,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.confirm_password} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.confirm_password}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                   </Grid>
@@ -339,7 +377,14 @@ const StaffInviteRegistrationPage: React.FC = () => {
 
                 {/* Card 2: Personal */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: "700",
+                      mb: 3,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
                     <BadgeIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Personal Details
                   </Typography>
                   <Grid container spacing={3}>
@@ -373,7 +418,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.phone} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.phone}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><PhoneIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                   </Grid>
@@ -381,7 +426,14 @@ const StaffInviteRegistrationPage: React.FC = () => {
 
                 {/* Card 3: Professional */}
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="h6" fontWeight="700" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: "700",
+                      mb: 3,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
                     <HospitalIcon sx={{ mr: 1.5, color: 'primary.main' }} /> Professional Profile
                   </Typography>
                   <Grid container spacing={3}>
@@ -391,7 +443,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.license_number} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.license_number}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><BadgeIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
@@ -400,7 +452,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.specialization} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.specialization}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><SpecializationIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 4 }}>
@@ -409,7 +461,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.years_experience ?? ''} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.years_experience}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><ExperienceIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                     <Grid size={{ xs: 12 }}>
@@ -419,7 +471,7 @@ const StaffInviteRegistrationPage: React.FC = () => {
                         value={formData.about} onChange={handleChange}
                         disabled={isLoading}
                         fieldError={fieldErrors.about}
-                        InputProps={{ startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><BioIcon color="action" /></InputAdornment> }}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start" sx={{ mt: 1.5 }}><BioIcon color="action" /></InputAdornment> } }}
                       />
                     </Grid>
                   </Grid>
@@ -477,7 +529,9 @@ const StaffInviteRegistrationPage: React.FC = () => {
                 </Box>
 
                 <Box sx={{ textAlign: 'center', pb: 4 }}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Already have an account?{' '}
                     <Link component={RouterLink} to="/" sx={{ fontWeight: 600, textDecoration: 'none', color: 'primary.main' }}>
                       Sign in here

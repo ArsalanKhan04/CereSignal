@@ -93,7 +93,13 @@ const Events: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -111,7 +117,12 @@ const Events: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             Select EEG File for Event Analysis
           </Typography>
-          <Box display="flex" gap={2} alignItems="end">
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "end"
+            }}>
             <FormControl fullWidth>
               <InputLabel>Choose File</InputLabel>
               <Select
@@ -228,9 +239,13 @@ const EventsSummary: React.FC<EventsSummaryProps> = ({ events }) => {
   const fmt = (v: number) => v.toFixed(1) + 's';
 
   return (
-    <Grid container spacing={3} justifyContent="center">
+    <Grid container spacing={3} sx={{
+      justifyContent: "center"
+    }}>
       <Grid>
-        <Box textAlign="center">
+        <Box sx={{
+          textAlign: "center"
+        }}>
           <Typography variant="h3" color="primary">
             {fmt(totalSec)}
           </Typography>
@@ -240,8 +255,12 @@ const EventsSummary: React.FC<EventsSummaryProps> = ({ events }) => {
         </Box>
       </Grid>
       <Grid>
-        <Box textAlign="center">
-          <Typography variant="h3" color="success.main">
+        <Box sx={{
+          textAlign: "center"
+        }}>
+          <Typography variant="h3" sx={{
+            color: "success.main"
+          }}>
             {fmt(normalSec)}
           </Typography>
           <Typography variant="h6" color="textSecondary">
@@ -250,8 +269,12 @@ const EventsSummary: React.FC<EventsSummaryProps> = ({ events }) => {
         </Box>
       </Grid>
       <Grid>
-        <Box textAlign="center">
-          <Typography variant="h3" color="error.main">
+        <Box sx={{
+          textAlign: "center"
+        }}>
+          <Typography variant="h3" sx={{
+            color: "error.main"
+          }}>
             {fmt(spikeSec)}
           </Typography>
           <Typography variant="h6" color="textSecondary">
@@ -260,8 +283,12 @@ const EventsSummary: React.FC<EventsSummaryProps> = ({ events }) => {
         </Box>
       </Grid>
       <Grid>
-        <Box textAlign="center">
-          <Typography variant="h3" color="warning.main">
+        <Box sx={{
+          textAlign: "center"
+        }}>
+          <Typography variant="h3" sx={{
+            color: "warning.main"
+          }}>
             {fmt(slowSec)}
           </Typography>
           <Typography variant="h6" color="textSecondary">

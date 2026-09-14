@@ -164,7 +164,13 @@ const Files: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -176,9 +182,20 @@ const Files: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3
+        }}>
         <Typography variant="h4">All EEG Files</Typography>
-        <Box display="flex" gap={2} alignItems="center">
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            alignItems: "center"
+          }}>
           {polling && (
             <Chip
               icon={<CircularProgress size={16} />}
@@ -223,8 +240,12 @@ const Files: React.FC = () => {
         <Box>
           {/* Normal files */}
           {groupedFiles.normal.length > 0 && (
-            <Box mb={4}>
-              <Typography variant="h5" color="success.main" gutterBottom>
+            <Box sx={{
+              mb: 4
+            }}>
+              <Typography variant="h5" gutterBottom sx={{
+                color: "success.main"
+              }}>
                 ✅ Normal EEG Signals ({groupedFiles.normal.length})
               </Typography>
               <Grid container spacing={2}>
@@ -246,8 +267,12 @@ const Files: React.FC = () => {
 
           {/* Abnormal files */}
           {groupedFiles.abnormal.length > 0 && (
-            <Box mb={4}>
-              <Typography variant="h5" color="error.main" gutterBottom>
+            <Box sx={{
+              mb: 4
+            }}>
+              <Typography variant="h5" gutterBottom sx={{
+                color: "error.main"
+              }}>
                 ❌ Abnormal EEG Signals ({groupedFiles.abnormal.length})
               </Typography>
               <Grid container spacing={2}>
@@ -269,8 +294,12 @@ const Files: React.FC = () => {
 
           {/* Processing files */}
           {groupedFiles.processing.length > 0 && (
-            <Box mb={4}>
-              <Typography variant="h5" color="warning.main" gutterBottom>
+            <Box sx={{
+              mb: 4
+            }}>
+              <Typography variant="h5" gutterBottom sx={{
+                color: "warning.main"
+              }}>
                 ⏳ Processing ({groupedFiles.processing.length})
               </Typography>
               <Grid container spacing={2}>
@@ -292,8 +321,12 @@ const Files: React.FC = () => {
 
           {/* Failed files */}
           {groupedFiles.failed.length > 0 && (
-            <Box mb={4}>
-              <Typography variant="h5" color="error.main" gutterBottom>
+            <Box sx={{
+              mb: 4
+            }}>
+              <Typography variant="h5" gutterBottom sx={{
+                color: "error.main"
+              }}>
                 ❌ Failed Processing ({groupedFiles.failed.length})
               </Typography>
               <Grid container spacing={2}>
@@ -371,7 +404,12 @@ const Files: React.FC = () => {
               </Typography>
               
               {signalsLoading ? (
-                <Box display="flex" justifyContent="center" py={2}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "center",
+                    py: 2
+                  }}>
                   <CircularProgress />
                 </Box>
               ) : signals.length === 0 ? (
@@ -434,8 +472,16 @@ const FileCard: React.FC<FileCardProps> = ({
   return (
     <Card>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-          <Box flex={1}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 2
+          }}>
+          <Box sx={{
+            flex: 1
+          }}>
             <Typography variant="h6" noWrap>
               {file.original_filename}
             </Typography>

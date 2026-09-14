@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Development stack. The backend and worker both bind-mount ./backend, so they
 # share one database and one local_storage tree — and the same files the
 # scripts/ workflow uses, which makes the two setups interchangeable.
@@ -11,7 +9,7 @@ services:
 
   # 1. Message Broker (Redis)
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis_broker
     ports:
       - "6379:6379"

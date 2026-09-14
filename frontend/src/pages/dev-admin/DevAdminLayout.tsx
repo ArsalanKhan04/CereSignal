@@ -103,7 +103,9 @@ const DevAdminLayout: React.FC = () => {
                 <ListItemIcon sx={{ color: 'inherit', minWidth: 36 }}>{icon}</ListItemIcon>
                 <ListItemText
                   primary={item.label}
-                  primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: active ? 600 : 400 }}
+                  slotProps={{
+                    primary: { sx: { fontSize: '0.9rem', fontWeight: active ? 600 : 400 } }
+                  }}
                 />
               </ListItemButton>
             );
@@ -130,7 +132,9 @@ const DevAdminLayout: React.FC = () => {
               <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
                 <LogoutIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText primary="Sign out" primaryTypographyProps={{ fontSize: '0.85rem' }} />
+              <ListItemText primary="Sign out" slotProps={{
+                primary: { sx: { fontSize: '0.85rem' } }
+              }} />
             </ListItemButton>
           </Tooltip>
         </Box>

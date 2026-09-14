@@ -163,7 +163,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                 color={detail.is_active ? 'success' : 'default'}
               />
             </Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {[detail.address, detail.phone, detail.email].filter(Boolean).join(' · ')}
             </Typography>
           </Box>
@@ -202,7 +204,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                 <Box sx={{ color: card.color }}>{card.icon}</Box>
                 <Box>
                   <Typography variant="h3" sx={{ fontWeight: 700 }}>{card.value}</Typography>
-                  <Typography variant="caption" color="text.secondary">{card.label}</Typography>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>{card.label}</Typography>
                 </Box>
               </Paper>
             </Grid>
@@ -257,17 +261,23 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {s.specialization || '—'}
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {s.email}
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {s.phone || '—'}
                             </Typography>
                           </TableCell>
@@ -280,7 +290,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {s.last_login ? formatDate(s.last_login) : 'Never'}
                             </Typography>
                           </TableCell>
@@ -326,7 +338,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {formatBytes(f.file_size)}
                             </Typography>
                           </TableCell>
@@ -359,7 +373,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {formatDate(f.upload_time)}
                             </Typography>
                           </TableCell>
@@ -426,7 +442,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {r.doctor_name || '—'}
                             </Typography>
                           </TableCell>
@@ -447,7 +465,9 @@ const DevAdminHospitalDetailPage: React.FC = () => {
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {formatDate(r.created_at)}
                             </Typography>
                           </TableCell>

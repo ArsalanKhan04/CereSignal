@@ -41,7 +41,6 @@ hiddenimports = [
     "app.schemas",
     "app.services",
     "external.edf_preprocess",
-    "passlib.handlers.bcrypt",
 
     # --- CELERY ---
     "celery",

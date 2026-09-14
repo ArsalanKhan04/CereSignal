@@ -5,8 +5,8 @@ This guide covers building the CereSignal desktop app for Windows.
 ## Prerequisites
 
 - Windows 10/11
-- Node.js 18+
-- Python 3.11+
+- Node.js 26 (see `.nvmrc`) and npm 12
+- Python 3.14
 - Visual Studio Build Tools (C++ workload)
 - PowerShell
 

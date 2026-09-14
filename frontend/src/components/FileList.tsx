@@ -233,7 +233,13 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -247,7 +253,12 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
     return (
       <Box>
         {polling && (
-          <Box display="flex" justifyContent="center" mb={2}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              mb: 2
+            }}>
             <Chip
               icon={<CircularProgress size={16} />}
               label="Processing files..."
@@ -266,7 +277,12 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
   return (
     <Box>
       {polling && (
-        <Box display="flex" justifyContent="center" mb={2}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            mb: 2
+          }}>
           <Chip
             icon={<CircularProgress size={16} />}
             label="Analyzing EEG data..."
@@ -276,7 +292,12 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
         </Box>
       )}
       {reportPolling && (
-        <Box display="flex" justifyContent="center" mb={2}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            mb: 2
+          }}>
           <Chip
             icon={<CircularProgress size={16} />}
             label="Generating clinical report..."
@@ -288,8 +309,15 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
       {files.map((file) => (
         <Card key={file.id} sx={{ mb: 2 }}>
           <CardContent>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Box flex={1}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}>
+              <Box sx={{
+                flex: 1
+              }}>
                 <Typography variant="h6">{file.original_filename}</Typography>
                 <Typography variant="body2" color="textSecondary">
                   Size: {(file.file_size / (1024*1024)).toFixed(1)} MB | Type: {file.file_type}
@@ -395,7 +423,12 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
               </Typography>
 
               {signalsLoading ? (
-                <Box display="flex" justifyContent="center" py={2}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "center",
+                    py: 2
+                  }}>
                   <CircularProgress />
                 </Box>
               ) : signals.length === 0 ? (
@@ -462,7 +495,9 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
         <DialogTitle>
           AI-Generated EEG Report
           {viewingReport && (
-            <Typography variant="caption" display="block" color="textSecondary">
+            <Typography variant="caption" color="textSecondary" sx={{
+              display: "block"
+            }}>
               File: {viewingReport.original_filename}
             </Typography>
           )}
@@ -475,16 +510,15 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
               </Typography>
               <Typography
                 variant="body1"
-                paragraph
                 sx={{
                   whiteSpace: 'pre-wrap',
                   backgroundColor: '#f5f5f5',
                   padding: 2,
                   borderRadius: 1,
                   fontFamily: 'monospace',
-                  fontSize: '0.95rem'
-                }}
-              >
+                  fontSize: '0.95rem',
+                  marginBottom: "16px"
+                }}>
                 {viewingReport.factual_report || 'No factual report available.'}
               </Typography>
 
@@ -493,16 +527,15 @@ const FileList: React.FC<FileListProps> = ({ patientId }) => {
               </Typography>
               <Typography
                 variant="body1"
-                paragraph
                 sx={{
                   whiteSpace: 'pre-wrap',
                   backgroundColor: '#f5f5f5',
                   padding: 2,
                   borderRadius: 1,
                   fontFamily: 'monospace',
-                  fontSize: '0.95rem'
-                }}
-              >
+                  fontSize: '0.95rem',
+                  marginBottom: "16px"
+                }}>
                 {viewingReport.impression || 'No impression available.'}
               </Typography>
 

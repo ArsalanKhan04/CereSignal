@@ -53,13 +53,19 @@ const VersionDetail: React.FC<{
 
     <DialogContent dividers>
       <Stack spacing={2.5}>
-        <Stack direction="row" spacing={2} flexWrap="wrap">
+        <Stack direction="row" spacing={2} sx={{
+          flexWrap: "wrap"
+        }}>
           {version.saved_by_name && (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Saved by <strong>{version.saved_by_name}</strong>
             </Typography>
           )}
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {new Date(version.saved_at).toLocaleString()}
           </Typography>
         </Stack>
@@ -74,7 +80,13 @@ const VersionDetail: React.FC<{
         ].map(({ label, value }) =>
           value ? (
             <Box key={label}>
-              <Typography variant="overline" color="text.secondary" display="block" sx={{ lineHeight: 1.6 }}>
+              <Typography
+                variant="overline"
+                sx={{
+                  color: "text.secondary",
+                  display: "block",
+                  lineHeight: 1.6
+                }}>
                 {label}
               </Typography>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
@@ -203,7 +215,12 @@ const ReportVersionHistory: React.FC<ReportVersionHistoryProps> = ({
                   <CircularProgress />
                 </div>
               ) : versions.length === 0 ? (
-                <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+                <Typography
+                  align="center"
+                  sx={{
+                    color: "text.secondary",
+                    py: 4
+                  }}>
                   No version history found for this report.
                 </Typography>
               ) : (
@@ -242,7 +259,9 @@ const ReportVersionHistory: React.FC<ReportVersionHistoryProps> = ({
                             ) : '—'}
                           </TableCell>
                           <TableCell align="right">
-                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Stack direction="row" spacing={1} sx={{
+                              justifyContent: "flex-end"
+                            }}>
                               <Button
                                 size="small"
                                 variant="outlined"

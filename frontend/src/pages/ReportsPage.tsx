@@ -138,7 +138,7 @@ const ReportsPage: React.FC = () => {
         await loadData();
         setTimeout(() => setSuccess(''), 3000);
       }
-    } catch (err: any) {
+    } catch {
       setError('Error generating PDF');
     } finally {
       setPdfGenerating(prev => {
@@ -162,7 +162,7 @@ const ReportsPage: React.FC = () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-    } catch (err: any) {
+    } catch {
       setError('Error downloading PDF');
     }
   };
@@ -176,7 +176,13 @@ const ReportsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress size={40} thickness={4} />
       </Box>
     );
@@ -184,24 +190,30 @@ const ReportsPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 0 }}>
-      
+
       {/* --- Page Header --- */}
-      <Box 
-        display="flex" 
-        justifyContent="space-between" 
-        alignItems="center" 
-        mb={4}
-        sx={{ 
-          borderBottom: '1px solid', 
-          borderColor: 'divider', 
-          pb: 2 
-        }}
-      >
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 4,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          pb: 2
+        }}>
         <Box>
-          <Typography variant="h4" fontWeight="700" sx={{ color: '#1a1a1a' }}>
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: "700",
+              color: '#1a1a1a'
+            }}>
             Clinical Reports
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             Manage, generate, and analyze EEG findings.
           </Typography>
         </Box>
@@ -248,14 +260,27 @@ const ReportsPage: React.FC = () => {
               borderRadius: 3 
             }}
           >
-            <Typography variant="h6" fontWeight="600" color="primary.main" gutterBottom>
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{
+                fontWeight: "600",
+                color: "primary.main"
+              }}>
               Start New Analysis
             </Typography>
-            <Typography variant="body2" color="text.secondary" mb={3}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 3
+              }}>
               Select a raw EEG recording to begin the reporting process.
             </Typography>
             
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} sx={{
+              alignItems: "center"
+            }}>
               {/* FIX: Replaced 'item xs' with 'size' */}
               <Grid size={{ xs: 12, md: 8 }}>
                 <FormControl fullWidth size="small" sx={{ bgcolor: 'white' }}>
@@ -274,7 +299,12 @@ const ReportsPage: React.FC = () => {
                 </FormControl>
               </Grid>
               {/* FIX: Replaced 'item xs' with 'size' */}
-              <Grid size={{ xs: 12, md: 4 }} display="flex" gap={2}>
+              <Grid
+                size={{ xs: 12, md: 4 }}
+                sx={{
+                  display: "flex",
+                  gap: 2
+                }}>
                 <Button
                   variant="contained"
                   onClick={() => selectedFileId && handleCreateReport(selectedFileId)}
@@ -312,8 +342,15 @@ const ReportsPage: React.FC = () => {
           }}
         >
           <ReportIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
-          <Typography variant="h6" color="text.primary" gutterBottom>No Reports Found</Typography>
-          <Typography variant="body2" color="text.secondary" mb={3}>
+          <Typography variant="h6" gutterBottom sx={{
+            color: "text.primary"
+          }}>No Reports Found</Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 3
+            }}>
             You haven't created any analysis reports yet.
           </Typography>
           <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setShowReportForm(true)}>
@@ -344,7 +381,12 @@ const ReportsPage: React.FC = () => {
               >
                 <CardContent sx={{ flexGrow: 1, p: 3 }}>
                   
-                  <Box display="flex" justifyContent="flex-end" mb={2}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      mb: 2
+                    }}>
                     <Stack direction="row" spacing={1}>
                       <Chip 
                         label={report.impression || "Pending Analysis"} 
@@ -361,16 +403,26 @@ const ReportsPage: React.FC = () => {
                   </Box>
 
                   {/* Main Info */}
-                  <Typography variant="h6" fontWeight="700" noWrap title={report.patient_name || 'Unknown Patient'}>
+                  <Typography variant="h6" noWrap title={report.patient_name || 'Unknown Patient'} sx={{
+                    fontWeight: "700"
+                  }}>
                     {report.patient_name || 'Unknown Patient'}
                   </Typography>
                   
                   <Stack direction="row" spacing={2} sx={{ mt: 1, mb: 2, color: 'text.secondary', fontSize: '0.875rem' }}>
-                    <Box display="flex" alignItems="center">
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center"
+                      }}>
                       <FileIcon fontSize="inherit" sx={{ mr: 0.5 }} />
                       <Typography variant="caption" noWrap sx={{ maxWidth: 120 }}>{report.file_name}</Typography>
                     </Box>
-                    <Box display="flex" alignItems="center">
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center"
+                      }}>
                       <TimeIcon fontSize="inherit" sx={{ mr: 0.5 }} />
                       <Typography variant="caption">{new Date(report.report_date).toLocaleDateString()}</Typography>
                     </Box>
@@ -379,19 +431,28 @@ const ReportsPage: React.FC = () => {
                   <Divider sx={{ my: 2 }} />
 
                   {/* Summary Snippet */}
-                  <Typography variant="body2" color="text.secondary" sx={{ 
-                    mb: 2, 
-                    minHeight: 40,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mb: 2,
+                      minHeight: 40,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}>
                     {report.factual_report || "No summary available."}
                   </Typography>
 
                   {/* Actions */}
-                  <Box display="flex" justifyContent="flex-end" gap={1} mt="auto">
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 1,
+                      mt: "auto"
+                    }}>
                     <Tooltip title="Edit Report">
                       <IconButton 
                         size="small" 

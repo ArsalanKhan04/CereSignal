@@ -160,7 +160,9 @@ const DevAdminDashboard: React.FC = () => {
 
         {!loading && chartData.length === 0 && (
           <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography color="text.secondary">
+            <Typography sx={{
+              color: "text.secondary"
+            }}>
               No hospitals registered yet. Data will appear here once hospitals sign up.
             </Typography>
           </Paper>

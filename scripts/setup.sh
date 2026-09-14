@@ -24,14 +24,10 @@ log "CereSignal setup"
 if [ -x "$PY" ]; then
     skip "virtualenv already exists ($("$PY" -V 2>&1))"
 else
-    PYTHON_BIN=""
-    for candidate in python3.11 python3; do
-        if command -v "$candidate" >/dev/null 2>&1; then
-            PYTHON_BIN="$candidate"
-            break
-        fi
-    done
-    [ -n "$PYTHON_BIN" ] || die "need python3.11 (or python3) on PATH to create the virtualenv."
+    # Exactly the version CI and backend/Dockerfile.backend use. A bare python3
+    # fallback would build the venv on whatever the system happens to ship.
+    PYTHON_BIN=python3.14
+    command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "need python3.14 on PATH to create the virtualenv."
 
     log "creating virtualenv at $VENV ($($PYTHON_BIN -V 2>&1))"
     "$PYTHON_BIN" -m venv "$VENV"
@@ -39,9 +35,8 @@ else
 fi
 
 # ── Python dependencies ─────────────────────────────────────────
-# backend/requirements.txt is the real one — it is what CI (.github/workflows)
-# and backend/Dockerfile.backend install. backend/app/requirements.txt and the
-# root requirements.txt are stale duplicates.
+# backend/requirements.txt is the one CI (.github/workflows) and
+# backend/Dockerfile.backend install.
 #
 # torch and openai live in backend/requirements-ai.txt and are needed only when
 # AI_INFERENCE_ENABLED=True, which is the default — so install them unless --no-ai.
@@ -105,7 +100,9 @@ if [ -d "$FRONTEND/node_modules" ]; then
 else
     require_cmd npm
     log "installing frontend dependencies"
-    npm --prefix "$FRONTEND" install
+    # ci, not install: install rewrites package-lock.json whenever this npm
+    # disagrees with the one that wrote it.
+    npm --prefix "$FRONTEND" ci
     ok "frontend dependencies installed"
 fi
 

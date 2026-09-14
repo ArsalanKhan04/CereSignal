@@ -716,7 +716,7 @@ const Patients: React.FC<{
       } else {
         setActiveEEGEvents(null);
       }
-    } catch (err) {
+    } catch {
       setActiveEEGEvents(null);
     }
 
@@ -730,7 +730,7 @@ const Patients: React.FC<{
       if (response.status === 200) {
         setDetailPatient(response.data);
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load patient details');
     } finally {
       setDetailPatientLoading(false);
@@ -788,7 +788,7 @@ const Patients: React.FC<{
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-    } catch (err) {
+    } catch {
       setError('Error downloading report PDF');
     }
   };
@@ -901,7 +901,7 @@ const Patients: React.FC<{
         },
       }));
       await loadPatients();
-    } catch (err) {
+    } catch {
       setError('Failed to assign label');
     } finally {
       setLabelSubmittingId(null);
@@ -941,7 +941,13 @@ const Patients: React.FC<{
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -950,7 +956,15 @@ const Patients: React.FC<{
   return (
     <>
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 3,
+            flexWrap: "wrap",
+            gap: 2
+          }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           {!isReadOnly && (
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
@@ -1134,7 +1148,13 @@ const Patients: React.FC<{
                 </Box>
 
                 <Box sx={{ minWidth: 220 }}>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{
+                        alignItems: "center",
+                        flexWrap: "wrap"
+                      }}>
                     {file ? (
                       (() => {
                           if (allowDesktopCreate) {
@@ -1245,7 +1265,7 @@ const Patients: React.FC<{
                           setSuccess('EEG file and patient deleted successfully');
                           await loadPatients();
                           setTimeout(() => setSuccess(''), 3000);
-                        } catch (err) {
+                        } catch {
                           setError('Failed to delete EEG file');
                         }
                       }}
@@ -1254,7 +1274,9 @@ const Patients: React.FC<{
                     </IconButton>
                   )}
                   {allowLabelChange && file && (
-                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} sx={{
+                        alignItems: "center"
+                      }}>
                       <Button
                         variant="outlined"
                         size="small"
@@ -1428,13 +1450,25 @@ const Patients: React.FC<{
         </AppBar>
         <Box sx={{ p: 3, bgcolor: '#f7f8fa', minHeight: '100%' }}>
           {detailPatientLoading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  minHeight: "60vh"
+                }}>
               <CircularProgress />
             </Box>
           ) : detailPatient ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <Paper sx={{ p: 3 }} variant="outlined">
-                <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: 2
+                    }}>
                   <Box>
                     <Typography variant="h5" sx={{ fontWeight: 700 }}>
                       {detailPatient.name}
@@ -1451,7 +1485,13 @@ const Patients: React.FC<{
                       )}
                     </Stack>
                   </Box>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{
+                        alignItems: "center",
+                        flexWrap: "wrap"
+                      }}>
                     {detailFile ? (
                       <Chip label={detailFile.original_filename} size="small" variant="outlined" />
                     ) : (
@@ -1525,7 +1565,9 @@ const Patients: React.FC<{
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                   Actions
                 </Typography>
-                <Stack direction="row" spacing={1.5} flexWrap="wrap">
+                  <Stack direction="row" spacing={1.5} sx={{
+                    flexWrap: "wrap"
+                  }}>
                   {detailFile && (
                     <Button
                       variant="outlined"
@@ -1623,7 +1665,7 @@ const Patients: React.FC<{
                           setActiveTopomapFileId(null);
                           setDetailPatient(null);
                           setTimeout(() => setSuccess(''), 3000);
-                        } catch (err) {
+                        } catch {
                           setError('Failed to delete EEG file');
                         }
                       }}
@@ -1632,7 +1674,9 @@ const Patients: React.FC<{
                     </IconButton>
                   )}
                   {allowLabelChange && detailFile && (
-                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} sx={{
+                        alignItems: "center"
+                      }}>
                       <Button
                         variant="outlined"
                         size="small"
@@ -1718,7 +1762,12 @@ const Patients: React.FC<{
       <Dialog open={reportSubmitting} onClose={() => setReportSubmitting(false)} maxWidth="xs">
         <DialogTitle>Generating PDF</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
+            <Stack
+              spacing={2}
+              sx={{
+                alignItems: "center",
+                py: 2
+              }}>
             <CircularProgress />
             <Typography variant="body2" color="textSecondary">
               Finalizing report and preparing the PDF.
@@ -1857,7 +1906,7 @@ const Patients: React.FC<{
                       clearFieldError('age');
                     }}
                     required
-                    inputProps={{ min: 0, max: 130 }}
+                    slotProps={{ htmlInput: { min: 0, max: 130 } }}
                     disabled={Boolean(formData.date_of_birth)}
                     fieldError={fieldErrors.age}
                   />
@@ -1885,8 +1934,7 @@ const Patients: React.FC<{
                     type="date"
                     value={formData.date_of_birth}
                     onChange={(e) => { handleDateOfBirthChange(e.target.value); clearFieldError('date_of_birth'); clearFieldError('age'); }}
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{ max: maxBirthDate }}
+                    slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: maxBirthDate } }}
                     fieldError={fieldErrors.date_of_birth}
                   />
                 </Grid>

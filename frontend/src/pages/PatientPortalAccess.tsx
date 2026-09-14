@@ -29,7 +29,9 @@ const PatientPortalAccess: React.FC = () => {
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc', gap: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <LogoIcon sx={{ color: '#2563eb', fontSize: 36 }} />
-        <Typography variant="h5" fontWeight="800">CereSignal</Typography>
+        <Typography variant="h5" sx={{
+          fontWeight: "800"
+        }}>CereSignal</Typography>
       </Box>
       {error ? (
         <>
@@ -39,7 +41,9 @@ const PatientPortalAccess: React.FC = () => {
       ) : (
         <>
           <CircularProgress />
-          <Typography color="text.secondary">Opening your portal…</Typography>
+          <Typography sx={{
+            color: "text.secondary"
+          }}>Opening your portal…</Typography>
         </>
       )}
     </Box>

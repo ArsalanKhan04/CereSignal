@@ -145,14 +145,28 @@ const LoginPage: React.FC = () => {
             {/* Mobile Logo (only visible on small screens) */}
             <Box sx={{ display: { xs: 'flex', md: 'none' }, mb: 4, alignItems: 'center' }}>
               <LogoIcon sx={{ color: primaryMain, fontSize: 40, mr: 1 }} />
-              <Typography variant="h5" fontWeight="800" color="text.primary">CereSignal</Typography>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: "800",
+                  color: "text.primary"
+                }}>CereSignal</Typography>
             </Box>
 
             <Box sx={{ width: '100%', mb: 4 }}>
-              <Typography variant="h4" component="h1" fontWeight="800" sx={{ mb: 1, color: '#1a1a1a' }}>
+              <Typography
+                variant="h4"
+                component="h1"
+                sx={{
+                  fontWeight: "800",
+                  mb: 1,
+                  color: '#1a1a1a'
+                }}>
                 Welcome Back
               </Typography>
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" sx={{
+                color: "text.secondary"
+              }}>
                 Sign in to access your dashboard.
               </Typography>
             </Box>
@@ -173,13 +187,13 @@ const LoginPage: React.FC = () => {
                   onChange={handleChange}
                   disabled={isLoading}
                   fieldError={fieldErrors.username}
-                  InputProps={{
+                  slotProps={{ input: {
                     startAdornment: (
                       <InputAdornment position="start">
                         <PersonIcon color="action" />
                       </InputAdornment>
                     ),
-                  }}
+                  } }}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' } }}
                 />
 
@@ -195,13 +209,13 @@ const LoginPage: React.FC = () => {
                   onChange={handleChange}
                   disabled={isLoading}
                   fieldError={fieldErrors.password}
-                  InputProps={{
+                  slotProps={{ input: {
                     startAdornment: (
                       <InputAdornment position="start">
                         <LockIcon color="action" />
                       </InputAdornment>
                     ),
-                  }}
+                  } }}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8f9fa' } }}
                 />
 
@@ -253,7 +267,14 @@ const LoginPage: React.FC = () => {
                 )}
                 {currentStepId !== '3.0' && currentStepId !== '5.0' && (
                   <>
-                <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: 'block', mb: 1 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontWeight: 700,
+                    display: 'block',
+                    mb: 1
+                  }}>
                   DEMO QUICK-LOGIN
                 </Typography>
                 <Stack spacing={1}>
@@ -288,7 +309,12 @@ const LoginPage: React.FC = () => {
             )}
 
             <Divider sx={{ width: '100%', my: 4 }}>
-              <Typography variant="caption" color="text.secondary" fontWeight="600">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  fontWeight: "600"
+                }}>
                 NEW TO CEREIGNAL?
               </Typography>
             </Divider>
@@ -383,7 +409,13 @@ const LoginPage: React.FC = () => {
               <BrainIcon sx={{ fontSize: 48, color: 'white' }} />
             </Box>
 
-            <Typography variant="h2" fontWeight="800" sx={{ mb: 2, letterSpacing: '-1px' }}>
+            <Typography
+              variant="h2"
+              sx={{
+                fontWeight: "800",
+                mb: 2,
+                letterSpacing: '-1px'
+              }}>
               CereSignal
             </Typography>
             

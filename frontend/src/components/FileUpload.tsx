@@ -75,16 +75,22 @@ const FileUpload: React.FC<FileUploadProps> = ({ patientId, onUpload }) => {
           {uploading ? 'Uploading...' : 'Upload EEG File'}
         </Button>
       </label>
-      
+
       {uploading && <LinearProgress sx={{ mt: 1 }} />}
-      
+
       <FormAlert
         error={error}
         success={success}
         onDismiss={() => { setError(''); setSuccess(''); }}
       />
-      
-      <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 1 }}>
+
+      <Typography
+        variant="caption"
+        color="textSecondary"
+        sx={{
+          display: "block",
+          mt: 1
+        }}>
         Supported format: EDF files only (max 100MB)
       </Typography>
     </Box>

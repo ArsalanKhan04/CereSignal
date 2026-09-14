@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import Plot from 'react-plotly.js';
+import createPlotlyComponent from 'react-plotly.js/factory';
 import Plotly from 'plotly.js-basic-dist';
 import {
   Box,
@@ -33,6 +33,12 @@ import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import { apiClient } from '../services/api';
 import { EventsData, EEGBookmark, FocusPoint } from '../types';
+
+// react-plotly.js's default export loads the full plotly.js bundle, and its ESM build
+// imports it by an extensionless path that webpack 5 refuses. Bind the component to the
+// basic bundle instead: it registers scatter, which is every trace this file draws, and
+// it is the same bundle toImage already uses.
+const Plot = createPlotlyComponent(Plotly);
 
 const MONTAGE_OPTIONS = [
   { value: 'original', label: 'Original' },
@@ -587,20 +593,34 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
   return (
     <Card ref={containerRef} sx={{ mb: 3, bgcolor: isFullscreen ? '#fff' : undefined }}>
       <CardContent sx={{ pb: 2 }}>
-        <Box display="flex" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1,
+            mb: 1
+          }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, mr: 1 }}>
             EEG Plot
           </Typography>
 
           {montage === 'original' && hasEvents && (
-            <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={1} sx={{
+              alignItems: "center"
+            }}>
               <Chip label="Normal" size="small" sx={{ bgcolor: '#2e7d32', color: '#fff' }} />
               <Chip label="Slow Waves" size="small" sx={{ bgcolor: '#ffb300', color: '#fff' }} />
               <Chip label="Spike Waves" size="small" sx={{ bgcolor: '#c62828', color: '#fff' }} />
             </Stack>
           )}
 
-          <Box display="flex" alignItems="center" gap={0.5}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5
+            }}>
             <Tooltip title="Previous window (Left Arrow)">
               <IconButton size="small" onClick={() => goToStart(Math.max(0, plotStart - plotDuration))}>
                 <ChevronLeftIcon fontSize="small" />
@@ -614,10 +634,12 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
               onBlur={(e) => goToStart(Number(e.target.value))}
               size="small"
               sx={{ width: 100 }}
-              inputProps={{
+              slotProps={{
+                htmlInput: {
                 step: 1,
                 min: 0,
                 max: totalDuration ? Math.max(0, totalDuration - plotDuration) : undefined,
+                }
               }}
             />
             <Tooltip title="Next window (Right Arrow)">
@@ -631,7 +653,9 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
             </Tooltip>
           </Box>
           {totalDuration !== null && (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               / {Math.max(0, totalDuration - plotDuration).toFixed(0)}s
             </Typography>
           )}
@@ -684,7 +708,6 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
           <TextField
             label="Sensitivity"
             type="number"
-            inputProps={{ step: 0.1, min: 0.1 }}
             value={sensitivity}
             onChange={(e) => {
               const parsed = Number(e.target.value);
@@ -692,6 +715,9 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
             }}
             size="small"
             sx={{ width: 110 }}
+            slotProps={{
+              htmlInput: { step: 0.1, min: 0.1 }
+            }}
           />
 
           <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -700,7 +726,7 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
               value={montage}
               label="Montage"
               onChange={(e) => setMontage(e.target.value)}
-              MenuProps={{ PaperProps: { sx: { maxWidth: 320 } } }}
+              MenuProps={{ slotProps: { paper: { sx: { maxWidth: 320 } } } }}
             >
               {MONTAGE_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
@@ -748,7 +774,12 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
              </IconButton>
            </Tooltip>
 
-           <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+           <Typography
+             variant="caption"
+             sx={{
+               color: "text.secondary",
+               ml: 1
+             }}>
              Use arrow keys to navigate
            </Typography>
          </Box>
@@ -788,7 +819,9 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
             }}
           >
             <CircularProgress />
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Preparing recording for viewing…
             </Typography>
           </Box>
@@ -806,7 +839,9 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
             />
             {endReached && (
               <Divider sx={{ mt: 2 }} textAlign="center">
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   End of recording
                 </Typography>
               </Divider>
@@ -822,11 +857,13 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
           fullScreen={false}
           disablePortal={isFullscreen}
           container={isFullscreen ? containerRef.current : undefined}
-          PaperProps={{
+          slotProps={{
+            paper: {
             sx: {
               maxHeight: isFullscreen ? '80vh' : undefined,
               width: isFullscreen ? 'min(720px, 92vw)' : undefined,
             },
+            }
           }}
         >
           <DialogTitle>Bookmark Current View</DialogTitle>
@@ -847,7 +884,9 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
                   Saved Bookmarks
                 </Typography>
                 {bookmarks.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     No bookmarks saved yet.
                   </Typography>
                 ) : (
@@ -863,12 +902,22 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
                               sx={{ width: '100%', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
                             />
                             {bookmark.comment && (
-                              <Typography variant="body2" color="text.secondary">
+                              <Typography variant="body2" sx={{
+                                color: "text.secondary"
+                              }}>
                                 {bookmark.comment}
                               </Typography>
                             )}
-                            <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                              <Typography variant="caption" color="text.secondary">
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 2
+                              }}>
+                              <Typography variant="caption" sx={{
+                                color: "text.secondary"
+                              }}>
                                 {new Date(bookmark.created_at).toLocaleString()}
                               </Typography>
                               <Button

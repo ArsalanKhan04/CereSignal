@@ -197,10 +197,18 @@ const AdminDashboard: React.FC = () => {
       >
         <Toolbar sx={{ px: { xs: 2, sm: 3 } }}>
           <LogoIcon sx={{ color: 'primary.main', mr: 1.5, fontSize: 28 }} />
-          <Typography variant="h6" fontWeight="800" color="text.primary" sx={{ flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: "800",
+              color: "text.primary",
+              flexGrow: 1
+            }}>
             CereSignal
           </Typography>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Chip
               label="Admin"
               size="small"
@@ -210,7 +218,13 @@ const AdminDashboard: React.FC = () => {
             <Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: '0.875rem' }}>
               {getInitials(user?.first_name, user?.last_name)}
             </Avatar>
-            <Typography variant="body2" fontWeight="600" color="text.primary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: "600",
+                color: "text.primary",
+                display: { xs: 'none', sm: 'block' }
+              }}>
               {adminName}
             </Typography>
             <Tooltip title="Logout">
@@ -227,10 +241,17 @@ const AdminDashboard: React.FC = () => {
           <Box>
             {/* Welcome */}
             <Box sx={{ mb: 4 }}>
-              <Typography variant="h4" fontWeight="800" sx={{ mb: 0.5 }}>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: "800",
+                  mb: 0.5
+                }}>
                 Hospital Dashboard
               </Typography>
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" sx={{
+                color: "text.secondary"
+              }}>
                 Manage your team and track hospital activity.
               </Typography>
             </Box>
@@ -259,10 +280,21 @@ const AdminDashboard: React.FC = () => {
                           '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)', transform: 'translateY(-2px)' },
                         }}
                       >
-                        <Typography variant="h3" fontWeight="800" sx={{ color: card.color, mb: 0.5 }}>
+                        <Typography
+                          variant="h3"
+                          sx={{
+                            fontWeight: "800",
+                            color: card.color,
+                            mb: 0.5
+                          }}>
                           {card.value}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" fontWeight="500">
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "text.secondary",
+                            fontWeight: "500"
+                          }}>
                           {card.label}
                         </Typography>
                       </Paper>
@@ -276,7 +308,14 @@ const AdminDashboard: React.FC = () => {
               <Grid size={{ xs: 12, lg: 8 }}>
                 <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
                   <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" fontWeight="700" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: "700",
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
                       <GroupIcon color="primary" fontSize="small" /> Staff Management
                     </Typography>
                   </Box>
@@ -321,10 +360,14 @@ const AdminDashboard: React.FC = () => {
                                     {(member.first_name?.[0] || '') + (member.last_name?.[0] || '')}
                                   </Avatar>
                                   <Box>
-                                    <Typography variant="body2" fontWeight="600">
+                                    <Typography variant="body2" sx={{
+                                      fontWeight: "600"
+                                    }}>
                                       {member.title ? `${member.title} ` : ''}{member.first_name} {member.last_name}
                                     </Typography>
-                                    <Typography variant="caption" color="text.secondary">@{member.username}</Typography>
+                                    <Typography variant="caption" sx={{
+                                      color: "text.secondary"
+                                    }}>@{member.username}</Typography>
                                   </Box>
                                 </Box>
                               </TableCell>
@@ -332,7 +375,9 @@ const AdminDashboard: React.FC = () => {
                                 <Typography variant="body2">{member.email}</Typography>
                               </TableCell>
                               <TableCell>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="body2" sx={{
+                                  color: "text.secondary"
+                                }}>
                                   {member.specialization || '—'}
                                 </Typography>
                               </TableCell>
@@ -370,7 +415,15 @@ const AdminDashboard: React.FC = () => {
                 <Stack spacing={3}>
                   {/* Invite Staff */}
                   <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" fontWeight="700" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: "700",
+                        mb: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
                       <PersonAddIcon color="primary" fontSize="small" /> Invite Staff
                     </Typography>
                     <Stack spacing={2}>
@@ -448,7 +501,15 @@ const AdminDashboard: React.FC = () => {
 
                   {/* Pending Invitations */}
                   <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" fontWeight="700" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: "700",
+                        mb: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
                       <BarChartIcon color="primary" fontSize="small" /> Invitations
                     </Typography>
                     {dataLoading ? (
@@ -456,7 +517,13 @@ const AdminDashboard: React.FC = () => {
                         <CircularProgress size={20} />
                       </Box>
                     ) : invitations.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          textAlign: 'center',
+                          py: 2
+                        }}>
                         No invitations sent yet.
                       </Typography>
                     ) : (
@@ -468,7 +535,13 @@ const AdminDashboard: React.FC = () => {
                               <ListItemText
                                 primary={
                                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <Typography variant="body2" fontWeight="600" noWrap sx={{ maxWidth: 160 }}>
+                                    <Typography
+                                      variant="body2"
+                                      noWrap
+                                      sx={{
+                                        fontWeight: "600",
+                                        maxWidth: 160
+                                      }}>
                                       {inv.invited_email}
                                     </Typography>
                                     <Chip

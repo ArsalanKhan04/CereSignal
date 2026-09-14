@@ -144,7 +144,9 @@ const DoctorDashboard: React.FC = () => {
             </Box>
 
             {/* User Profile Section */}
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "center"
+            }}>
               {user?.hospital_name && (
                 <Typography
                   variant="body2"
@@ -204,20 +206,26 @@ const DoctorDashboard: React.FC = () => {
         onClose={handleNotificationsClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{ sx: { width: 360, maxWidth: '90vw' } }}
+        slotProps={{
+          paper: { sx: { width: 360, maxWidth: '90vw' } }
+        }}
       >
         <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
             Notifications
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {unreadCount ? `${unreadCount} unread` : 'All caught up'}
           </Typography>
         </Box>
         <List disablePadding>
           {notifications.length === 0 ? (
             <Box sx={{ p: 2 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No notifications yet.
               </Typography>
             </Box>
@@ -234,9 +242,10 @@ const DoctorDashboard: React.FC = () => {
                 <ListItemText
                   primary={notification.message}
                   secondary={new Date(notification.created_at).toLocaleString()}
-                  primaryTypographyProps={{ variant: 'body2' }}
-                  secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
-                />
+                  slotProps={{
+                    primary: { variant: 'body2' },
+                    secondary: { variant: 'caption', color: 'text.secondary' }
+                  }} />
               </ListItemButton>
             ))
           )}
@@ -271,7 +280,9 @@ const DoctorDashboard: React.FC = () => {
               gap: 2
             }}>
               <Box>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Overview of your assigned patients and unassigned records.
                 </Typography>
               </Box>
