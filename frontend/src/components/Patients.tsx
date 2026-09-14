@@ -716,7 +716,7 @@ const Patients: React.FC<{
       } else {
         setActiveEEGEvents(null);
       }
-    } catch (err) {
+    } catch {
       setActiveEEGEvents(null);
     }
 
@@ -730,7 +730,7 @@ const Patients: React.FC<{
       if (response.status === 200) {
         setDetailPatient(response.data);
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load patient details');
     } finally {
       setDetailPatientLoading(false);
@@ -788,7 +788,7 @@ const Patients: React.FC<{
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-    } catch (err) {
+    } catch {
       setError('Error downloading report PDF');
     }
   };
@@ -901,7 +901,7 @@ const Patients: React.FC<{
         },
       }));
       await loadPatients();
-    } catch (err) {
+    } catch {
       setError('Failed to assign label');
     } finally {
       setLabelSubmittingId(null);
@@ -1265,7 +1265,7 @@ const Patients: React.FC<{
                           setSuccess('EEG file and patient deleted successfully');
                           await loadPatients();
                           setTimeout(() => setSuccess(''), 3000);
-                        } catch (err) {
+                        } catch {
                           setError('Failed to delete EEG file');
                         }
                       }}
@@ -1665,7 +1665,7 @@ const Patients: React.FC<{
                           setActiveTopomapFileId(null);
                           setDetailPatient(null);
                           setTimeout(() => setSuccess(''), 3000);
-                        } catch (err) {
+                        } catch {
                           setError('Failed to delete EEG file');
                         }
                       }}

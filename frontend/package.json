@@ -75,6 +75,8 @@
   "overrides": {
     "react-scripts": {
       "typescript": "$typescript"
-    }
+    },
+    "@typescript-eslint/parser": "^8.70.0",
+    "@typescript-eslint/eslint-plugin": "^8.70.0"
   }
 }

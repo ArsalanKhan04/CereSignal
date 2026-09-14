@@ -138,7 +138,7 @@ const ReportsPage: React.FC = () => {
         await loadData();
         setTimeout(() => setSuccess(''), 3000);
       }
-    } catch (err: any) {
+    } catch {
       setError('Error generating PDF');
     } finally {
       setPdfGenerating(prev => {
@@ -162,7 +162,7 @@ const ReportsPage: React.FC = () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 100);
-    } catch (err: any) {
+    } catch {
       setError('Error downloading PDF');
     }
   };

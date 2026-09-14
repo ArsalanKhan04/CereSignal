@@ -90,6 +90,12 @@ are blocking in CI — ruff in its own `Lint (ruff)` job, the other two folded i
 frontend job. The pin is exact on purpose: ruff 0.16 widened its default `select`, so an
 unpinned ruff can turn a green gate red on an unrelated PR.
 
+**`frontend/package.json` `overrides` force typescript-eslint v8.** react-scripts 5.0.1 bundles
+`@typescript-eslint/*@5`, whose parser supports only TypeScript `<5.2` — against TS 6 every
+terminal lint and dev-server run prints an "unsupported TypeScript version" banner (TTY-only,
+so CI logs never show it). Removing the override brings the banner back. `eslint-plugin-jest`
+must stay at 25: v28 drops `jest/no-jest-import`, which `react-app/jest` still enables.
+
 Four things in that config are deliberate and should not be "fixed":
 
 - **`E501` (line-too-long) is not selected** — 299 hits, none of them defects.
