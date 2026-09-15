@@ -58,7 +58,7 @@ key or on either placeholder that has ever shipped (`PLACEHOLDER_SECRET_KEYS` in
 # Frontend (from repo root)
 npm --prefix frontend run dev            # dev server
 npm --prefix frontend run build          # web production build
-npm --prefix frontend run build:desktop  # Electron desktop build
+npm run build:desktop                    # Windows desktop installer (PyInstaller + Electron)
 
 # Tests (from repo root)
 ./scripts/test.sh                        # both suites

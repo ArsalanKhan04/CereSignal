@@ -6,7 +6,7 @@
     "start": "electron .",
     "start:desktop": "cross-env REACT_APP_DESKTOP=true electron .",
     "build": "npm --prefix frontend run build && electron-builder --win nsis",
-    "build:desktop": "powershell -ExecutionPolicy Bypass -File backend/build-desktop.ps1 && npm --prefix frontend run build:desktop && cross-env REACT_APP_DESKTOP=true electron-builder --win nsis"
+    "build:desktop": "powershell -ExecutionPolicy Bypass -File backend/build-desktop.ps1 && npm --prefix frontend run build && cross-env REACT_APP_DESKTOP=true electron-builder --win nsis"
   },
   "build": {
     "appId": "com.ceresignal.app",
