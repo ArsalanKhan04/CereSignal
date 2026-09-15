@@ -2,7 +2,7 @@
 User management endpoints
 """
 
-import uuid
+import secrets
 from datetime import date, datetime, timezone
 from typing import List, Optional
 
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.access import forbid_patients, get_accessible_patient, visible_patients
 from app.core.auth import get_current_active_user
 from app.core.database import get_db
-from app.core.logging_config import logger
+from app.core.logging_config import log_error, logger
 from app.models.auth import AuthUser, UserType
 from app.models.notification import Notification
 from app.models.signal import SignalFile
@@ -213,9 +213,10 @@ async def create_user(
         raise
     except Exception as e:
         db.rollback()
+        log_error(e, "Error creating user")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating user: {str(e)}",
+            detail="Error creating user",
         )
 
 
@@ -455,9 +456,10 @@ async def update_user(
         raise
     except Exception as e:
         db.rollback()
+        log_error(e, "Error updating user")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating user: {str(e)}",
+            detail="Error updating user",
         )
 
 
@@ -511,9 +513,10 @@ async def delete_user(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error deleting user and files")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting user and files: {str(e)}",
+            detail="Error deleting user and files",
         )
 
 
@@ -548,8 +551,9 @@ async def send_portal_email(
             detail="Patient has no email address",
         )
 
-    if not user.portal_token:
-        user.portal_token = str(uuid.uuid4())
+    # A fresh link on every send: it expires PORTAL_LINK_TTL after portal_sent_at, and
+    # re-sending must not leave the previous link working alongside the new one.
+    user.portal_token = secrets.token_urlsafe(32)
 
     from app.core.config import settings
     from app.services.email_service import send_patient_portal_email
@@ -567,9 +571,10 @@ async def send_portal_email(
         db.refresh(user)
     except Exception as e:
         db.rollback()
+        log_error(e, "Failed to send email")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email: {str(e)}",
+            detail="Failed to send email",
         )
 
     user.doctor_name = None

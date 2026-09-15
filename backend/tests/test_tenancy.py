@@ -742,4 +742,16 @@ class TestPortalTokenIsNotListed:
         )
 
         assert response.status_code == 200
-        assert response.json()["portal_token"] == "standing-login-token"
+        assert response.json()["portal_token"]
+
+    def test_re_sending_kills_the_previous_link(
+        self, client, doctor_a, auth_headers, patient_with_email
+    ):
+        send = f"/api/v1/users/{patient_with_email.id}/send-portal-email"
+        first = client.post(send, headers=auth_headers(doctor_a)).json()["portal_token"]
+        second = client.post(send, headers=auth_headers(doctor_a)).json()["portal_token"]
+
+        assert first != second
+        portal = "/api/v1/auth/patient-portal"
+        assert client.post(portal, json={"token": first}).status_code == 404
+        assert client.post(portal, json={"token": second}).status_code == 200

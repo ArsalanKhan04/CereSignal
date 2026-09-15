@@ -165,12 +165,13 @@ class ApiClient {
   }
 
   async validateInviteToken(token: string): Promise<ApiResponse<InviteTokenInfo>> {
-    const response = await this.client.get(`/auth/invite/${token}`);
+    // Tokens go in the body: paths are written to server and proxy logs.
+    const response = await this.client.post('/auth/invite/validate', { token });
     return { data: response.data, status: response.status };
   }
 
   async registerFromInvite(token: string, data: StaffInviteRegisterRequest): Promise<ApiResponse<User>> {
-    const response = await this.client.post(`/auth/register/invite/${token}`, data);
+    const response = await this.client.post('/auth/register/invite', { ...data, token });
     return { data: response.data, status: response.status };
   }
 
@@ -234,7 +235,7 @@ class ApiClient {
   }
 
   async loginWithPortalToken(token: string): Promise<ApiResponse<{ access_token: string; token_type: string; expires_in: number }>> {
-    const response = await this.client.get(`/auth/patient-portal/${token}`);
+    const response = await this.client.post('/auth/patient-portal', { token });
     return { data: response.data, status: response.status };
   }
 

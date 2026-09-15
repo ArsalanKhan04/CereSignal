@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+from PIL import Image as PILImage
 from reportlab.lib.colors import black
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
@@ -267,6 +268,10 @@ class PDFReportGenerator:
                     tmp.flush()
                     tmp.close()
                     temp_paths.append(tmp.name)
+                    # ReportLab decodes lazily, so a corrupt image would otherwise
+                    # fail inside doc.build(), outside this try, and sink the PDF.
+                    with PILImage.open(tmp.name) as img:
+                        img.load()
                     story.append(Image(tmp.name, width=6.5 * inch, height=3.2 * inch))
                 except Exception as exc:
                     # A missing or unreadable screenshot must not sink the whole

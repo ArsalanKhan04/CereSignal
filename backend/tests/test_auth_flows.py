@@ -3,8 +3,8 @@ Tests for the ``app/api/v1/endpoints/auth.py`` routes that had no coverage:
 invite-token validation, patient-portal token exchange, /me, change-password,
 logout and /doctors.
 
-Three of these are unauthenticated and take a secret straight off the URL
-(``/invite/{token}``, ``/patient-portal/{token}``), which makes their failure
+Three of these are unauthenticated and take a secret in the request body
+(``/invite/validate``, ``/patient-portal``), which makes their failure
 modes the interesting part: an expired or spent token must be refused, and a
 wrong token must not distinguish itself from a missing one.
 """
@@ -44,7 +44,7 @@ class TestValidateInviteToken:
     def test_a_live_token_returns_the_hospital_and_role(self, client, invite, hospital_a):
         inv = invite(role="technician")
 
-        body = client.get(f"{BASE}/invite/{inv.token}").json()
+        body = client.post(f"{BASE}/invite/validate", json={"token": inv.token}).json()
 
         assert body["role"] == "technician"
         assert body["hospital_name"] == hospital_a.name
@@ -52,23 +52,23 @@ class TestValidateInviteToken:
         assert body["email"] == inv.invited_email
 
     def test_an_unknown_token_is_a_404(self, client):
-        assert client.get(f"{BASE}/invite/no-such-token").status_code == 404
+        assert client.post(f"{BASE}/invite/validate", json={"token": "no-such-token"}).status_code == 404
 
     def test_an_already_used_token_is_410(self, client, invite):
         inv = invite(token="spent", used=True)
 
-        assert client.get(f"{BASE}/invite/{inv.token}").status_code == 410
+        assert client.post(f"{BASE}/invite/validate", json={"token": inv.token}).status_code == 410
 
     def test_an_expired_token_is_410(self, client, invite):
         inv = invite(token="stale", expires_in_days=-1)
 
-        assert client.get(f"{BASE}/invite/{inv.token}").status_code == 410
+        assert client.post(f"{BASE}/invite/validate", json={"token": inv.token}).status_code == 410
 
     def test_it_needs_no_authentication(self, client, invite):
         """Deliberately public — the invitee has no account yet."""
         inv = invite(token="public")
 
-        assert client.get(f"{BASE}/invite/{inv.token}").status_code == 200
+        assert client.post(f"{BASE}/invite/validate", json={"token": inv.token}).status_code == 200
 
 
 class TestPatientPortalAccess:
@@ -78,9 +78,10 @@ class TestPatientPortalAccess:
         patient = make_patient("Portal Patient", hospital_a, auth_user=doctor_a,
                                patient_auth_user=patient_a)
         patient.portal_token = "portal-secret"
+        patient.portal_sent_at = datetime.now(timezone.utc)
         db_session.commit()
 
-        r = client.get(f"{BASE}/patient-portal/{patient.portal_token}")
+        r = client.post(f"{BASE}/patient-portal", json={"token": patient.portal_token})
 
         assert r.status_code == 200
         assert r.json()["token_type"] == "bearer"
@@ -92,16 +93,17 @@ class TestPatientPortalAccess:
         patient = make_patient("Portal Patient", hospital_a, auth_user=doctor_a,
                                patient_auth_user=patient_a)
         patient.portal_token = "portal-secret"
+        patient.portal_sent_at = datetime.now(timezone.utc)
         db_session.commit()
 
-        token = client.get(f"{BASE}/patient-portal/{patient.portal_token}").json()["access_token"]
+        token = client.post(f"{BASE}/patient-portal", json={"token": patient.portal_token}).json()["access_token"]
         me = client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {token}"})
 
         assert me.status_code == 200
         assert me.json()["user_type"] == "patient"
 
     def test_an_unknown_token_is_a_404(self, client):
-        assert client.get(f"{BASE}/patient-portal/not-a-real-token").status_code == 404
+        assert client.post(f"{BASE}/patient-portal", json={"token": "not-a-real-token"}).status_code == 404
 
     def test_a_patient_with_no_auth_account_gets_one_created(
         self, client, make_patient, hospital_a, doctor_a, db_session
@@ -109,10 +111,11 @@ class TestPatientPortalAccess:
         """The portal is the patient's first contact — there is no prior login."""
         patient = make_patient("Fresh Patient", hospital_a, auth_user=doctor_a)
         patient.portal_token = "first-visit"
+        patient.portal_sent_at = datetime.now(timezone.utc)
         db_session.commit()
         assert patient.patient_auth_user_id is None
 
-        r = client.get(f"{BASE}/patient-portal/first-visit")
+        r = client.post(f"{BASE}/patient-portal", json={"token": "first-visit"})
 
         assert r.status_code == 200
         db_session.refresh(patient)
@@ -124,10 +127,11 @@ class TestPatientPortalAccess:
         patient = make_patient("Blocked", hospital_a, auth_user=doctor_a,
                                patient_auth_user=patient_a)
         patient.portal_token = "blocked-token"
+        patient.portal_sent_at = datetime.now(timezone.utc)
         patient_a.is_active = False
         db_session.commit()
 
-        assert client.get(f"{BASE}/patient-portal/blocked-token").status_code == 403
+        assert client.post(f"{BASE}/patient-portal", json={"token": "blocked-token"}).status_code == 403
 
     def test_the_token_is_not_guessable_from_the_patient_id(
         self, client, make_patient, hospital_a, doctor_a, db_session
@@ -138,9 +142,39 @@ class TestPatientPortalAccess:
         """
         patient = make_patient("Sequential", hospital_a, auth_user=doctor_a)
         patient.portal_token = "an-unguessable-value"
+        patient.portal_sent_at = datetime.now(timezone.utc)
         db_session.commit()
 
-        assert client.get(f"{BASE}/patient-portal/{patient.id}").status_code == 404
+        assert client.post(f"{BASE}/patient-portal", json={"token": str(patient.id)}).status_code == 404
+
+    def test_a_link_older_than_its_lifetime_is_410(
+        self, client, make_patient, hospital_a, doctor_a, db_session
+    ):
+        """A portal link is a login; it must not stand forever."""
+        from app.api.v1.endpoints.auth import PORTAL_LINK_TTL
+
+        patient = make_patient("Late Reader", hospital_a, auth_user=doctor_a)
+        patient.portal_token = "stale-link"
+        patient.portal_sent_at = datetime.now(timezone.utc) - PORTAL_LINK_TTL - timedelta(hours=1)
+        db_session.commit()
+
+        r = client.post(f"{BASE}/patient-portal", json={"token": "stale-link"})
+
+        assert r.status_code == 410
+
+    def test_a_token_never_sent_is_refused(
+        self, client, make_patient, hospital_a, doctor_a, db_session
+    ):
+        """No portal_sent_at means no email went out, so there is no link to honour."""
+        patient = make_patient("Never Sent", hospital_a, auth_user=doctor_a)
+        patient.portal_token = "never-sent"
+        db_session.commit()
+
+        assert client.post(f"{BASE}/patient-portal", json={"token": "never-sent"}).status_code == 410
+
+    def test_the_token_is_not_accepted_in_the_path(self, client):
+        """Paths reach every request log; the old GET form must be gone."""
+        assert client.get(f"{BASE}/patient-portal/anything").status_code in (404, 405)
 
 
 class TestMe:
@@ -209,6 +243,35 @@ class TestChangePassword:
     def test_an_anonymous_caller_is_refused(self, client):
         assert client.put(f"{BASE}/change-password",
                           json=self._payload("a", "bbbbbbbbbb")).status_code in (401, 403)
+
+    def test_tokens_issued_before_the_change_stop_working(
+        self, client, auth_headers, doctor_a, test_password
+    ):
+        """A stolen token must not outlive the password change meant to evict its thief."""
+        stolen = auth_headers(doctor_a)
+        assert client.get(f"{BASE}/me", headers=stolen).status_code == 200
+
+        client.put(f"{BASE}/change-password", headers=auth_headers(doctor_a),
+                   json=self._payload(test_password, "a-brand-new-password"))
+
+        assert client.get(f"{BASE}/me", headers=stolen).status_code == 401
+
+    def test_a_fresh_login_works_after_the_change(self, client, auth_headers, doctor_a, test_password):
+        client.put(f"{BASE}/change-password", headers=auth_headers(doctor_a),
+                   json=self._payload(test_password, "a-brand-new-password"))
+
+        token = client.post(
+            f"{BASE}/login", json={"username": doctor_a.username, "password": "a-brand-new-password"}
+        ).json()["access_token"]
+
+        assert client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+
+    def test_a_token_without_the_password_claim_is_refused(self, client, doctor_a):
+        from app.core.auth import create_access_token
+
+        bare = create_access_token({"sub": doctor_a.username, "user_id": doctor_a.id})
+
+        assert client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {bare}"}).status_code == 401
 
 
 class TestLogout:

@@ -147,3 +147,28 @@ class TestTopomapIsEmbedded:
         pdf_path = _generate(client, auth_headers, doctor_a, report)
 
         assert IMAGE_MARKER in local_storage.download(SIGNALS_BUCKET, pdf_path)
+
+
+class TestCorruptBookmarkImage:
+    def test_a_stored_corrupt_bookmark_does_not_sink_the_pdf(
+        self, client, local_storage, auth_headers, hospital_a, doctor_a, report_for,
+        db_session, png_on_disk,
+    ):
+        """
+        Bookmarks stored before upload validation existed can hold anything. The
+        PDF used to fail in doc.build(), outside the per-image try, on every build.
+        """
+        from app.models.signal import EEGBookmark
+
+        report = report_for(hospital_a, doctor_a)
+        path = f"bookmarks/{report.signal_file.id}/bookmark_1.png"
+        local_storage.upload(ASSETS_BUCKET, path, png_on_disk.read_bytes()[:60])
+        db_session.add(EEGBookmark(
+            file_id=report.signal_file.id, comment="truncated", created_by=doctor_a.id,
+            image_path=path,
+        ))
+        db_session.commit()
+
+        pdf_path = _generate(client, auth_headers, doctor_a, report)
+
+        assert local_storage.download(SIGNALS_BUCKET, pdf_path).startswith(b"%PDF")

@@ -3,8 +3,10 @@ File processing utilities
 """
 
 import os
+import re
 import secrets
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 from fastapi import UploadFile
@@ -30,6 +32,29 @@ async def save_uploaded_file(file: UploadFile, filename: str) -> str:
     data = await file.read()
     storage_service.upload(SIGNALS_BUCKET, object_path, data)
     return object_path
+
+
+def safe_basename(name: str | None) -> str:
+    """
+    The last path component of an untrusted filename, with control characters
+    removed. original_filename is the raw multipart filename, so "../../x.edf" or a
+    Windows path can arrive intact.
+    """
+    base = os.path.basename((name or "").replace("\\", "/"))
+    base = re.sub(r"[\x00-\x1f\x7f]", "", base).strip()
+    return base if base not in ("", ".", "..") else "download"
+
+
+def content_disposition(name: str | None) -> str:
+    """
+    An attachment header that survives any filename. Starlette encodes headers as
+    latin-1, so an Urdu or CJK name in a plain filename="..." was a 500, and a quote
+    broke the header: send an ASCII fallback plus the RFC 5987 UTF-8 form.
+    """
+    base = safe_basename(name)
+    fallback = base.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    fallback = fallback.replace('"', "_").replace("\\", "_")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(base, safe='')}"
 
 
 def process_signal_file(storage_path: str) -> dict:

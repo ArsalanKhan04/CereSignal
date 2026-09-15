@@ -2,7 +2,6 @@
 Report management endpoints
 """
 
-import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +18,7 @@ from app.core.access import (
 )
 from app.core.auth import get_current_active_user
 from app.core.database import get_db
+from app.core.logging_config import log_error
 from app.models.auth import AuthUser, UserType
 from app.models.notification import Notification
 from app.models.report import EEGReport, EEGReportVersion
@@ -32,6 +32,7 @@ from app.schemas.report import (
     EEGReportVersionResponse,
 )
 from app.services.pdf_service import pdf_generator
+from app.utils.file_processing import content_disposition
 
 
 def _snapshot_report(
@@ -158,9 +159,10 @@ async def create_report(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error creating report")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating report: {str(e)}",
+            detail="Error creating report",
         )
 
 
@@ -203,9 +205,10 @@ async def get_reports(
         return response_data
 
     except Exception as e:
+        log_error(e, "Error fetching reports")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching reports: {str(e)}",
+            detail="Error fetching reports",
         )
 
 
@@ -270,9 +273,10 @@ async def update_report(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error updating report")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating report: {str(e)}",
+            detail="Error updating report",
         )
 
 
@@ -294,9 +298,10 @@ async def delete_report(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error deleting report")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting report: {str(e)}",
+            detail="Error deleting report",
         )
 
 
@@ -412,9 +417,10 @@ async def restore_report_version(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error restoring version")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error restoring version: {str(e)}",
+            detail="Error restoring version",
         )
 
 
@@ -483,9 +489,10 @@ async def generate_report_pdf(
         raise
     except Exception as e:
         db.rollback()
+        log_error(e, "Error generating PDF")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating PDF: {str(e)}",
+            detail="Error generating PDF",
         )
 
 
@@ -524,9 +531,10 @@ async def download_report_pdf(
             raise
         except Exception as e:
             db.rollback()
+            log_error(e, "Error generating PDF")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error generating PDF: {str(e)}",
+                detail="Error generating PDF",
             )
 
     try:
@@ -536,11 +544,10 @@ async def download_report_pdf(
             status_code=status.HTTP_404_NOT_FOUND, detail="PDF not found in storage"
         )
 
-    filename = os.path.basename(report.pdf_file_path)
     return Response(
         content=data,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition(report.pdf_file_path)},
     )
 
 

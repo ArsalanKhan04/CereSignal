@@ -2,6 +2,8 @@
 Authentication utilities
 """
 
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -46,6 +48,18 @@ def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt()).decode("utf-8")
 
 
+def _password_fingerprint(hashed_password: str) -> str:
+    """
+    A short keyed digest of the stored hash, carried in every token as ``pwd``.
+
+    Changing the password changes the hash, so every token minted before the change
+    stops matching — session invalidation without a column to migrate. Keyed, so the
+    claim reveals nothing about the hash to whoever reads the token.
+    """
+    digest = hmac.new(SECRET_KEY.encode(), hashed_password.encode(), hashlib.sha256)
+    return digest.hexdigest()[:16]
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token"""
     to_encode = data.copy()
@@ -57,6 +71,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def create_user_token(user: AuthUser) -> str:
+    """The session token for a user. get_current_user accepts nothing else."""
+    return create_access_token(
+        {
+            "sub": user.username,
+            "user_id": user.id,
+            "pwd": _password_fingerprint(user.hashed_password),
+        }
+    )
 
 
 def verify_token(token: str) -> TokenData:
@@ -75,7 +100,7 @@ def verify_token(token: str) -> TokenData:
         if username is None or user_id is None:
             raise credentials_exception
 
-        token_data = TokenData(username=username, user_id=user_id)
+        token_data = TokenData(username=username, user_id=user_id, pwd=payload.get("pwd"))
         return token_data
 
     except JWTError:
@@ -102,6 +127,12 @@ def get_current_user(
 
         user = db.query(AuthUser).filter(AuthUser.username == token_data.username).first()
         if user is None:
+            raise credentials_exception
+
+        # Minted before the password last changed (or not by create_user_token).
+        if not token_data.pwd or not hmac.compare_digest(
+            token_data.pwd, _password_fingerprint(user.hashed_password)
+        ):
             raise credentials_exception
 
         if not user.is_active:
