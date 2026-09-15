@@ -28,6 +28,18 @@ CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 app = Celery("tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
+# The desktop app runs no Redis and no worker. Tasks run inline in the API process and
+# keep their results in Celery's in-memory backend, whose cache is module-global, so
+# inference_service's AsyncResult lookups find them with no broker at all.
+DESKTOP_CELERY_CONFIG = {
+    "broker_url": "memory://",
+    "result_backend": "cache+memory://",
+    "task_always_eager": True,
+    "task_store_eager_result": True,
+}
+if os.environ.get("DESKTOP_MODE", "").lower() == "true":
+    app.conf.update(DESKTOP_CELERY_CONFIG)
+
 def get_resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     if hasattr(sys, '_MEIPASS'):
@@ -281,7 +293,9 @@ def _compute_pdr(mne_data):
 
     o1_idx = NEUROTRANSFORMER_CHANNELS.index("O1")
     o2_idx = NEUROTRANSFORMER_CHANNELS.index("O2")
-    estimator = PDREstimator(200, o1_idx, o2_idx, 0)
+    # Class-default prominence (5 dB, as Zibrandtsen & Kjaer 2021 specify). At 0 any
+    # local maximum counted, so pure noise was reported as a PDR.
+    estimator = PDREstimator(200, o1_idx, o2_idx)
 
     processed_data = _get_pipeline("pdr").apply(mne_data)
     data = processed_data.get_data()
@@ -333,10 +347,12 @@ def _get_region_report(result_events, threshold):
         slow_pct = (slow_count / total_windows) * 100
         # Generate Clinical Descriptors
         findings = []
-        if spike_pct >= threshold:  # Threshold to report it
+        # Strictly greater: at the production threshold of 0, `>=` held for 0% too and
+        # reported findings in every region whatever the model found.
+        if spike_pct > threshold:
             adj = _get_clinical_adjective(spike_pct, threshold)
             findings.append(f"{adj} epileptiform discharges")
-        if slow_pct >= threshold:
+        if slow_pct > threshold:
             adj = _get_clinical_adjective(slow_pct, threshold)
             findings.append(f"{adj} slowing")
         if not findings:

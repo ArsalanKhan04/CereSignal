@@ -202,3 +202,46 @@ class TestRestoreVersion:
         v = make_version(report_a, 1)
 
         assert client.post(f"{BASE}/{report_a.id}/versions/{v.id}/restore").status_code in (401, 403)
+
+
+class TestReportDate:
+    """
+    report_date comes from the report form. It is edited in place rather than
+    versioned: EEGReportVersion has no column for it.
+    """
+
+    def test_a_new_report_takes_the_date_it_is_given(
+        self, client, auth_headers, doctor_a, hospital_a, make_patient, make_signal_file
+    ):
+        patient = make_patient("Dated Patient", hospital_a, auth_user=doctor_a)
+        signal_file = make_signal_file(patient, hospital_a)
+
+        response = client.post(
+            f"{BASE}/",
+            json={"file_id": signal_file.id, "patient_name": "Dated Patient", "report_date": "2026-03-01"},
+            headers=auth_headers(doctor_a),
+        )
+
+        assert response.status_code == 201, response.text
+        assert response.json()["report_date"].startswith("2026-03-01")
+
+    def test_an_update_changes_the_date(self, client, auth_headers, doctor_a, report_a):
+        response = client.put(
+            f"{BASE}/{report_a.id}", json={"report_date": "2026-03-01"}, headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["report_date"].startswith("2026-03-01")
+
+    def test_an_explicit_null_keeps_the_existing_date(
+        self, client, auth_headers, doctor_a, report_a, db_session
+    ):
+        before = report_a.report_date
+
+        response = client.put(
+            f"{BASE}/{report_a.id}", json={"report_date": None}, headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 200, response.text
+        db_session.refresh(report_a)
+        assert report_a.report_date == before

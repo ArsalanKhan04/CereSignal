@@ -44,8 +44,9 @@ class PDREstimator:
         new_o2 = np.where(valid_indices == self.o2_idx)[0][0]
 
         # Segmentation
-        # Filter 0.5 - 70 Hz
-        filtered_data = self._bandpass_filter(clean_data, 0.5, 70)
+        # Filter 0.5 - 70 Hz, with the high cutoff clamped below Nyquist: butter() rejects
+        # 70 Hz at any rate <= 140 Hz, which includes the common 100 and 128 Hz.
+        filtered_data = self._bandpass_filter(clean_data, 0.5, min(70, self.sfreq / 2 - 1))
 
         # Identify valid masks
         mask = self._get_segmentation_mask(filtered_data, new_o1, new_o2)
@@ -74,6 +75,11 @@ class PDREstimator:
         # Z-score exclusion (outside +/- 2 SD)
         z_scores = zscore(rms_values)
         mask_z = np.abs(z_scores) <= 2
+        # O1/O2 are exempt from the relative test, a deliberate departure from the paper:
+        # strong posterior alpha over quiet frontals makes them the outliers, so the
+        # z-score discarded exactly the channels carrying the rhythm being measured.
+        # They still face the absolute ceiling below.
+        mask_z[[self.o1_idx, self.o2_idx]] = True
 
         # Absolute threshold exclusion (RMS > 1000)
         mask_abs = rms_values <= 1000

@@ -26,6 +26,7 @@ class EEGReportBase(BaseModel):
 class EEGReportCreate(EEGReportBase):
     """Schema for creating an EEG report"""
     file_id: BodyResourceId = Field(..., description="ID of the signal file")
+    report_date: Optional[datetime] = None
 
 
 class EEGReportUpdate(BaseModel):
@@ -39,6 +40,7 @@ class EEGReportUpdate(BaseModel):
     factual_report: Optional[str] = None
     impression: Optional[str] = None
     doctor_info: Optional[str] = None
+    report_date: Optional[datetime] = None
     is_finalized: Optional[bool] = None
 
 

@@ -53,6 +53,21 @@ describe('FormTextField', () => {
     expect(screen.getByLabelText(/email/i)).toBeRequired();
   });
 
+  it('honours a caller-supplied size', () => {
+    // fullWidth and size are defaults, not overrides: the staff-invite form passes
+    // size="small" to line up with its Role select.
+    render(<FormTextField label="Email" size="small" />);
+
+    // MUI marks the size on the input's root, not on the <input> itself.
+    expect(screen.getByLabelText(/email/i).closest('.MuiInputBase-root')).toHaveClass('MuiInputBase-sizeSmall');
+  });
+
+  it('defaults to medium', () => {
+    render(<FormTextField label="Email" />);
+
+    expect(screen.getByLabelText(/email/i).closest('.MuiInputBase-root')).not.toHaveClass('MuiInputBase-sizeSmall');
+  });
+
   it('forwards the value', () => {
     render(<FormTextField label="Email" value="ada@example.test" onChange={() => {}} />);
 

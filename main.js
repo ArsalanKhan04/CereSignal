@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const crypto = require('crypto');
 
 let mainWindow;
 let backendProcess;
@@ -10,6 +11,11 @@ let desktopLogPath;
 
 const isWindowsPackaged = process.platform === 'win32' && app.isPackaged;
 const isDesktopMode = isWindowsPackaged || process.env.DESKTOP_MODE === 'true' || process.env.REACT_APP_DESKTOP === 'true';
+
+// Handed to the backend and to this app's own window only. The window trades it for a
+// session token (POST /auth/desktop-session), so the desktop app signs itself in while
+// every API route still requires a token.
+const desktopSecret = isDesktopMode ? crypto.randomBytes(32).toString('hex') : null;
 
 // We assume your FastAPI server runs on port 8000 by default.
 // If your .env changes this, update this URL accordingly!
@@ -25,13 +31,20 @@ function getBinaryPath(binaryName) {
 function startBackend() {
     let backendExe;
     let backendDir;
+    let backendArgs = [];
 
     if (app.isPackaged) {
         backendDir = path.join(process.resourcesPath, 'backend');
         backendExe = path.join(backendDir, 'cere-engine.exe');
-    } else {
+    } else if (process.platform === 'win32') {
         backendDir = path.join(__dirname, 'backend', 'dist', 'cere-engine');
         backendExe = path.join(backendDir, 'cere-engine.exe');
+    } else {
+        // No PyInstaller build off Windows: run the source entry point with the dev
+        // virtualenv that ./scripts/setup.sh creates.
+        backendDir = path.join(__dirname, 'backend');
+        backendExe = path.join(backendDir, 'cere_env', 'bin', 'python');
+        backendArgs = ['entry_point.py'];
     }
 
     writeDesktopLog({
@@ -42,13 +55,15 @@ function startBackend() {
     });
     
     const backendLogDir = path.join(app.getPath('userData'), 'backend-logs');
-    backendProcess = spawn(backendExe, [], { 
+    backendProcess = spawn(backendExe, backendArgs, { 
         cwd: backendDir,
         stdio: 'ignore', // Change to 'inherit' to see logs in terminal during dev
         windowsHide: true,
         env: {
             ...process.env,
             DESKTOP_MODE: isDesktopMode ? 'true' : 'false',
+            DESKTOP_SESSION_SECRET: desktopSecret || '',
+            CERE_DATA_DIR: app.getPath('userData'),
             CERE_LOG_DIR: backendLogDir,
             CERE_LOG_KEEP_FOREVER: '1'
         }
@@ -221,6 +236,10 @@ app.whenReady().then(() => {
 
 ipcMain.on('desktop-log', (_event, entry) => {
     writeDesktopLog(entry);
+});
+
+ipcMain.on('desktop-session-secret', (event) => {
+    event.returnValue = mainWindow && event.sender === mainWindow.webContents ? desktopSecret : null;
 });
 
 // CLEANUP: Kill ALL processes when app closes

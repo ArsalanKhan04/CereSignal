@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { getDesktopSecret } from '../utils/desktop';
 import logger from './logger';
 import {
   User,
@@ -99,10 +100,19 @@ class ApiClient {
         );
         if (error.response?.status === 401) {
           const url = error.config?.url || '';
+          const desktopSecret = getDesktopSecret();
+          // The desktop app has no login page to fall back to, and '/' under file:// is
+          // the filesystem root: renew the desktop session and retry once instead.
+          if (desktopSecret && !url.includes('/auth/desktop-session') && !error.config?._desktopRetry) {
+            return this.startDesktopSession(desktopSecret).then((session) => {
+              this.setAuthToken(session.data.access_token);
+              return this.client.request({ ...error.config, _desktopRetry: true });
+            });
+          }
           const isAuthEndpoint = url.includes('/auth/login');
           localStorage.removeItem('auth_token');
           localStorage.removeItem('current_user');
-          if (!isAuthEndpoint) {
+          if (!isAuthEndpoint && !desktopSecret) {
             window.location.href = '/';
           }
         }
@@ -119,6 +129,13 @@ class ApiClient {
 
   async login(data: LoginRequest): Promise<ApiResponse<AuthResponse>> {
     const response = await this.client.post('/auth/login', data);
+    return { data: response.data, status: response.status };
+  }
+
+  async startDesktopSession(secret: string): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.client.post('/auth/desktop-session', null, {
+      headers: { 'X-Desktop-Secret': secret },
+    });
     return { data: response.data, status: response.status };
   }
 

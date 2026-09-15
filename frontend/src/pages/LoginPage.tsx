@@ -22,7 +22,7 @@ import ScienceIcon from '@mui/icons-material/Science';
 import BrainIcon from '@mui/icons-material/Psychology';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginRequest } from '../types';
-import { validateUsername, validatePassword, collectErrors, extractApiErrors } from '../utils/validation';
+import { validateRequired, collectErrors, extractApiErrors } from '../utils/validation';
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
 
@@ -83,8 +83,10 @@ const LoginPage: React.FC = () => {
     setSuccess('');
 
     const errors = collectErrors(
-      validateUsername(formData.username),
-      validatePassword(formData.password),
+      // Presence only. The format rules belong to registration: applied here they
+      // locked out usernames the backend accepts, such as ones containing a dot.
+      validateRequired(formData.username, 'username', 'Username'),
+      validateRequired(formData.password, 'password', 'Password'),
     );
     if (errors.length > 0) {
       const fieldErrMap: Record<string, string> = {};

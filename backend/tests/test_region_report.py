@@ -2,10 +2,10 @@
 Tests for _get_region_report, which turns per-channel event sequences into the
 regional prose that goes into the clinical report.
 
-Note that production calls this with ``threshold=0`` (infer.py:532), which the
-tests here deliberately do not: at 0 every comparison is ``>= 0`` and so always
-true, which makes the "Normal activity." branch unreachable. That is recorded as
-an open item, not settled here.
+Production calls this with ``threshold=0``. A finding is reported only when its
+percentage is strictly above the threshold, so at 0 any detected window counts
+and a region with none reports "Normal activity." (TestProductionThreshold).
+The other tests use 5.0 to exercise the adjective scaling away from that edge.
 """
 
 import pytest
@@ -45,6 +45,25 @@ class TestNormalActivity:
         for region in report.values():
             assert region["description"] == "Normal activity."
             assert region["stats"] == {"spike_pct": 0.0, "slow_pct": 0.0}
+
+
+class TestProductionThreshold:
+    """infer.py passes threshold=0, where `>=` reported findings in every region."""
+
+    def test_an_all_normal_recording_is_normal(self):
+        report = _get_region_report(events_for(), threshold=0)
+
+        for region in report.values():
+            assert region["description"] == "Normal activity."
+
+    def test_a_single_slow_window_is_reported(self):
+        report = _get_region_report(
+            events_for(O1=["slow wave"] + ["normal wave"] * 99, O2=["normal wave"] * 100),
+            threshold=0,
+        )
+
+        assert report["Occipital"]["description"] == "Rare slowing."
+        assert report["Frontal"]["description"] == "Normal activity."
 
 
 class TestSlowWaveReporting:

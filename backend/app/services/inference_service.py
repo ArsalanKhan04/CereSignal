@@ -22,6 +22,11 @@ CELERY_RESULT_BACKEND = _redis_url
 # Initialize Celery app
 inference_app = Celery('inference', broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
+if os.environ.get("DESKTOP_MODE", "").lower() == "true":
+    from inference.infer import DESKTOP_CELERY_CONFIG
+
+    inference_app.conf.update(DESKTOP_CELERY_CONFIG)
+
 class InferenceService:
     """Service for managing EEG inference tasks"""
     

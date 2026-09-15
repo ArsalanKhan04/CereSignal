@@ -31,8 +31,9 @@ from app.core.logging_config import logger
 SIGNALS_BUCKET = "eeg-signals"
 ASSETS_BUCKET = "eeg-assets"
 
-# Where LocalStorageService keeps its files: backend/local_storage/<bucket>/<path>
-LOCAL_STORAGE_ROOT = os.path.join(
+# Where LocalStorageService keeps its files: backend/local_storage/<bucket>/<path>,
+# unless LOCAL_STORAGE_ROOT is set (the desktop app keeps it in its data folder).
+LOCAL_STORAGE_ROOT = os.environ.get("LOCAL_STORAGE_ROOT") or os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "local_storage",
 )

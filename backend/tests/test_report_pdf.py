@@ -13,7 +13,7 @@ Two defects, both reachable by any doctor or technician who can edit a report:
 
 import pytest
 
-from app.services.storage_service import SIGNALS_BUCKET
+from app.services.storage_service import ASSETS_BUCKET, SIGNALS_BUCKET
 
 IMAGE_MARKER = b"/Subtype /Image"
 
@@ -126,3 +126,24 @@ class TestPdfPathsAreUniquePerReport:
         assert response.content.startswith(b"%PDF")
         db_session.refresh(report)
         assert report.pdf_file_path.startswith(f"reports/{report.id}/")
+
+
+class TestTopomapIsEmbedded:
+    def test_the_processed_recordings_topomap_reaches_the_pdf(
+        self, client, local_storage, auth_headers, hospital_a, doctor_a, report_for,
+        db_session, png_on_disk,
+    ):
+        """
+        The topomap is named after the processed recording (file_path), while filename
+        stays the raw upload name. Keying off filename missed it on every build.
+        """
+        report = report_for(hospital_a, doctor_a, filename="EEG.edf")
+        report.signal_file.file_path = "signals/EEG_processed.edf"
+        db_session.commit()
+        local_storage.upload(
+            ASSETS_BUCKET, "topomaps/EEG_processed_topomap.png", png_on_disk.read_bytes()
+        )
+
+        pdf_path = _generate(client, auth_headers, doctor_a, report)
+
+        assert IMAGE_MARKER in local_storage.download(SIGNALS_BUCKET, pdf_path)
