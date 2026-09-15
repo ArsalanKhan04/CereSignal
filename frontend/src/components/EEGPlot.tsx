@@ -1,5 +1,8 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import createPlotlyComponent from 'react-plotly.js/factory';
+// The basic bundle registers only the bar, pie and scatter traces. Any other trace
+// type (e.g. 'scattergl') resolves to no module and silently renders an empty plot,
+// with no console error. WebGL needs plotly.js-dist or a custom bundle.
 import Plotly from 'plotly.js-basic-dist';
 import {
   Box,

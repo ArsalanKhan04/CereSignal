@@ -74,7 +74,9 @@ npm run build:desktop                    # Windows desktop installer (PyInstalle
 ./cere_env/bin/celery -A inference.infer inspect ping
 ```
 
-The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `react-scripts` directly hits Node's 2 GB default and runs out of heap.
+The frontend scripts set `NODE_OPTIONS=--max-old-space-size=6144`; invoking `react-scripts` directly hits Node's 2 GB default and runs out of heap. If the build
+runs out of heap again, raise it to 8192 first, then add `GENERATE_SOURCEMAP=false` (source maps are
+the largest allocation, and prod source maps are worth keeping until then).
 
 **Tests: `./scripts/test.sh`.** pytest for the backend (`backend/tests/`, config in
 `backend/pytest.ini`, deps in `backend/requirements-dev.txt`) and CRA's jest for the frontend
