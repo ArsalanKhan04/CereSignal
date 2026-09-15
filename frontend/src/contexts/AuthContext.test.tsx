@@ -151,6 +151,44 @@ describe('logout', () => {
   });
 });
 
+describe('desktop app', () => {
+  // preload.js exposes the per-launch secret as window.electron.desktopSecret.
+  beforeEach(() => {
+    (window as any).electron = { desktopSecret: 'launch-secret' };
+  });
+
+  afterEach(() => {
+    delete (window as any).electron;
+  });
+
+  it('signs itself in with the launch secret, with no login', async () => {
+    mock.onPost('/auth/desktop-session').reply(200, { access_token: 'desktop-token', token_type: 'bearer' });
+    mock.onGet('/auth/me').reply(200, { ...DOCTOR, username: 'desktop' });
+
+    renderProbe();
+
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('desktop'));
+    expect(mock.history.post[0].headers?.['X-Desktop-Secret']).toBe('launch-secret');
+    expect(window.localStorage.getItem('auth_token')).toBe('desktop-token');
+  });
+
+  it('renews a token left over from an earlier launch instead of signing out', async () => {
+    // Each launch has a fresh SECRET_KEY, so yesterday's token is always rejected.
+    window.localStorage.setItem('auth_token', 'stale');
+    mock.onPost('/auth/desktop-session').reply(200, { access_token: 'renewed', token_type: 'bearer' });
+    mock.onGet('/auth/me').reply((config) =>
+      config.headers?.Authorization === 'Bearer renewed'
+        ? [200, { ...DOCTOR, username: 'desktop' }]
+        : [401],
+    );
+
+    renderProbe();
+
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('desktop'));
+    expect(window.localStorage.getItem('auth_token')).toBe('renewed');
+  });
+});
+
 describe('useAuth outside a provider', () => {
   it('throws rather than silently returning undefined', () => {
     const quiet = jest.spyOn(console, 'error').mockImplementation(() => {});

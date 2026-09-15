@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../types';
 import { apiClient } from '../services/api';
+import { getDesktopSecret } from '../utils/desktop';
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +33,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
+      // The desktop app signs itself in. A token left over from an earlier launch is
+      // renewed by the 401 handler in services/api.ts.
+      const desktopSecret = getDesktopSecret();
+      if (desktopSecret && !apiClient.getAuthToken()) {
+        try {
+          const session = await apiClient.startDesktopSession(desktopSecret);
+          apiClient.setAuthToken(session.data.access_token);
+        } catch (error) {
+          console.error('Failed to start the desktop session:', error);
+        }
+      }
       const token = apiClient.getAuthToken();
       if (token) {
         try {

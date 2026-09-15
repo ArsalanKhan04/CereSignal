@@ -76,6 +76,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   const [formData, setFormData] = useState<EEGReportCreate>({
     file_id: fileId || 0,
+    report_date: new Date().toISOString().split('T')[0],
     patient_name: '',
     patient_age: undefined,
     patient_gender: 'M',
@@ -112,6 +113,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
     setExistingReport(report);
     setFormData({
       file_id: report.file_id,
+      report_date: report.report_date?.split('T')[0],
       patient_name: report.patient_name,
       patient_age: report.patient_age,
       patient_gender: report.patient_gender || 'M',
@@ -474,6 +476,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       let response;
       if (isEditing && existingReport) {
         const updateData: EEGReportUpdate = {
+          report_date: formData.report_date || undefined,
           patient_name: formData.patient_name,
           patient_age: formData.patient_age,
           patient_gender: formData.patient_gender || undefined,
@@ -488,6 +491,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       } else {
         const createData: EEGReportCreate = {
           ...formData,
+          report_date: formData.report_date || undefined,
           patient_gender: formData.patient_gender || undefined,
           doctor_info: buildDoctorInfo() || (formData.doctor_info?.trim() ? formData.doctor_info : undefined),
         };
@@ -579,11 +583,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
                 <TextField
                   label="Date"
                   type="date"
-                  value={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                    }
-                  }}
+                  value={formData.report_date || ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, report_date: e.target.value }))}
                   variant="outlined"
                   sx={{ minWidth: 200 }}
                   slotProps={{

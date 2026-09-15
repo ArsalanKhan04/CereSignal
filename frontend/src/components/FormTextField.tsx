@@ -8,11 +8,11 @@ interface FormTextFieldProps extends Omit<TextFieldProps, 'error'> {
 const FormTextField: React.FC<FormTextFieldProps> = ({ fieldError, helperText, ...props }) => {
   return (
     <TextField
+      fullWidth
+      size="medium"
       {...props}
       error={!!fieldError}
       helperText={fieldError || helperText || undefined}
-      fullWidth
-      size="medium"
     />
   );
 };

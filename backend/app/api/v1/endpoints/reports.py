@@ -118,6 +118,8 @@ async def create_report(
             impression=report_dict["impression"],
             doctor_info=report_dict.get("doctor_info"),
         )
+        if report_data.report_date:
+            db_report.report_date = report_data.report_date
 
         notification = None
         if current_user.user_type == UserType.DOCTOR.value:
@@ -244,6 +246,8 @@ async def update_report(
         # Update report fields
         update_data = report_data.dict(exclude_unset=True)
         for field, value in update_data.items():
+            if field == "report_date" and value is None:
+                continue  # NOT NULL column: an explicit null keeps the existing date
             setattr(report, field, value)
 
         if "impression" in update_data and update_data["impression"] is not None:

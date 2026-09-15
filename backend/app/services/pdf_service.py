@@ -287,7 +287,9 @@ class PDFReportGenerator:
         from app.services.storage_service import ASSETS_BUCKET, storage_service
 
         story = []
-        base = os.path.splitext(signal_file.filename)[0]
+        # file_path, not filename: the topomap is named after the processed recording
+        # ("<name>_processed"), as in signals.py's /topomap route.
+        base = os.path.splitext(os.path.basename(signal_file.file_path))[0]
         object_path = f"topomaps/{base}_topomap.png"
 
         try:

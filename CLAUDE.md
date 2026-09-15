@@ -58,7 +58,7 @@ key or on either placeholder that has ever shipped (`PLACEHOLDER_SECRET_KEYS` in
 # Frontend (from repo root)
 npm --prefix frontend run dev            # dev server
 npm --prefix frontend run build          # web production build
-npm --prefix frontend run build:desktop  # Electron desktop build
+npm run build:desktop                    # Windows desktop installer (PyInstaller + Electron)
 
 # Tests (from repo root)
 ./scripts/test.sh                        # both suites
@@ -143,12 +143,7 @@ not install, so measuring them pinned the floor ~3 points below the honest numbe
 `xfail(strict=True)` is the house convention for pinning a defect that is found but not yet
 fixed: the test asserts the behaviour a route *should* have, fails today, and turns into an
 XPASS — which `strict` reports as a failure — the moment the bug is fixed, so the marker cannot
-be left behind. **There are four right now, all in `tests/test_pdr.py`**, covering two defects
-in `external/pdr.py`: `fit()` raises `ValueError` for any `sfreq <= 140` (a 70 Hz filter cutoff
-above Nyquist — 100 Hz and 128 Hz are ordinary clinical rates, and production only escapes it
-because `inference/infer.py:301` hardcodes 200), and the RMS z-score channel rejection discards
-O1/O2 precisely when they carry a strong posterior rhythm, so clean alpha reports as
-"Not well-formed" while adding unrelated noise to another channel makes it succeed.
+be left behind. There are none right now.
 
 ## Architecture
 
@@ -241,19 +236,37 @@ is unset, rather than matching every orphan row.
 - Passwords are hashed with `bcrypt` directly in `app/core/auth.py`, truncated to bcrypt's
   72-byte input exactly as the old passlib + bcrypt<4 stack did. passlib is gone: it is
   unmaintained and breaks on bcrypt 5, which raises past 72 bytes instead of truncating
-- Desktop mode does **not** disable auth. `DESKTOP_MODE` is currently inert (see below), so JWT
-  auth is enforced in every mode
+- Desktop mode keeps JWT auth on every route but needs no login: the app trades a per-launch
+  secret for a token at `POST /auth/desktop-session` (see Desktop Mode below)
 
 ### Desktop Mode
-`main.js` (Electron) spawns the PyInstaller-bundled backend subprocess via `backend/entry_point.py`.
-Logs go to `AppData/Roaming`.
+`main.js` (Electron) spawns the backend via `backend/entry_point.py`: the PyInstaller-bundled
+`cere-engine.exe` on Windows, or `backend/cere_env/bin/python entry_point.py` when unpackaged
+anywhere else. Logs go to `AppData/Roaming`.
 
-**Desktop mode is unimplemented** — every switch for it is currently inert:
-- `DESKTOP_MODE` reaches the backend (`main.js:51`) but `backend/entry_point.py:35` assigns `IS_DESKTOP_MODE` and never reads it. Auth is not bypassed.
-- `REACT_APP_DESKTOP` is never read anywhere in `frontend/src`, and it is a build-time variable, so setting it on `electron .` cannot change an already-built bundle.
-- `frontend/src/pages/DesktopWorkspace.tsx` exists but is never imported or routed, so `/` renders the normal `LoginPage`.
-- `main.js:67-70` skips the Celery worker in desktop mode, but there is no synchronous inference path — `app/services/inference_service.py:44` always dispatches `preprocess_edf.delay(...)`. With no worker consuming the queue, processing would never complete.
-- The unpackaged path spawns `cere-engine.exe` (`main.js:33`, `:76`), so it is Windows-only regardless.
+- **Signed in without a login, not an auth bypass.** `main.js` generates a random secret per
+  launch and gives it to the backend (`DESKTOP_SESSION_SECRET`) and to its own window only, over
+  IPC (`preload.js` → `window.electron.desktopSecret`). `AuthContext` trades it for a token at
+  `POST /auth/desktop-session`, which gets or creates a local `desktop` doctor with an unusable
+  password, inside a "Desktop" hospital (a staff account with no hospital sees nothing through
+  `access.py`). The route 404s outside desktop mode. A token left over from an earlier launch is
+  renewed by the 401 handler in `services/api.ts`, which on desktop never redirects to `/`: under
+  `file://` that is the filesystem root.
+- **Detected at runtime.** The frontend keys on `window.electron.desktopSecret`
+  (`utils/desktop.ts`), not the build-time `REACT_APP_DESKTOP`, so one bundle serves both
+  targets. On desktop `/` renders `DesktopWorkspace`, and `Patients` lets the doctor create
+  patients and upload recordings.
+- **No Redis, no worker.** With `DESKTOP_MODE=true` both Celery apps load
+  `DESKTOP_CELERY_CONFIG` (`inference/infer.py`): tasks run eagerly inside the upload request and
+  store their results in Celery's in-memory backend, one module-level cache per process, so the
+  ordinary `inference-status` polling finds them. That is why `main.js` skips the worker.
+- **`entry_point.py` supplies what a packaged app has no `.env` for**, before importing settings:
+  SQLite and `LOCAL_STORAGE_ROOT` under `CERE_DATA_DIR` (Electron's per-user data folder, since
+  the install directory is not writable), `AI_INFERENCE_ENABLED=false` (the desktop build ships
+  no torch), and `null` in the CORS origins, because a `file://` page sends `Origin: null`.
+  `SECRET_KEY` is random per process.
+- A dev backend already on `:8000` wins the port: Electron attaches to it, the session exchange
+  404s, and the window says so. Stop `./scripts/backend-start.sh` before `npm run start:desktop`.
 
 ### Deployment
 Railway, three services, each with its own config:
@@ -353,7 +366,8 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
   (default `http://localhost:11434/v1`; empty model = most recently pulled)
 - `RESEND_API_KEY` — invitation email; `MAIL_*` variables are the SMTP fallback
 - `FRONTEND_URL` — used to build invitation email links
-- `DESKTOP_MODE` — read only by `entry_point.py:35` and never acted on; currently has no effect
+- `DESKTOP_MODE`, `DESKTOP_SESSION_SECRET` — set by `main.js` for the desktop app, never in a
+  web deployment (see Desktop Mode)
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
 

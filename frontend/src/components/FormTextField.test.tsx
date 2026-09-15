@@ -53,6 +53,22 @@ describe('FormTextField', () => {
     expect(screen.getByLabelText(/email/i)).toBeRequired();
   });
 
+  it('honours a caller-supplied size', () => {
+    // fullWidth and size are defaults, not overrides: the staff-invite form passes
+    // size="small" to line up with its Role select.
+    render(<FormTextField label="Email" size="small" />);
+
+    // MUI marks the size on the label and the input's root, not on the <input> itself. The
+    // selector skips the copy of the label text in the outline's notch <legend>.
+    expect(screen.getByText('Email', { selector: 'label' })).toHaveClass('MuiInputLabel-sizeSmall');
+  });
+
+  it('defaults to medium', () => {
+    render(<FormTextField label="Email" />);
+
+    expect(screen.getByText('Email', { selector: 'label' })).not.toHaveClass('MuiInputLabel-sizeSmall');
+  });
+
   it('forwards the value', () => {
     render(<FormTextField label="Email" value="ada@example.test" onChange={() => {}} />);
 

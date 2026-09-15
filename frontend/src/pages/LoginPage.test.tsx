@@ -76,15 +76,21 @@ describe('client-side validation', () => {
     expect(mock.history.post).toHaveLength(0);
   });
 
-  it('rejects a too-short password without asking the server', async () => {
+  it('sends a username the registration format would reject', async () => {
+    // Login checks presence only; the backend never constrains the character set.
     const user = userEvent.setup();
+    mock.onPost('/auth/login').reply(401, { detail: 'Incorrect username or password' });
     renderLogin();
 
-    await user.type(fields().username, 'doctor_a');
+    await user.type(fields().username, 'dr.house');
     await user.type(fields().password, 'abc');
     await user.click(fields().submit);
 
-    await waitFor(() => expect(mock.history.post).toHaveLength(0));
+    await waitFor(() => expect(mock.history.post).toHaveLength(1));
+    expect(JSON.parse(mock.history.post[0].data)).toMatchObject({
+      username: 'dr.house',
+      password: 'abc',
+    });
   });
 });
 

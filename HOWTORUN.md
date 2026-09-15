@@ -237,8 +237,8 @@ npm --prefix frontend start              # serve the built output on :3000
 npm --prefix frontend test               # tests
 ```
 
-Each has a `:desktop` variant (`dev:desktop`, `build:desktop`, `start:desktop`)
-that sets `REACT_APP_DESKTOP=true`.
+The desktop app uses the same build. `npm --prefix frontend run start:desktop` just
+delegates to the root `start:desktop`, which launches Electron.
 
 ## Alternative: Docker Compose
 

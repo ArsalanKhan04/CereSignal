@@ -15,6 +15,8 @@ import DashboardPage from './pages/DashboardPage';
 import HospitalSignupPage from './pages/HospitalSignupPage';
 import StaffInviteRegistrationPage from './pages/StaffInviteRegistrationPage';
 import PatientPortalAccess from './pages/PatientPortalAccess';
+import DesktopWorkspace from './pages/DesktopWorkspace';
+import { getDesktopSecret } from './utils/desktop';
 import DevAdminLayout from './pages/dev-admin/DevAdminLayout';
 import DevAdminDashboard from './pages/dev-admin/DevAdminDashboard';
 import DevAdminHospitals from './pages/dev-admin/DevAdminHospitals';
@@ -166,6 +168,13 @@ const AppRoutes: React.FC = () => {
 
   if (isLoading) {
     return <div>Loading...</div>;
+  }
+
+  // The desktop app signs itself in (AuthContext) and has no login page to show.
+  if (getDesktopSecret()) {
+    return isAuthenticated
+      ? <DesktopWorkspace />
+      : <div>Could not start the desktop session. Restart CereSignal.</div>;
   }
 
   // During demo mode, don't auto-redirect away from registration/login pages

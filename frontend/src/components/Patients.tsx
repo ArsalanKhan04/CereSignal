@@ -42,6 +42,7 @@ import MarkSentIcon from '@mui/icons-material/MarkEmailRead';
 import EmailIcon from '@mui/icons-material/Email';
 import ViewIcon from '@mui/icons-material/Visibility';
 import { apiClient } from '../services/api';
+import { getDesktopSecret } from '../utils/desktop';
 import {
   validateName, validateRequired, validatePhone, validateEmail,
   validateAge, validateDateOfBirth, validateBloodType,
@@ -127,8 +128,9 @@ const Patients: React.FC<{
   const { aiInferenceEnabled } = useConfig();
   const { isActive: isDemoActive, setDemoData, jumpToStep } = useDemo();
   const isReadOnly = user?.user_type === 'doctor';
-  const allowDoctorFileOps = false;
-  const allowDesktopCreate = false;
+  // Desktop doctors create patients and upload recordings themselves, with no technician.
+  const allowDoctorFileOps = !!getDesktopSecret() && user?.user_type === 'doctor';
+  const allowDesktopCreate = allowDoctorFileOps;
   const allowLabelChange = user?.user_type === 'doctor';
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -655,7 +657,7 @@ const Patients: React.FC<{
         };
         const createdPatient = await apiClient.createPatient(createData);
         if (selectedFile) {
-          const uploadResponse = await apiClient.uploadFile(selectedFile, createdPatient.data.id, { skipInference: allowDesktopCreate });
+          const uploadResponse = await apiClient.uploadFile(selectedFile, createdPatient.data.id);
           if (uploadResponse.data.message === 'Matlab Script automatically applied') {
             setSuccess('Matlab Script automatically applied');
           } else {

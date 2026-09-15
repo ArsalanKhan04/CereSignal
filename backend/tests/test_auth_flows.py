@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.core.auth import get_password_hash, verify_password
+from app.models.auth import AuthUser
 from app.models.hospital import StaffInvitation
 
 BASE = "/api/v1/auth"
@@ -286,3 +287,61 @@ class TestPasswordHashing:
         # Only the first 72 bytes count, exactly as before.
         assert verify_password("\u00fc" * 36, hashed)
         assert not verify_password("\u00fc" * 35, hashed)
+
+
+class TestDesktopSession:
+    """
+    POST /auth/desktop-session signs the desktop app in without a login form. The
+    per-launch secret is its only credential, so a wrong one must get nothing, and the
+    route must not exist outside desktop mode.
+    """
+
+    SECRET = "launch-secret"
+
+    @pytest.fixture
+    def desktop_mode(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "DESKTOP_MODE", True)
+        monkeypatch.setattr(settings, "DESKTOP_SESSION_SECRET", self.SECRET)
+
+    def _session(self, client, secret=SECRET):
+        return client.post(f"{BASE}/desktop-session", headers={"X-Desktop-Secret": secret})
+
+    def test_outside_desktop_mode_it_does_not_exist(self, client):
+        assert self._session(client).status_code == 404
+
+    def test_a_wrong_secret_is_refused(self, client, desktop_mode):
+        assert self._session(client, "guess").status_code == 401
+
+    def test_a_missing_secret_is_refused(self, client, desktop_mode):
+        assert client.post(f"{BASE}/desktop-session").status_code == 401
+
+    def test_the_token_works_for_a_doctor_inside_a_hospital(
+        self, client, desktop_mode, db_session
+    ):
+        token = self._session(client).json()["access_token"]
+
+        me = client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {token}"})
+
+        assert me.status_code == 200
+        assert me.json()["username"] == "desktop"
+        user = db_session.query(AuthUser).filter(AuthUser.username == "desktop").one()
+        assert user.user_type == "doctor"
+        # app/core/access.py scopes a staff account with no hospital to nothing.
+        assert user.hospital_id is not None
+
+    def test_repeat_sessions_reuse_the_same_account(self, client, desktop_mode, db_session):
+        self._session(client)
+        self._session(client)
+
+        assert db_session.query(AuthUser).filter(AuthUser.username == "desktop").count() == 1
+
+    def test_the_account_cannot_log_in_with_a_password(self, client, desktop_mode):
+        self._session(client)
+
+        for password in ("desktop", "password"):
+            response = client.post(
+                f"{BASE}/login", json={"username": "desktop", "password": password}
+            )
+            assert response.status_code == 401

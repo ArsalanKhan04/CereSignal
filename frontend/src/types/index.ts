@@ -321,6 +321,7 @@ export interface EEGReport {
 
 export interface EEGReportCreate {
   file_id: number;
+  report_date?: string;
   patient_name: string;
   patient_age?: number;
   patient_gender?: 'M' | 'F' | 'Other';
@@ -334,6 +335,7 @@ export interface EEGReportCreate {
 }
 
 export interface EEGReportUpdate {
+  report_date?: string;
   patient_name?: string;
   patient_age?: number;
   patient_gender?: 'M' | 'F' | 'Other';

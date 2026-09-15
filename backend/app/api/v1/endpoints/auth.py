@@ -2,10 +2,12 @@
 Authentication endpoints
 """
 
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
@@ -16,6 +18,7 @@ from app.core.auth import (
     get_password_hash,
     verify_password,
 )
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging_config import log_auth
 from app.models.auth import AuthUser, UserType
@@ -462,6 +465,67 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
     )
 
     log_auth("LOGIN", user_id=user.id, username=user.username, success=True)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    }
+
+
+DESKTOP_USERNAME = "desktop"
+
+
+@router.post("/desktop-session", response_model=Token)
+async def desktop_session(
+    x_desktop_secret: str = Header(""),
+    db: Session = Depends(get_db),
+):
+    """
+    Sign the desktop app in as its local doctor, with no login form.
+
+    main.js generates DESKTOP_SESSION_SECRET per launch and gives it only to this
+    process and its own window, so nothing else on the machine can call this. Outside
+    desktop mode the route does not exist.
+    """
+    if not (settings.DESKTOP_MODE and settings.DESKTOP_SESSION_SECRET):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+    if not hmac.compare_digest(
+        x_desktop_secret.encode(), settings.DESKTOP_SESSION_SECRET.encode()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid desktop session secret",
+        )
+
+    user = db.query(AuthUser).filter(AuthUser.username == DESKTOP_USERNAME).first()
+    if not user:
+        # Staff need a hospital: app/core/access.py scopes a hospital-less account to nothing.
+        hospital = db.query(Hospital).filter(Hospital.code == "desktop").first()
+        if not hospital:
+            hospital = Hospital(name="Desktop", code="desktop", is_active=True)
+            db.add(hospital)
+            db.flush()
+        user = AuthUser(
+            username=DESKTOP_USERNAME,
+            email="desktop@desktop.local",
+            # Random and never shown, so this account can never use /auth/login.
+            hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+            user_type=UserType.DOCTOR.value,
+            first_name="Desktop",
+            last_name="Doctor",
+            hospital_id=hospital.id,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": user.id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    log_auth("DESKTOP_SESSION", user_id=user.id, username=user.username, success=True)
 
     return {
         "access_token": access_token,

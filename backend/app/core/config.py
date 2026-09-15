@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     # (no torch, no model weights, no LLM report generation).
     AI_INFERENCE_ENABLED: bool = True
 
+    # Desktop app (main.js). Electron generates DESKTOP_SESSION_SECRET per launch and
+    # shares it only with its own window, which trades it for a token at
+    # POST /auth/desktop-session, so the app signs itself in.
+    DESKTOP_MODE: bool = False
+    DESKTOP_SESSION_SECRET: str = ""
+
     # OpenAI settings
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"

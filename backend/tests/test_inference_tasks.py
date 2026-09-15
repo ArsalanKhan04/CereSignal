@@ -369,3 +369,53 @@ class TestGetTaskStatus:
     def test_get_inference_result_is_none_while_pending(self, service, monkeypatch):
         self._stub(monkeypatch, state="PENDING")
         assert service.get_inference_result("t") is None
+
+
+@pytest.fixture
+def desktop_celery(monkeypatch):
+    """
+    Both Celery apps as desktop mode configures them: no broker, tasks run inline, and
+    results kept in Celery's in-memory backend.
+
+    Production applies DESKTOP_CELERY_CONFIG before any task is bound. Here the tasks
+    are already bound, so store_eager_result is set on them directly and each app's
+    thread-local backend is dropped so the memory backend replaces it.
+    """
+    from app.services.inference_service import inference_app
+    from inference.infer import DESKTOP_CELERY_CONFIG
+    from inference.infer import app as tasks_app
+
+    for celery_app in (tasks_app, inference_app):
+        for key, value in DESKTOP_CELERY_CONFIG.items():
+            monkeypatch.setitem(celery_app.conf, key, value)
+        monkeypatch.delattr(celery_app._local, "backend", raising=False)
+    for task in (preprocess_edf, infer):
+        monkeypatch.setattr(task, "store_eager_result", True)
+    yield
+    for celery_app in (tasks_app, inference_app):
+        celery_app._local.__dict__.pop("backend", None)
+
+
+class TestDesktopRunsWithoutABroker:
+    """
+    The desktop app starts no Redis and no worker. An upload must still reach
+    pending_review through the ordinary upload and status routes.
+    """
+
+    def test_an_upload_reaches_pending_review(
+        self, client, auth_headers, technician_a, local_storage, tiny_edf, no_ai, desktop_celery
+    ):
+        headers = auth_headers(technician_a)
+        with open(tiny_edf["path"], "rb") as handle:
+            upload = client.post(
+                "/api/v1/signals/upload",
+                files={"file": ("tiny.edf", handle, "application/octet-stream")},
+                headers=headers,
+            )
+        assert upload.status_code in (200, 201), upload.text
+        status_url = f"/api/v1/signals/files/{upload.json()['file_id']}/inference-status"
+
+        # The first poll collects preprocessing and follows the chain to infer.
+        conditions = [client.get(status_url, headers=headers).json()["condition"] for _ in range(2)]
+
+        assert conditions[-1] == "pending_review"

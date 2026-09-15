@@ -5,11 +5,9 @@
   "homepage": "./",
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--max-old-space-size=6144 react-scripts start",
-    "dev:desktop": "cross-env NODE_OPTIONS=--max-old-space-size=6144 REACT_APP_DESKTOP=true react-scripts start",
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=6144 react-scripts build",
-    "build:desktop": "cross-env NODE_OPTIONS=--max-old-space-size=6144 REACT_APP_DESKTOP=true react-scripts build",
     "start": "npx --yes serve -s build -l 3000",
-    "start:desktop": "npx --yes serve -s build -l 3000",
+    "start:desktop": "npm --prefix .. run start:desktop",
     "test": "cross-env NODE_OPTIONS=--max-old-space-size=6144 react-scripts test",
     "test:ci": "cross-env NODE_OPTIONS=--max-old-space-size=6144 CI=true react-scripts test --watchAll=false",
     "typecheck": "tsc --noEmit",
