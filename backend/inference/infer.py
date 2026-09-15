@@ -151,48 +151,31 @@ def _compute_focus_points(raw_events, threshold=0.5, fallback_n=10):
 
     smoothed_pct = [sum(s) / len(s) / n_channels for s in smoothed]
 
-    peaks = []
-    for i in range(1, len(smoothed_pct) - 1):
-        if smoothed_pct[i] > smoothed_pct[i - 1] and smoothed_pct[i] > smoothed_pct[i + 1]:
-            if smoothed_pct[i] >= threshold:
-                peaks.append((i, smoothed_pct[i]))
+    # Smoothed windows start every 2s but span 10s, so neighbouring indices overlap almost
+    # entirely. Take the most abnormal window first and skip any that overlaps one already
+    # chosen; a sustained stretch has no strict peak and is tiled rather than dropped.
+    def pick(candidates, limit=None):
+        chosen = []
+        for idx in sorted(candidates, key=lambda i: smoothed_pct[i], reverse=True):
+            if all(abs(idx - c) >= window_size for c in chosen):
+                chosen.append(idx)
+                if limit and len(chosen) == limit:
+                    break
+        return chosen
 
-    merged = []
-    for idx, pct in peaks:
-        if merged and idx - merged[-1][0] < 2:
-            if pct > merged[-1][1]:
-                merged[-1] = (idx, pct)
-        else:
-            merged.append((idx, pct))
+    chosen = pick([i for i, pct in enumerate(smoothed_pct) if pct >= threshold])
+    if not chosen:
+        chosen = pick([i for i, pct in enumerate(smoothed_pct) if pct > 0], fallback_n)
 
     focus_points = []
-    for idx, pct in merged:
+    for idx in sorted(chosen):
         center_s = round(idx * 2 + 5, 1)
         focus_points.append({
             "center_s": center_s,
             "window_start": round(center_s - 5, 1),
             "window_end": round(center_s + 5, 1),
-            "abnormal_pct": round(pct * 100, 1),
+            "abnormal_pct": round(smoothed_pct[idx] * 100, 1),
         })
-
-    if not focus_points:
-        top_indices = sorted(
-            range(len(smoothed_pct)),
-            key=lambda i: smoothed_pct[i],
-            reverse=True,
-        )[:fallback_n]
-        seen = set()
-        for idx in top_indices:
-            if smoothed_pct[idx] > 0 and idx not in seen:
-                center_s = round(idx * 2 + 5, 1)
-                focus_points.append({
-                    "center_s": center_s,
-                    "window_start": round(center_s - 5, 1),
-                    "window_end": round(center_s + 5, 1),
-                    "abnormal_pct": round(smoothed_pct[idx] * 100, 1),
-                })
-                seen.add(idx)
-        focus_points.sort(key=lambda p: p["center_s"])
 
     return focus_points
 

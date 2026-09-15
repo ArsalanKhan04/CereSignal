@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import WaitingIcon from '@mui/icons-material/HourglassEmpty';
+import HistoryIcon from '@mui/icons-material/History';
 import { apiClient } from '../services/api';
 import { EEGReport, EEGReportCreate, EEGReportUpdate, SignalFile, User, Patient } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,6 +39,7 @@ import {
 import FormAlert from '../components/FormAlert';
 import FormTextField from '../components/FormTextField';
 import RequiredFieldsNote from '../components/RequiredFieldsNote';
+import ReportVersionHistory from './ReportVersionHistory';
 
 interface ReportFormProps {
   fileId?: number;
@@ -47,6 +49,7 @@ interface ReportFormProps {
   existingReport?: EEGReport | null;
   onSave?: (report: EEGReport) => void;
   onCancel?: () => void;
+  onRestored?: () => void;
   isDialog?: boolean;
 }
 
@@ -58,6 +61,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
   existingReport: propExistingReport,
   onSave,
   onCancel,
+  onRestored,
   isDialog = false
 }) => {
   const { user } = useAuth();
@@ -102,6 +106,26 @@ const ReportForm: React.FC<ReportFormProps> = ({
   const [doctorName, setDoctorName] = useState('');
   const [doctorOccupation, setDoctorOccupation] = useState('');
   const [doctorDepartment, setDoctorDepartment] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const applyReport = (report: EEGReport) => {
+    setExistingReport(report);
+    setFormData({
+      file_id: report.file_id,
+      patient_name: report.patient_name,
+      patient_age: report.patient_age,
+      patient_gender: report.patient_gender || 'M',
+      ref_physician: report.ref_physician || '',
+      indications: report.indications || '',
+      technique: report.technique || '',
+      // Use LLM-generated data if report fields are empty
+      factual_report: report.factual_report || signalFile?.factual_report || '',
+      impression: report.impression || signalFile?.impression || '',
+      doctor_info: report.doctor_info || '',
+    });
+    setIsEditing(true);
+    parseDoctorInfo(report.doctor_info);
+  };
 
   useEffect(() => {
     const initializeForm = async () => {
@@ -115,22 +139,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       }
       if (propExistingReport) {
         // Editing existing report - no need to check for LLM report
-        setExistingReport(propExistingReport);
-        setFormData({
-          file_id: propExistingReport.file_id,
-          patient_name: propExistingReport.patient_name,
-          patient_age: propExistingReport.patient_age,
-          patient_gender: propExistingReport.patient_gender || 'M',
-          ref_physician: propExistingReport.ref_physician || '',
-          indications: propExistingReport.indications || '',
-          technique: propExistingReport.technique || '',
-          // Use LLM-generated data if report fields are empty
-          factual_report: propExistingReport.factual_report || signalFile?.factual_report || '',
-          impression: propExistingReport.impression || signalFile?.impression || '',
-          doctor_info: propExistingReport.doctor_info || '',
-        });
-        setIsEditing(true);
-        parseDoctorInfo(propExistingReport.doctor_info);
+        applyReport(propExistingReport);
       } else if (fileId) {
         // First check if existing report exists
         try {
@@ -138,21 +147,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
           const response = await apiClient.getReportByFile(fileId);
           if (response.status === 200 && response.data) {
             // Report already exists - edit mode
-            setExistingReport(response.data);
-            setFormData({
-              file_id: response.data.file_id,
-              patient_name: response.data.patient_name,
-              patient_age: response.data.patient_age,
-              patient_gender: response.data.patient_gender || 'M',
-              ref_physician: response.data.ref_physician || '',
-              indications: response.data.indications || '',
-              technique: response.data.technique || '',
-              factual_report: response.data.factual_report || signalFile?.factual_report || '',
-              impression: response.data.impression || signalFile?.impression || '',
-              doctor_info: response.data.doctor_info || '',
-            });
-            setIsEditing(true);
-            parseDoctorInfo(response.data.doctor_info);
+            applyReport(response.data);
           } else {
             // No existing report - create new and check for LLM report
             prefillFormData();
@@ -427,6 +422,20 @@ const ReportForm: React.FC<ReportFormProps> = ({
         delete next[field];
         return next;
       });
+    }
+  };
+
+  const handleVersionRestored = async () => {
+    if (!existingReport) return;
+    try {
+      const response = await apiClient.getReport(existingReport.id);
+      applyReport(response.data);
+      setFieldErrors({});
+      setError('');
+      setSuccess('Report restored to selected version.');
+      if (onRestored) onRestored();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Error reloading restored report');
     }
   };
 
@@ -754,6 +763,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   if (isDialog) {
     return (
+      <>
       <Dialog open={true} onClose={handleCancel} maxWidth="md" fullWidth>
         <DialogTitle>
           {isEditing ? 'Edit EEG Report' : 'Create EEG Report'}
@@ -770,6 +780,17 @@ const ReportForm: React.FC<ReportFormProps> = ({
           {formContent}
         </DialogContent>
         <DialogActions>
+          {existingReport && (
+            <Button
+              variant="outlined"
+              startIcon={<HistoryIcon fontSize="small" />}
+              onClick={() => setHistoryOpen(true)}
+              disabled={saving}
+              sx={{ mr: 'auto' }}
+            >
+              Version History
+            </Button>
+          )}
           <Button onClick={handleCancel} disabled={saving}>
             Cancel
           </Button>
@@ -783,6 +804,16 @@ const ReportForm: React.FC<ReportFormProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
+      {existingReport && (
+        <ReportVersionHistory
+          reportId={existingReport.id}
+          reportPatientName={existingReport.patient_name}
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={handleVersionRestored}
+        />
+      )}
+      </>
     );
   }
 
