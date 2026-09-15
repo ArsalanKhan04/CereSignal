@@ -33,6 +33,7 @@ import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import { apiClient } from '../services/api';
 import { EventsData, EEGBookmark, FocusPoint } from '../types';
+import { focusPages, maxPageStart, snapStart } from '../utils/focusPages';
 
 // react-plotly.js's default export loads the full plotly.js bundle, and its ESM build
 // imports it by an extensionless path that webpack 5 refuses. Bind the component to the
@@ -266,18 +267,13 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
   }, [fileId, montage, plotStart, plotDuration, fetchPlot, buildCacheKey]);
 
   const goToStart = useCallback((nextStart: number) => {
-    const durationLimit = totalDuration ?? Infinity;
-    const rawMaxStart = Math.max(0, durationLimit - plotDuration);
-    const maxStart = Number.isFinite(rawMaxStart)
-      ? Math.floor(rawMaxStart / plotDuration) * plotDuration
-      : rawMaxStart;
+    const maxStart = maxPageStart(plotDuration, totalDuration);
     if (Number.isFinite(maxStart) && nextStart > maxStart) {
       setEndReached(true);
     } else {
       setEndReached(false);
     }
-    const clampedStart = Math.max(0, Math.min(nextStart, maxStart));
-    const snappedStart = Math.floor(clampedStart / plotDuration) * plotDuration;
+    const snappedStart = snapStart(nextStart, plotDuration, totalDuration);
     const cacheKey = buildCacheKey(snappedStart, plotDuration, montage);
     const cached = plotCacheRef.current.get(cacheKey);
     if (cached) {
@@ -286,20 +282,16 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
     setPlotStart(snappedStart);
   }, [buildCacheKey, plotDuration, montage, totalDuration]);
 
-  const handleNextFocus = useCallback(() => {
-    if (!focusPoints.length) return;
-    const currentEnd = plotStart + plotDuration;
-    let next = focusPoints.find((fp) => fp.center_s > currentEnd * 0.7);
-    if (!next) next = focusPoints[0];
-    goToStart(Math.max(0, next.center_s - plotDuration / 2));
-  }, [focusPoints, plotStart, plotDuration, goToStart]);
-
-  const handleFocusSelect = useCallback(
-    (center_s: number) => {
-      goToStart(Math.max(0, center_s - plotDuration / 2));
-    },
-    [plotDuration, goToStart]
+  const focusMenu = useMemo(
+    () => focusPages(focusPoints, plotDuration, totalDuration),
+    [focusPoints, plotDuration, totalDuration]
   );
+
+  const handleNextFocus = useCallback(() => {
+    if (!focusMenu.length) return;
+    const next = focusMenu.find((page) => page.start > plotStart) ?? focusMenu[0];
+    goToStart(next.start);
+  }, [focusMenu, plotStart, goToStart]);
 
   // Keyboard navigation handler
   useEffect(() => {
@@ -673,16 +665,16 @@ const EEGPlot: React.FC<EEGPlotProps> = ({ fileId, eventsData, analysisStatus })
                 <Select
                   value=""
                   label="Focus"
-                  onChange={(e) => handleFocusSelect(Number(e.target.value))}
+                  onChange={(e) => goToStart(Number(e.target.value))}
                   displayEmpty
                   inputProps={{ 'aria-label': 'Jump to focus point' }}
                 >
                   <MenuItem value="" disabled>
                     Jump to focus point
                   </MenuItem>
-                  {focusPoints.map((fp) => (
-                    <MenuItem key={fp.center_s} value={fp.center_s}>
-                      {fp.center_s}s ({fp.abnormal_pct}%)
+                  {focusMenu.map(({ start, point }) => (
+                    <MenuItem key={start} value={start}>
+                      {point.center_s}s ({point.abnormal_pct}%)
                     </MenuItem>
                   ))}
                 </Select>

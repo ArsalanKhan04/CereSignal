@@ -210,3 +210,49 @@ class TestComputeFocusPoints:
     def test_fallback_skips_windows_with_no_abnormality(self):
         raw = {"C3": ["normal wave"] * 20}
         assert _compute_focus_points(raw, threshold=0.5, fallback_n=10) == []
+
+    @staticmethod
+    def _assert_no_overlap(points):
+        for prev, nxt in zip(points, points[1:], strict=False):
+            assert nxt["window_start"] >= prev["window_end"], (prev, nxt)
+
+    def test_a_long_plateau_is_tiled_with_non_overlapping_windows(self):
+        # 120s abnormal on every channel has no strict peak. It used to fall back
+        # to ten windows 2s apart, which the viewer showed as one page ten times.
+        events = ["normal wave"] * 20 + ["spike wave"] * 60 + ["normal wave"] * 20
+        raw = {"C3": list(events), "C4": list(events)}
+
+        points = _compute_focus_points(raw, threshold=0.5)
+
+        assert len(points) > 1
+        self._assert_no_overlap(points)
+        assert all(p["abnormal_pct"] >= 50 for p in points)
+
+    def test_peaks_closer_than_a_window_collapse_to_the_higher(self):
+        events = ["normal wave"] * 40
+        for i in [*range(10, 15), 17]:
+            events[i] = "spike wave"
+        raw = {"C3": list(events), "C4": list(events)}
+
+        points = _compute_focus_points(raw, threshold=0.5)
+
+        assert [(p["center_s"], p["abnormal_pct"]) for p in points] == [(25, 100.0)]
+
+    def test_fallback_returns_fallback_n_separate_regions(self):
+        # Twelve short bursts on one channel of four, all below threshold. Each
+        # burst gives five tied smoothed windows; the fallback used to take the
+        # top ten indices, i.e. two bursts' worth of overlapping windows.
+        events = ["normal wave"] * 125
+        for k in range(12):
+            events[5 + 10 * k] = "slow wave"
+        raw = {
+            "C3": events,
+            "C4": ["normal wave"] * 125,
+            "P3": ["normal wave"] * 125,
+            "P4": ["normal wave"] * 125,
+        }
+
+        points = _compute_focus_points(raw, threshold=0.5, fallback_n=10)
+
+        assert len(points) == 10
+        self._assert_no_overlap(points)

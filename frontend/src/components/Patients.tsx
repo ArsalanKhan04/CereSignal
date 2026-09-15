@@ -1755,6 +1755,7 @@ const Patients: React.FC<{
           existingReport={activeReportContext.report || undefined}
           onSave={handleReportSaved}
           onCancel={() => setActiveReportContext(null)}
+          onRestored={loadPatients}
           isDialog={true}
         />
       )}

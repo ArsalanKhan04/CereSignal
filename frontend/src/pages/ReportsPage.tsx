@@ -527,6 +527,8 @@ const ReportsPage: React.FC = () => {
             setSelectedFileId(null);
             setEditingReport(null);
           }}
+          // Not loadData(): its loading spinner would unmount this open dialog.
+          onRestored={() => apiClient.getReports().then(r => setReports(r.data)).catch(() => {})}
           isDialog={true}
         />
       )}
