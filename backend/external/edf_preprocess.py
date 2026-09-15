@@ -269,6 +269,11 @@ def process_edf(input_path: str, output_path: str) -> None:
     # average re-reference above costs only 1.4x. See the note in _process_neurotransformer.
     data = data * 1e-6
 
+    # EDF stores whole 1-second data records; mne.export would otherwise pad the last
+    # one with fabricated edge values. Drop the partial second instead.
+    if float(sfreq).is_integer():
+        data = data[:, : data.shape[1] - data.shape[1] % int(sfreq)]
+
     # Create Raw object with preserved metadata
     raw_processed = mne.io.RawArray(data, info, verbose=False)
 

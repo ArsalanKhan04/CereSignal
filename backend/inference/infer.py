@@ -214,7 +214,7 @@ def _process_neurogate(mne_data):
         condition = "Abnormal"
     raw_prob = (
         list(
-            F.softmax(outputs)
+            F.softmax(outputs, dim=1)
             .cpu()
             .numpy()
             .reshape(

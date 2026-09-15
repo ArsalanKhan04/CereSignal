@@ -7,6 +7,8 @@ channel. These tests pin the shape transformations and, crucially, the ``uM``
 scaling that keeps looking redundant and is not.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -179,7 +181,11 @@ class TestProcessEdfEndToEnd:
         import mne
 
         out = tmp_path / "processed.edf"
-        process_edf(tiny_edf["path"], str(out))
+        with warnings.catch_warnings():
+            # mne.export warns when it pads a partial final data record; process_edf
+            # crops to whole seconds so that never happens.
+            warnings.simplefilter("error", RuntimeWarning)
+            process_edf(tiny_edf["path"], str(out))
         raw = mne.io.read_raw_edf(str(out), preload=True, verbose=False)
         return {"raw": raw, "path": str(out), "source": tiny_edf}
 
@@ -223,9 +229,9 @@ class TestProcessEdfEndToEnd:
         per channel than the raw upload — which is why the `signals` table's
         metadata does not match what the viewer actually plots.
 
-        The written file is a little longer than the computed 945 samples: EDF
-        stores equal-length data blocks, so mne.export pads the final block with
-        edge values. Allow up to one second of that padding.
+        The written file is a little shorter than the computed 945 samples: EDF
+        stores whole 1-second data records, so process_edf drops the partial final
+        second rather than let mne.export pad it with fabricated edge values.
         """
         source = processed["source"]
         upload_samples_per_channel = source["sfreq"] * 4
@@ -236,6 +242,5 @@ class TestProcessEdfEndToEnd:
         # 26 rows is 945, not 1024.
         assert expected != upload_samples_per_channel
 
-        # What lands on disk is that, plus however much edge padding EDF's fixed
-        # block size demanded.
-        assert expected <= processed["raw"].n_times < expected + source["sfreq"]
+        # What lands on disk is that, cropped to whole seconds.
+        assert processed["raw"].n_times == expected - expected % source["sfreq"]

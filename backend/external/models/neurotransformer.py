@@ -106,7 +106,7 @@ class Neurotransformer(nn.Module):
         x = x1 + x2
 
         # Apply spatial dropout
-        x = F.dropout2d(x, 0.5, training=self.training)
+        x = F.dropout1d(x, 0.5, training=self.training)
         
         x = F.max_pool1d(x, kernel_size=2, stride=2)
         x = F.relu(self.bn1(self.conv1(x)))
