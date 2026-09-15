@@ -229,12 +229,23 @@ is unset, rather than matching every orphan row.
 
 ### Authentication
 - Two separate tables: `auth_users` (credentials) and `users` (patient/contact info)
-- Patients enter through `GET /auth/patient-portal/{token}`, which exchanges the unguessable
-  `users.portal_token` for a JWT. There is no login-by-patient-id endpoint; the old
-  `POST /auth/patient-login` took a bare integer and was removed
+- Patients enter through `POST /auth/patient-portal`, which exchanges the unguessable
+  `users.portal_token` for a JWT. The token travels in the body, never the path (paths reach
+  our request log, uvicorn's and Railway's), expires 30 days after `portal_sent_at`, and is
+  reissued on every send, so re-sending the email kills the previous link. Invitation tokens
+  likewise go in the body (`POST /auth/invite/validate`, `POST /auth/register/invite`). There
+  is no login-by-patient-id endpoint; the old `POST /auth/patient-login` took a bare integer
+  and was removed
 - Four roles in `UserType` (`app/models/auth.py`): `doctor`, `technician`, `patient`, `admin` —
   enforced via JWT middleware, plus the separate `is_superuser` flag above
 - Tokens expire in 30 min (configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`)
+- Mint session tokens with `create_user_token(user)`, never bare `create_access_token`: it adds
+  a `pwd` claim (keyed digest of the password hash) that `get_current_user` requires, so a
+  password change invalidates every earlier token without a revocation table or migration
+- The public auth, contact and client-log routes are rate limited per client IP by
+  `app/core/rate_limit.py` — in-process, so per replica if the API is ever scaled out. It
+  sees real client IPs on Railway only because `Dockerfile.backend` sets
+  `FORWARDED_ALLOW_IPS`; tests reset it through an autouse fixture in `conftest.py`
 - Passwords are hashed with `bcrypt` directly in `app/core/auth.py`, truncated to bcrypt's
   72-byte input exactly as the old passlib + bcrypt<4 stack did. passlib is gone: it is
   unmaintained and breaks on bcrypt 5, which raises past 72 bytes instead of truncating

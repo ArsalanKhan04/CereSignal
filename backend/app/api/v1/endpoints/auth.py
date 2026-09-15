@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
-    create_access_token,
+    create_user_token,
     get_current_active_user,
     get_current_admin_user,
     get_password_hash,
@@ -20,7 +20,8 @@ from app.core.auth import (
 )
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.logging_config import log_auth
+from app.core.logging_config import log_auth, log_error
+from app.core.rate_limit import rate_limit
 from app.models.auth import AuthUser, UserType
 from app.models.hospital import Hospital, StaffInvitation
 from app.models.user import User
@@ -34,11 +35,19 @@ from app.schemas.auth import (
     PasswordChange,
     PatientRegister,
     Token,
+    TokenBody,
     UserLogin,
     UserRegister,
 )
 
 router = APIRouter()
+
+# A patient portal link is a login, so it cannot stand forever. Measured from
+# portal_sent_at; re-sending the email issues a new link and kills the old one.
+PORTAL_LINK_TTL = timedelta(days=30)
+
+SIGNUP_LIMIT = rate_limit("signup", limit=5, window_seconds=3600)
+TOKEN_LIMIT = rate_limit("token", limit=10, window_seconds=60)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -52,6 +61,7 @@ def _as_utc(value: datetime) -> datetime:
     "/register/hospital",
     response_model=AuthUserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(SIGNUP_LIMIT)],
 )
 async def register_hospital_admin(
     data: HospitalAdminRegister, db: Session = Depends(get_db)
@@ -103,13 +113,18 @@ async def register_hospital_admin(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error creating hospital: {str(e)}")
+        log_error(e, "Error creating hospital")
+        raise HTTPException(status_code=500, detail="Error creating hospital")
 
 
-@router.get("/invite/{token}", response_model=InviteTokenValidation)
-async def validate_invite_token(token: str, db: Session = Depends(get_db)):
+@router.post(
+    "/invite/validate",
+    response_model=InviteTokenValidation,
+    dependencies=[Depends(TOKEN_LIMIT)],
+)
+async def validate_invite_token(body: TokenBody, db: Session = Depends(get_db)):
     """Validate a staff invitation token (public, no auth)"""
-    invitation = db.query(StaffInvitation).filter(StaffInvitation.token == token).first()
+    invitation = db.query(StaffInvitation).filter(StaffInvitation.token == body.token).first()
 
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation not found")
@@ -131,18 +146,17 @@ async def validate_invite_token(token: str, db: Session = Depends(get_db)):
 
 
 @router.post(
-    "/register/invite/{token}",
+    "/register/invite",
     response_model=AuthUserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(TOKEN_LIMIT)],
 )
-async def register_from_invite(
-    token: str, data: StaffInviteRegister, db: Session = Depends(get_db)
-):
+async def register_from_invite(data: StaffInviteRegister, db: Session = Depends(get_db)):
     """Complete staff registration via an invitation token"""
     if data.password != data.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
-    invitation = db.query(StaffInvitation).filter(StaffInvitation.token == token).first()
+    invitation = db.query(StaffInvitation).filter(StaffInvitation.token == data.token).first()
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation not found")
     if invitation.used_at is not None:
@@ -182,7 +196,8 @@ async def register_from_invite(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error creating staff account: {str(e)}")
+        log_error(e, "Error creating staff account")
+        raise HTTPException(status_code=500, detail="Error creating staff account")
 
 
 @router.post(
@@ -282,9 +297,10 @@ async def register_user(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error creating user")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating user: {str(e)}",
+            detail="Error creating user",
         )
 
 
@@ -292,6 +308,7 @@ async def register_user(
     "/register/patient",
     response_model=AuthUserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(SIGNUP_LIMIT)],
 )
 async def register_patient(
     patient_data: PatientRegister, db: Session = Depends(get_db)
@@ -420,13 +437,18 @@ async def register_patient(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error creating patient")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating patient: {str(e)}",
+            detail="Error creating patient",
         )
 
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    dependencies=[Depends(rate_limit("login", limit=10, window_seconds=60))],
+)
 async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db)):
     """Login user and return access token"""
 
@@ -457,12 +479,7 @@ async def login_user(user_credentials: UserLogin, db: Session = Depends(get_db))
     user.last_login = datetime.now(timezone.utc)
     db.commit()
 
-    # Create access token
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username, "user_id": user.id},
-        expires_delta=access_token_expires,
-    )
+    access_token = create_user_token(user)
 
     log_auth("LOGIN", user_id=user.id, username=user.username, success=True)
 
@@ -521,10 +538,7 @@ async def desktop_session(
         db.commit()
         db.refresh(user)
 
-    access_token = create_access_token(
-        data={"sub": user.username, "user_id": user.id},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-    )
+    access_token = create_user_token(user)
     log_auth("DESKTOP_SESSION", user_id=user.id, username=user.username, success=True)
 
     return {
@@ -534,12 +548,20 @@ async def desktop_session(
     }
 
 
-@router.get("/patient-portal/{token}", response_model=Token)
-async def patient_portal_access(token: str, db: Session = Depends(get_db)):
+@router.post("/patient-portal", response_model=Token, dependencies=[Depends(TOKEN_LIMIT)])
+async def patient_portal_access(body: TokenBody, db: Session = Depends(get_db)):
     """Exchange a patient portal token for a session JWT (public, no auth required)."""
+    token = body.token
     patient = db.query(User).filter(User.portal_token == token).first()
     if not patient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid portal link")
+    if (
+        patient.portal_sent_at is None
+        or _as_utc(patient.portal_sent_at) + PORTAL_LINK_TTL < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail="This portal link has expired"
+        )
 
     auth_user = None
     if patient.patient_auth_user_id:
@@ -575,10 +597,7 @@ async def patient_portal_access(token: str, db: Session = Depends(get_db)):
     auth_user.last_login = datetime.now(timezone.utc)
     db.commit()
 
-    access_token = create_access_token(
-        data={"sub": auth_user.username, "user_id": auth_user.id},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-    )
+    access_token = create_user_token(auth_user)
     return {"access_token": access_token, "token_type": "bearer", "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60}
 
 
@@ -628,9 +647,10 @@ async def change_password(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error changing password")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error changing password: {str(e)}",
+            detail="Error changing password",
         )
 
 

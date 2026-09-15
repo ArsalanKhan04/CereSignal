@@ -21,7 +21,7 @@ It ships as a multi-tenant web application (Railway + Supabase) and as a Windows
   is created by its first admin through `POST /auth/register/hospital`.
 - **Staff invitations**: Hospital admins invite doctors and technicians by email;
   the invite is a single-use token with an expiry, redeemed at
-  `POST /auth/register/invite/{token}`.
+  `POST /auth/register/invite`.
 - **Roles**: `doctor`, `technician`, `patient` and `admin` (the `UserType` enum in
   `app/models/auth.py`), enforced through JWT middleware. A separate
   `is_superuser` flag gates the cross-hospital dev-admin views.
@@ -191,12 +191,12 @@ padlock icon there marks which routes carry an auth dependency.
 ### Authentication
 
 - `POST /auth/login` - Login and get a JWT
-- `GET /auth/patient-portal/{token}` - Exchange an emailed portal link for a token
+- `POST /auth/patient-portal` - Exchange an emailed portal link for a token
 - `POST /auth/register` - Register an authentication user
 - `POST /auth/register/hospital` - Create a hospital and its first admin
 - `POST /auth/register/patient` - Self-registration for patients
-- `GET /auth/invite/{token}` - Validate a staff invitation token
-- `POST /auth/register/invite/{token}` - Redeem an invitation and create the account
+- `POST /auth/invite/validate` - Validate a staff invitation token
+- `POST /auth/register/invite` - Redeem an invitation and create the account
 - `GET /auth/me` - Current user information
 - `GET /auth/doctors` - Doctors in the caller's hospital
 - `PUT /auth/change-password` - Change password

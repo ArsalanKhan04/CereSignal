@@ -6,9 +6,19 @@ Uploads are exercised with skip_inference=True so no Celery dispatch is attempte
 the inference path itself is covered in test_inference_tasks.py.
 """
 
+import base64
 import io
 
 import pytest
+
+
+def _png_base64(size=(4, 4)):
+    """A real PNG: bookmark uploads are decoded, so magic bytes alone are refused."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", size).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 class TestSmokeRoutes:
@@ -288,7 +298,7 @@ class TestBookmarkImagesAreSigned:
     in deployment, an unauthenticated /static path locally.
     """
 
-    PNG = "iVBORw0KGgo="  # base64 of the PNG magic bytes; content is not inspected
+    PNG = _png_base64()
 
     @pytest.fixture
     def own_file(self, make_patient, make_signal_file, hospital_a, doctor_a):
@@ -327,6 +337,94 @@ class TestBookmarkImagesAreSigned:
 
         assert listed.status_code == 200
         assert "signature=" in listed.json()[0]["image_url"]
+
+
+class TestBookmarkImagesAreValidated:
+    """
+    A non-image was stored and then broke every later PDF build for its file,
+    because ReportLab decodes lazily, outside pdf_service's try.
+    """
+
+    @pytest.fixture
+    def own_file(self, make_patient, make_signal_file, hospital_a, doctor_a):
+        patient = make_patient("Patient A", hospital_a, doctor_a)
+        return make_signal_file(patient, hospital_a)
+
+    def _post(self, client, auth_headers, user, file, **body):
+        return client.post(
+            f"/api/v1/signals/files/{file.id}/bookmarks",
+            json={"comment": "spike", **body},
+            headers=auth_headers(user),
+        )
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            base64.b64encode(b"not an image").decode(),
+            _png_base64()[:40],  # a truncated PNG: the header parses, the data does not
+        ],
+    )
+    def test_bytes_that_are_not_an_image_are_a_400_and_store_nothing(
+        self, client, local_storage, doctor_a, auth_headers, own_file, db_session, payload
+    ):
+        from app.models.signal import EEGBookmark
+
+        response = self._post(client, auth_headers, doctor_a, own_file, image_base64=payload)
+
+        assert response.status_code == 400
+        assert db_session.query(EEGBookmark).count() == 0
+
+    def test_a_bad_replacement_leaves_the_original_bookmark(
+        self, client, local_storage, doctor_a, auth_headers, own_file, db_session
+    ):
+        from app.models.signal import EEGBookmark
+
+        original = self._post(
+            client, auth_headers, doctor_a, own_file, image_base64=_png_base64()
+        ).json()
+
+        response = self._post(
+            client, auth_headers, doctor_a, own_file,
+            image_base64=base64.b64encode(b"junk").decode(), replace_id=original["id"],
+        )
+
+        assert response.status_code == 400
+        assert db_session.query(EEGBookmark).filter_by(id=original["id"]).count() == 1
+
+
+class TestDownloadFilename:
+    """original_filename is the raw multipart name and went straight into the header."""
+
+    def test_a_non_latin1_name_with_a_quote_downloads(
+        self, client, local_storage, make_patient, make_signal_file, hospital_a,
+        doctor_a, auth_headers,
+    ):
+        from urllib.parse import quote
+
+        from app.services.storage_service import SIGNALS_BUCKET
+
+        name = 'رپورٹ "x".edf'
+        patient = make_patient("Patient A", hospital_a, doctor_a)
+        signal_file = make_signal_file(patient, hospital_a, filename="plain.edf")
+        signal_file.original_filename = name
+        local_storage.upload(SIGNALS_BUCKET, signal_file.file_path, b"EDF")
+
+        response = client.get(
+            f"/api/v1/signals/files/{signal_file.id}/download",
+            headers=auth_headers(doctor_a),
+        )
+
+        assert response.status_code == 200
+        header = response.headers["content-disposition"]
+        assert f"filename*=UTF-8''{quote(name, safe='')}" in header
+        assert header.count('"') == 2
+
+    def test_a_traversal_name_is_reduced_to_its_basename(self):
+        from app.utils.file_processing import content_disposition
+
+        assert content_disposition("../../etc/x.edf").startswith('attachment; filename="x.edf"')
+        assert content_disposition("..\\..\\x.edf").startswith('attachment; filename="x.edf"')
+        assert content_disposition("..").startswith('attachment; filename="download"')
 
 
 class TestReportStatusRejectsBlankText:

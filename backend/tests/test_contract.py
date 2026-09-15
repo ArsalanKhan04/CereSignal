@@ -49,7 +49,7 @@ import schemathesis
 from hypothesis import HealthCheck, settings
 from schemathesis.checks import not_a_server_error
 
-from app.core.auth import create_access_token
+from app.core.auth import create_user_token
 from app.core.database import get_db
 from app.main import app as fastapi_app
 
@@ -96,7 +96,7 @@ def doctor_token(doctor_a):
     A real token via the same path conftest.auth_headers uses, so the fuzzer
     exercises handler bodies rather than bouncing off the auth dependency.
     """
-    return create_access_token({"sub": doctor_a.username, "user_id": doctor_a.id})
+    return create_user_token(doctor_a)
 
 
 @pytest.mark.contract

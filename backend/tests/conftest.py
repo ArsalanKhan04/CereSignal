@@ -37,7 +37,8 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 import app.models  # noqa: E402,F401  (registers all ten tables on Base.metadata)
-from app.core.auth import create_access_token, get_password_hash  # noqa: E402
+from app.core import rate_limit  # noqa: E402
+from app.core.auth import create_user_token, get_password_hash  # noqa: E402
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.models.auth import AuthUser, UserType  # noqa: E402
@@ -93,6 +94,14 @@ def db_session(engine):
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """The limiter is module state, and every TestClient request comes from one host."""
+    rate_limit.reset()
+    yield
+    rate_limit.reset()
 
 
 @pytest.fixture
@@ -249,7 +258,7 @@ def auth_headers():
     """
 
     def _headers(user):
-        token = create_access_token({"sub": user.username, "user_id": user.id})
+        token = create_user_token(user)
         return {"Authorization": f"Bearer {token}"}
 
     return _headers

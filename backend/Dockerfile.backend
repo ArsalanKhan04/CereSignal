@@ -20,6 +20,11 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 # Copy the source code
 COPY . .
 
+# Railway reaches the container through its proxy, and uvicorn only trusts
+# X-Forwarded-For from 127.0.0.1 by default. Without this every client has the
+# proxy's address, and app/core/rate_limit.py puts them all in one bucket.
+ENV FORWARDED_ALLOW_IPS="*"
+
 # Expose the port Uvicorn runs on
 EXPOSE 8000
 
