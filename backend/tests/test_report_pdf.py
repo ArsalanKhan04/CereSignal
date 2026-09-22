@@ -147,3 +147,32 @@ class TestTopomapIsEmbedded:
         pdf_path = _generate(client, auth_headers, doctor_a, report)
 
         assert IMAGE_MARKER in local_storage.download(SIGNALS_BUCKET, pdf_path)
+
+
+class TestPdfStatus:
+    def test_reports_no_pdf_before_generation(self, client, auth_headers, doctor_a, hospital_a, report_for):
+        report = report_for(hospital_a, doctor_a)
+
+        body = client.get(
+            f"/api/v1/reports/{report.id}/pdf-status", headers=auth_headers(doctor_a)
+        ).json()
+        assert body == {"report_id": report.id, "pdf_exists": False, "pdf_path": None}
+
+    def test_reports_the_path_once_generated(
+        self, client, auth_headers, doctor_a, hospital_a, report_for, local_storage
+    ):
+        report = report_for(hospital_a, doctor_a)
+        pdf_path = _generate(client, auth_headers, doctor_a, report)
+
+        body = client.get(
+            f"/api/v1/reports/{report.id}/pdf-status", headers=auth_headers(doctor_a)
+        ).json()
+        assert body["pdf_exists"] is True
+        assert body["pdf_path"] == pdf_path
+
+    def test_another_hospital_gets_404(self, client, auth_headers, doctor_a, doctor_b, hospital_a, report_for):
+        report = report_for(hospital_a, doctor_a)
+        response = client.get(
+            f"/api/v1/reports/{report.id}/pdf-status", headers=auth_headers(doctor_b)
+        )
+        assert response.status_code == 404

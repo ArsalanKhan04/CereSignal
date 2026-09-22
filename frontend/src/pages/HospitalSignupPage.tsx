@@ -108,7 +108,7 @@ const HospitalSignupPage: React.FC = () => {
       navigate('/dashboard');
     } catch (err: any) {
       const responseData = err.response?.data;
-      const extracted = extractApiErrors(responseData?.detail || responseData?.errors);
+      const extracted = extractApiErrors(responseData?.errors ?? responseData?.detail);
       if (extracted.fields.length > 0) {
         const fieldErrMap: Record<string, string> = {};
         extracted.fields.forEach((f: any) => { fieldErrMap[f.field] = f.message; });

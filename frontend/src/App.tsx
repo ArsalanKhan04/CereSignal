@@ -162,7 +162,7 @@ const SuperuserRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-const AppRoutes: React.FC = () => {
+export const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const { isActive: isDemoActive } = useDemo();
 
