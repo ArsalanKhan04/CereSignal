@@ -64,6 +64,7 @@ npm run build:desktop                    # Windows desktop installer (PyInstalle
 ./scripts/test.sh                        # both suites
 ./scripts/test.sh --backend -k tenancy   # extra args pass through to pytest
 ./scripts/test.sh --cov                  # with coverage
+./scripts/test.sh --e2e                  # Playwright browser suite (needs Redis)
 
 # Database (from backend/)
 ./cere_env/bin/python migrate.py            # create missing tables
@@ -84,6 +85,17 @@ the largest allocation, and prod source maps are worth keeping until then).
 or a network connection — the backend builds its own in-memory SQLite database and never touches
 `backend/cere_signal.db`. `.github/workflows/test.yml` runs both on every PR. Run the backend
 suite directly with `cd backend && ./cere_env/bin/python -m pytest`.
+
+**Browser E2E: `./scripts/test.sh --e2e`** (`e2e/`, Playwright, Chromium only). This is the one
+suite that runs the real stack: `e2e/stack.sh` starts a throwaway backend and Celery worker —
+its own SQLite database, its own storage and a random `SECRET_KEY`, all under `e2e/.stack/`,
+which is wiped on every start — and Playwright serves `frontend/build`. So it needs Redis
+(`./scripts/redis-start.sh`) and a frontend build, which `--e2e` creates when `frontend/build`
+is missing; delete that folder after changing the frontend. `AI_INFERENCE_ENABLED=False`,
+`SUPABASE_URL` and the mail keys are all cleared in `stack.sh`, so no model, OpenAI, Ollama,
+Supabase or email provider is ever reached. The CI job (`E2E (Playwright)`) gets Redis from a
+service container and is **not** a required check on `main` yet. It logs in as the seeded
+`admin`/`tech`/`doc` accounts, so it depends on `scripts/seed_demo.py` keeping them.
 
 **Linting: `./scripts/test.sh --lint`.** ruff for the backend (pinned `ruff==0.16.7` in
 `requirements-dev.txt`, configured in `backend/pyproject.toml`), plus `tsc --noEmit` and
@@ -134,7 +146,7 @@ Four things that will bite when writing a new frontend test:
 - **`TextEncoder`/`TextDecoder` are polyfilled** in `setupTests.ts`; jsdom under jest 27
   ships neither and react-router's dev build needs them at import.
 
-**Coverage has a floor.** `fail_under = 68` lives in `backend/.coveragerc`, so
+**Coverage has a floor.** `fail_under = 79` lives in `backend/.coveragerc`, so
 `./scripts/test.sh --cov` and CI enforce the identical number and it can only ratchet up.
 It is in `.coveragerc` rather than `pytest.ini` addopts on purpose: `.coveragerc` is inert
 unless `--cov` is passed, so a plain `pytest` pays no tracing overhead. `external/models/*`
