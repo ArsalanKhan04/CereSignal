@@ -94,3 +94,104 @@ class TestCreateUserHappyPath:
         assert response.status_code == 201
         created = db_session.query(User).filter(User.name == "Unassigned Patient").one()
         assert created.auth_user_id is None
+
+
+class TestReportDeliveryActions:
+    """mark-report-sent and send-portal-email. Scoping is in test_tenancy.py."""
+
+    @pytest.fixture
+    def patient(self, make_patient, hospital_a, doctor_a, db_session):
+        patient = make_patient("Delivery Patient", hospital_a, auth_user=doctor_a)
+        patient.email = "delivery@example.com"
+        db_session.commit()
+        return patient
+
+    @pytest.fixture
+    def sent(self, monkeypatch):
+        """Capture outgoing portal emails; nothing leaves the process."""
+        calls = []
+
+        async def fake_send(**kwargs):
+            calls.append(kwargs)
+
+        monkeypatch.setattr(
+            "app.services.email_service.send_patient_portal_email", fake_send
+        )
+        return calls
+
+    def test_mark_report_sent_sets_the_flag(self, client, auth_headers, doctor_a, patient, db_session):
+        response = client.post(
+            f"/api/v1/users/{patient.id}/mark-report-sent", headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 200
+        assert response.json()["report_sent"] is True
+        db_session.refresh(patient)
+        assert patient.report_sent is True
+
+    def test_a_patient_cannot_mark_their_own_report_sent(
+        self, client, auth_headers, patient_a, patient, db_session
+    ):
+        patient.patient_auth_user_id = patient_a.id
+        db_session.commit()
+
+        response = client.post(
+            f"/api/v1/users/{patient.id}/mark-report-sent", headers=auth_headers(patient_a)
+        )
+        assert response.status_code == 403
+
+    def test_portal_email_mints_a_token_and_sends_its_link(
+        self, client, auth_headers, doctor_a, patient, sent, db_session
+    ):
+        response = client.post(
+            f"/api/v1/users/{patient.id}/send-portal-email", headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 200, response.text
+        db_session.refresh(patient)
+        assert patient.portal_token
+        assert patient.report_sent is True
+        assert patient.portal_sent_at is not None
+        [call] = sent
+        assert call["to_email"] == "delivery@example.com"
+        assert call["portal_url"].endswith(f"/#/patient/portal/{patient.portal_token}")
+
+    def test_portal_email_keeps_an_existing_token(
+        self, client, auth_headers, doctor_a, patient, sent, db_session
+    ):
+        patient.portal_token = "existing-token"
+        db_session.commit()
+
+        client.post(f"/api/v1/users/{patient.id}/send-portal-email", headers=auth_headers(doctor_a))
+
+        assert sent[0]["portal_url"].endswith("/existing-token")
+
+    def test_portal_email_without_an_address_is_400(
+        self, client, auth_headers, doctor_a, patient, sent, db_session
+    ):
+        patient.email = None
+        db_session.commit()
+
+        response = client.post(
+            f"/api/v1/users/{patient.id}/send-portal-email", headers=auth_headers(doctor_a)
+        )
+        assert response.status_code == 400
+        assert sent == []
+
+    def test_a_failed_send_is_500_and_marks_nothing(
+        self, client, auth_headers, doctor_a, patient, monkeypatch, db_session
+    ):
+        async def broken_send(**kwargs):
+            raise RuntimeError("smtp down")
+
+        monkeypatch.setattr(
+            "app.services.email_service.send_patient_portal_email", broken_send
+        )
+
+        response = client.post(
+            f"/api/v1/users/{patient.id}/send-portal-email", headers=auth_headers(doctor_a)
+        )
+
+        assert response.status_code == 500
+        db_session.refresh(patient)
+        assert patient.report_sent is not True

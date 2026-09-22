@@ -23,7 +23,7 @@ omit =
 #
 # Note: `./scripts/test.sh --cov -k <subset>` will trip this. Escape with
 # --cov-fail-under=0.
-fail_under = 68
+fail_under = 79
 precision = 1
 
 exclude_lines =
