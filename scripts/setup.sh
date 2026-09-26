@@ -4,7 +4,8 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # --no-ai sets up a manual-entry-only install: no torch/openai, and
-# AI_INFERENCE_ENABLED=False in the generated .env. See "No-AI Mode" in CLAUDE.md.
+# AI_INFERENCE_ENABLED=False in the generated .env. Uploads are still converted for
+# the viewer, then wait for a manual normal/abnormal label; reports are typed by hand.
 INSTALL_AI=true
 for arg in "$@"; do
     case "$arg" in
