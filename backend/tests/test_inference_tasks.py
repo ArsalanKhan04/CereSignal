@@ -1,8 +1,8 @@
 """
 Celery task and dispatch tests.
 
-Everything here runs without a broker, without torch and without model weights.
-inference/infer.py imports torch, openai and everything under external/ lazily, so
+Everything here runs without a broker and without running a model.
+inference/infer.py imports onnxruntime, openai and everything under external/ lazily, so
 the AI-disabled branches and the preprocessing chain are reachable on their own —
 which is exactly what a no-AI deployment relies on.
 
@@ -63,15 +63,16 @@ class TestInferWithAiDisabled:
         assert result["file_info"]["channels"] == tiny_edf["n_channels"]
         assert result["file_info"]["duration_seconds"] > 0
 
-    def test_it_imports_no_torch(self, no_ai, stored_edf, monkeypatch):
-        # A no-AI deployment installs neither torch nor openai. Make importing them
-        # fail loudly, then confirm the task still completes.
+    def test_it_imports_no_ml_stack(self, no_ai, stored_edf, monkeypatch):
+        # A no-AI deployment installs neither onnxruntime nor openai (and nothing
+        # installs torch). Make importing them fail loudly, then confirm the task still
+        # completes.
         import builtins
 
         real_import = builtins.__import__
 
         def guarded(name, *args, **kwargs):
-            if name.split(".")[0] in {"torch", "openai"}:
+            if name.split(".")[0] in {"torch", "onnxruntime", "openai"}:
                 raise ImportError(f"{name} must not be imported when AI is disabled")
             return real_import(name, *args, **kwargs)
 
@@ -162,6 +163,7 @@ class TestGenerateReportBackend:
         result = _generate_report(50.0, {}, "PDR 9 Hz")
 
         assert openai_stub.OpenAI.call_args.kwargs["base_url"] == settings.OLLAMA_BASE_URL
+        assert openai_stub.OpenAI.call_args.kwargs["api_key"] == settings.OLLAMA_API_KEY
         assert self._model_used(openai_stub) == "llama3.2"
         openai_stub.OpenAI.return_value.models.list.assert_not_called()
         # A thinking model otherwise spends the whole context reasoning and returns nothing.
@@ -419,3 +421,107 @@ class TestDesktopRunsWithoutABroker:
         conditions = [client.get(status_url, headers=headers).json()["condition"] for _ in range(2)]
 
         assert conditions[-1] == "pending_review"
+
+    def test_on_desktop_the_upload_does_not_wait_for_inference(
+        self, client, auth_headers, technician_a, local_storage, tiny_edf, no_ai, desktop_celery, monkeypatch
+    ):
+        # The same upload with the chain on a background thread, as desktop mode runs
+        # it: the result arrives through polling, not with the upload response.
+        import time
+
+        import inference.infer as infer_module
+
+        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", True)
+        headers = auth_headers(technician_a)
+        with open(tiny_edf["path"], "rb") as handle:
+            upload = client.post(
+                "/api/v1/signals/upload",
+                files={"file": ("tiny.edf", handle, "application/octet-stream")},
+                headers=headers,
+            )
+        assert upload.status_code in (200, 201), upload.text
+        status_url = f"/api/v1/signals/files/{upload.json()['file_id']}/inference-status"
+
+        deadline = time.monotonic() + 30
+        condition = None
+        while time.monotonic() < deadline:
+            condition = client.get(status_url, headers=headers).json()["condition"]
+            if condition == "pending_review":
+                break
+            time.sleep(0.1)
+        assert condition == "pending_review"
+
+
+class _BlockingTask:
+    """Stands in for a Celery task; apply() blocks until released, as a slow stage would."""
+
+    name = "blocking"
+
+    def __init__(self):
+        import threading
+
+        self.started, self.release, self.finished = threading.Event(), threading.Event(), threading.Event()
+        self.calls = []
+
+    def apply(self, args, task_id=None):
+        self.calls.append((args, task_id))
+        self.started.set()
+        self.release.wait(5)
+        self.finished.set()
+        return MagicMock(id=task_id)
+
+
+class TestDesktopBackgroundDispatch:
+    def test_start_inference_returns_before_the_task_finishes(self, monkeypatch):
+        import inference.infer as infer_module
+
+        task = _BlockingTask()
+        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", True)
+        monkeypatch.setattr(infer_module, "preprocess_edf", task)
+
+        try:
+            task_id = InferenceService().start_inference("signals/tiny.edf")
+            assert task.started.wait(5)
+            assert task.calls == [(("signals/tiny.edf",), task_id)]
+        finally:
+            task.release.set()
+
+    def test_outside_desktop_mode_the_task_is_queued(self, monkeypatch):
+        import inference.infer as infer_module
+
+        task = MagicMock()
+        task.delay.return_value.id = "queued-id"
+        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", False)
+        monkeypatch.setattr(infer_module, "preprocess_edf", task)
+
+        assert InferenceService().start_inference("signals/tiny.edf") == "queued-id"
+        task.apply.assert_not_called()
+
+    def test_preprocessing_finishes_while_inference_is_still_running(
+        self, local_storage, stored_edf, desktop_celery, monkeypatch
+    ):
+        # The viewer can plot only once preprocess_edf's result is stored. Run eagerly,
+        # the chained infer used to run inside it, holding that result back until both
+        # models and the LLM report were done.
+        import time
+
+        import inference.infer as infer_module
+
+        slow_infer = _BlockingTask()
+        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", True)
+        monkeypatch.setattr(infer_module, "infer", slow_infer)
+
+        try:
+            task_id = infer_module.dispatch(preprocess_edf, stored_edf)
+            result = infer_module.app.AsyncResult(task_id)
+            deadline = time.monotonic() + 30
+            while not result.ready() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            inference_was_running = not slow_infer.finished.is_set()
+
+            assert result.successful()
+            assert inference_was_running
+            assert result.result["processed_file_path"] == "signals/tiny_processed.edf"
+            assert result.result["inference_task_id"] == slow_infer.calls[0][1]
+        finally:
+            slow_infer.release.set()

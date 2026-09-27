@@ -45,12 +45,11 @@ class InferenceService:
         """
         try:
             # Import the preprocessing task from the inference module
-            from inference.infer import preprocess_edf
-            
-            # Queue the EDF preprocessing task (chains to infer after conversion)
-            task = preprocess_edf.delay(file_path)
-            
-            return task.id
+            from inference.infer import dispatch, preprocess_edf
+
+            # Queue the EDF preprocessing task (chains to infer after conversion). On
+            # desktop this runs on a thread, so the upload does not wait for it.
+            return dispatch(preprocess_edf, file_path)
         except Exception:
             logger.error("Error starting inference task", exc_info=True)
             raise

@@ -1,11 +1,11 @@
 # CereSignal
 
 A full-stack medical EEG analysis platform. Clinicians upload EDF recordings; CereSignal runs them
-through two pre-trained PyTorch models, generates clinical report text with an LLM, and presents the
-results alongside an interactive EEG viewer.
+through two pre-trained neural models (trained in PyTorch, run with onnxruntime), generates clinical
+report text with an LLM, and presents the results alongside an interactive EEG viewer.
 
 It ships as a multi-tenant web application (Railway + Supabase) and as a Windows desktop app
-(Electron + PyInstaller).
+(Electron + PyInstaller) that runs the models and a bundled local LLM entirely offline.
 
 ## Features
 

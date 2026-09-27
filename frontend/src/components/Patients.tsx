@@ -43,6 +43,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import ViewIcon from '@mui/icons-material/Visibility';
 import { apiClient } from '../services/api';
 import { getDesktopSecret } from '../utils/desktop';
+import { desktopFileStatus } from '../utils/desktopFileStatus';
 import {
   validateName, validateRequired, validatePhone, validateEmail,
   validateAge, validateDateOfBirth, validateBloodType,
@@ -1160,30 +1161,17 @@ const Patients: React.FC<{
                     {file ? (
                       (() => {
                           if (allowDesktopCreate) {
-                           const assignedImpression = report?.impression?.toLowerCase();
-                           const assignedCondition = file.condition?.toLowerCase();
-                           const effectiveLabel = (assignedCondition === 'normal' || assignedCondition === 'abnormal'
-                             ? assignedCondition
-                             : assignedImpression === 'normal' || assignedImpression === 'abnormal'
-                               ? assignedImpression
-                               : undefined);
-                            const label = !report && !effectiveLabel
-                              ? 'No Report'
-                              : effectiveLabel === 'normal'
-                                ? 'Normal'
-                                : effectiveLabel === 'abnormal'
-                                  ? 'Abnormal'
-                                  : 'Unassigned';
-                           const color = effectiveLabel === 'normal'
-                             ? 'success'
-                             : effectiveLabel === 'abnormal'
-                               ? 'error'
-                               : 'default';
+                          const { label, color, busy } = desktopFileStatus(
+                            fileStatuses[file.id]?.condition || file.condition,
+                            file.processing_status,
+                            report
+                          );
                           return (
                             <Chip
                               label={label}
                               size="small"
-                              color={color as any}
+                              color={color}
+                              icon={busy ? <CircularProgress size={12} color="inherit" /> : undefined}
                             />
                           );
                         }

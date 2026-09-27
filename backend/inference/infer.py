@@ -1,14 +1,16 @@
 import json
 import os
 import sys
+import threading
 import time
 
 import mne
 import numpy as np
 from celery import Celery
+from celery.utils import uuid
 
-# NOTE: torch, openai and everything under external/ are imported lazily inside the
-# functions that need them. With AI_INFERENCE_ENABLED=False the worker must be able to
+# NOTE: onnxruntime, openai and everything under external/ are imported lazily inside
+# the functions that need them. With AI_INFERENCE_ENABLED=False the worker must be able to
 # start without the ML stack installed at all (see backend/requirements-ai.txt).
 
 # Celery puts the working directory on sys.path only while it imports this module
@@ -37,8 +39,31 @@ DESKTOP_CELERY_CONFIG = {
     "task_always_eager": True,
     "task_store_eager_result": True,
 }
-if os.environ.get("DESKTOP_MODE", "").lower() == "true":
+_DESKTOP_MODE = os.environ.get("DESKTOP_MODE", "").lower() == "true"
+if _DESKTOP_MODE:
     app.conf.update(DESKTOP_CELERY_CONFIG)
+
+
+def dispatch(task, *args):
+    """Queue `task` and return its id; on desktop, run it on a background thread.
+
+    Desktop tasks run eagerly, so .delay() would run the whole task inside its caller.
+    preprocess_edf would then not return, and the viewer would not get the converted
+    recording, until inference and the LLM report behind it had finished too: 35 s or
+    more, against the viewer's 60 s patience. One thread per task lets each stage finish
+    and store its result (task_store_eager_result) on its own, as it does on a worker.
+    """
+    if not _DESKTOP_MODE:
+        return task.delay(*args).id
+    task_id = uuid()
+    threading.Thread(
+        target=task.apply,
+        kwargs={"args": args, "task_id": task_id},
+        name=f"{task.name}-{task_id}",
+        daemon=True,
+    ).start()
+    return task_id
+
 
 def get_resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -46,18 +71,15 @@ def get_resource_path(relative_path):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
 
+# ONNX exports of neurogate_wgts.pt / neurotransformer_wgts.pth, made and parity-checked
+# against torch by scripts/export_onnx.py. Running them with onnxruntime keeps torch out
+# of the worker and the desktop build.
 _MODEL_WEIGHTS = {
-    "neurogate": get_resource_path(os.path.join("external", "models", "neurogate_wgts.pt")),
-    "neurotransformer": get_resource_path(os.path.join("external", "models", "neurotransformer_wgts.pth")),
+    "neurogate": get_resource_path(os.path.join("external", "models", "neurogate.onnx")),
+    "neurotransformer": get_resource_path(os.path.join("external", "models", "neurotransformer.onnx")),
 }
 _MODEL_CACHE = {}
 _PIPELINE_CACHE = {}
-
-
-def _get_device():
-    import torch
-
-    return torch.device("cpu")
 
 
 def _get_pipeline(name):
@@ -102,26 +124,25 @@ def load_model(model_name):
     if model_name in _MODEL_CACHE:
         return _MODEL_CACHE[model_name]
 
-    import torch
-
-    if model_name == "neurogate":
-        from external.models.neurogate import NeuroGate
-
-        model = NeuroGate(21)
-    elif model_name == "neurotransformer":
-        from external.models.neurotransformer import Neurotransformer
-
-        model = Neurotransformer()
-    else:
+    if model_name not in _MODEL_WEIGHTS:
         raise ValueError(f"Model {model_name} not recognized.")
 
-    device = _get_device()
-    model.to(device)
-    model.load_state_dict(torch.load(_MODEL_WEIGHTS[model_name], map_location=device))
-    model.eval()
+    import onnxruntime as ort
 
-    _MODEL_CACHE[model_name] = model
-    return model
+    session = ort.InferenceSession(_MODEL_WEIGHTS[model_name], providers=["CPUExecutionProvider"])
+
+    _MODEL_CACHE[model_name] = session
+    return session
+
+
+def _run_model(model_name, data):
+    """Logits for a (batch, channels, time) array."""
+    return load_model(model_name).run(None, {"input": np.ascontiguousarray(data, dtype=np.float32)})[0]
+
+
+def _softmax(logits):
+    e = np.exp(logits - logits.max(axis=1, keepdims=True))
+    return e / e.sum(axis=1, keepdims=True)
 
 
 def _merge_events(events):
@@ -193,36 +214,15 @@ def _compute_focus_points(raw_events, threshold=0.5, fallback_n=10):
 
 
 def _process_neurogate(mne_data):
-    import torch
-    import torch.nn.functional as F
-
     ## Starting with processing and inference for neurogate
     processed_data = _get_pipeline("neurogate").apply(mne_data)
     data = processed_data.get_data()
     data = data[None, :, :]
-    data = torch.from_numpy(data).float().to(_get_device())
 
-    model = load_model("neurogate")
+    outputs = _run_model("neurogate", data)
 
-    with torch.no_grad():
-        outputs = model(data)
-
-    condition = "Normal"
-    if outputs[0].argmax() == 0:
-        condition = "Normal"
-    else:
-        condition = "Abnormal"
-    raw_prob = (
-        list(
-            F.softmax(outputs, dim=1)
-            .cpu()
-            .numpy()
-            .reshape(
-                -1,
-            )
-        )[1]
-        * 100
-    )
+    condition = "Normal" if outputs[0].argmax() == 0 else "Abnormal"
+    raw_prob = _softmax(outputs)[0, 1] * 100
 
     return condition, raw_prob
 
@@ -247,9 +247,6 @@ def _process_neurotransformer(mne_data, threshold=0.5):
     changes the answer completely, and so does lowering `threshold`. Do not read this
     model's output as a verdict until the source calibration is settled.
     """
-    import torch
-    import torch.nn.functional as F
-
     from external.CereProcess.datasets.channels import NEUROTRANSFORMER_CHANNELS
 
     all_events = np.array(["normal wave", "spike wave", "slow wave"])
@@ -257,23 +254,14 @@ def _process_neurotransformer(mne_data, threshold=0.5):
     processed_data = _get_pipeline("neurotransformer").apply(mne_data)
     data = processed_data.get_data()
 
-    model = load_model("neurotransformer")
-    # model.eval()
-
     result_events = {}
     raw_events = {}
 
     for i, ch_name in enumerate(NEUROTRANSFORMER_CHANNELS):
         ch_data = data[:, i : i + 1, :]
-        ch_data = torch.from_numpy(ch_data).float().to(_get_device())
-        outputs = None
-        with torch.no_grad():
-            logits = model(ch_data)
-            probs = F.softmax(logits, dim=1)
-            confidence, preds = torch.max(probs, dim=1)
-
-        confidence = confidence.cpu().numpy()
-        preds = preds.cpu().numpy()
+        probs = _softmax(_run_model("neurotransformer", ch_data))
+        confidence = probs.max(axis=1)
+        preds = probs.argmax(axis=1)
 
         # Anything the model is not sure about is recorded as normal. With the amplitude
         # shortfall described above, this currently discards every spike prediction.
@@ -426,8 +414,9 @@ def _generate_report(ab_prob, region_report, pdr_text):
         if settings.OPENAI_API_KEY:
             client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
         else:
-            # Ollama's OpenAI-compatible endpoint ignores the key, but the client requires one.
-            client = openai.OpenAI(base_url=settings.OLLAMA_BASE_URL, api_key="ollama")
+            # Ollama's OpenAI-compatible endpoint ignores the key, but the client requires
+            # one; the desktop app's llama-server is started with a per-launch key.
+            client = openai.OpenAI(base_url=settings.OLLAMA_BASE_URL, api_key=settings.OLLAMA_API_KEY)
             model = settings.OLLAMA_MODEL or _latest_ollama_model(client)
             # Thinking models (qwen3.5) otherwise reason until Ollama's 4096-token default
             # context runs out and return empty content. OpenAI rejects this for gpt-4o-mini.
@@ -474,7 +463,7 @@ def preprocess_edf(mne_file_path):
             # samples across channel boundaries, so running it here would scramble
             # the recording; leave file_path on the upload and infer from it.
             print("Preprocess: channels already conform to the 10-20 layout, passing through")
-            inference_task = infer.delay(mne_file_path)
+            inference_task_id = dispatch(infer, mne_file_path)
         else:
             tmp_processed = tempfile.NamedTemporaryFile(suffix="_processed.edf", delete=False)
             tmp_processed.close()
@@ -488,11 +477,11 @@ def preprocess_edf(mne_file_path):
                     storage_service.upload(SIGNALS_BUCKET, processed_path, pf.read())
                 print(f"Preprocess: uploaded processed EDF to {processed_path}")
 
-                inference_task = infer.delay(processed_path)
+                inference_task_id = dispatch(infer, processed_path)
             except Exception as e:
                 print(f"Preprocess: EDF conversion failed ({e}), chaining with raw file")
                 processed_path = None
-                inference_task = infer.delay(mne_file_path)
+                inference_task_id = dispatch(infer, mne_file_path)
             finally:
                 try:
                     os.unlink(tmp_processed.name)
@@ -500,12 +489,12 @@ def preprocess_edf(mne_file_path):
                     pass
 
     end_time = time.time()
-    print(f"Preprocess: finished in {end_time - start_time:.1f}s, chained infer={inference_task.id}")
+    print(f"Preprocess: finished in {end_time - start_time:.1f}s, chained infer={inference_task_id}")
 
     return {
         "stage": "preprocessed",
         "processed_file_path": processed_path,
-        "inference_task_id": inference_task.id,
+        "inference_task_id": inference_task_id,
     }
 
 
@@ -576,8 +565,8 @@ def infer(self, mne_file_path):
         print(f"Warning: failed to generate topomap image: {e}")
         out_path = None
 
-    report_task = generate_report.delay(float(ab_prob), region_report, pdr_text)
-    print(f"Inference: report task queued ({report_task.id})")
+    report_task_id = dispatch(generate_report, float(ab_prob), region_report, pdr_text)
+    print(f"Inference: report task queued ({report_task_id})")
 
     end_time = time.time()
     print(f"Inference: finished in {end_time - start_time:.1f}s")
@@ -588,7 +577,7 @@ def infer(self, mne_file_path):
         "focus_points": focus_points,
         "inference_time": end_time - start_time,
         "topomap_path": out_path,
-        "report_task_id": report_task.id,
+        "report_task_id": report_task_id,
     }
 
 

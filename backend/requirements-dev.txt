@@ -22,3 +22,7 @@ pip-audit==2.10.1
 # OpenAPI contract fuzzing. Drives the FastAPI app in-process over ASGI — no
 # server, no socket, no network. Pulls in hypothesis.
 schemathesis>=4.27,<5
+
+# Runs the committed ONNX models in tests/test_onnx_inference.py, so the real inference
+# path is tested in CI. About 15 MB; torch is still never installed.
+onnxruntime

@@ -11,6 +11,10 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+# The desktop LLM, staged by backend/fetch-desktop-llm.ps1 (~1.2 GB)
+desktop-llm/
+desktop-llm-cache/
+*.gguf
 build/
 develop-eggs/
 dist/

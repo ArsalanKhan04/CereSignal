@@ -35,15 +35,10 @@ Set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` and it switches to Supabase Storage
 automatically — that is how the deployed app runs. `OPENAI_API_KEY` is optional
 too; without it inference still runs and the report text is simply left blank.
 
-> **Tip:** inference runs on CPU (`inference/infer.py` pins `torch.device("cpu")`),
-> but `requirements.txt` pulls in several GB of CUDA wheels. On Linux you can
-> install the much smaller CPU-only build into the virtualenv first, then run
-> `./scripts/setup.sh` as usual:
->
-> ```bash
-> python3.14 -m venv backend/cere_env
-> backend/cere_env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
-> ```
+> **Note:** inference runs on CPU with onnxruntime, from the ONNX exports in
+> `backend/external/models/`, so no install needs torch. torch is only for
+> regenerating those files from the `.pt`/`.pth` weights
+> (`backend/requirements-export.txt`, `python -m scripts.export_onnx`).
 
 ## Quick Start
 
