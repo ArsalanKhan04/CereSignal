@@ -20,7 +20,11 @@ datas += datas_edf
 binaries += binaries_edf
 
 datas += collect_data_files("app")
-datas.append((os.path.join(project_root, "app", "static"), "app/static"))
+# Absent in a fresh clone (its only contents are generated plots, which are untracked);
+# entry_point.py creates it at runtime either way.
+static_dir = os.path.join(project_root, "app", "static")
+if os.path.isdir(static_dir):
+    datas.append((static_dir, "app/static"))
 
 # Add edfio hidden imports to main list
 _extra_hiddenimports = list(hiddenimports_edfio) if hiddenimports_edfio else []
@@ -41,6 +45,12 @@ hiddenimports = [
     "app.schemas",
     "app.services",
     "external.edf_preprocess",
+    # Desktop mode runs the Celery tasks eagerly in-process (DESKTOP_CELERY_CONFIG);
+    # infer.py imports torch and the models lazily, so bundling it pulls neither in.
+    "inference.infer",
+    "app.services.inference_service",
+    "kombu.transport.memory",
+    "celery.backends.cache",
 
     # --- CELERY ---
     "celery",
@@ -118,8 +128,6 @@ excluded_modules = [
     "external.CereProcess",
     "external.models.neurogate",
     "external.models.neurotransformer",
-    "inference",
-    "app.services.inference_service",
 ]
 
 a = Analysis(

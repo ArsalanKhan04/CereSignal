@@ -21,12 +21,15 @@ import shutil
 import tempfile
 import time
 from contextlib import contextmanager
-from typing import Generator
+from typing import TYPE_CHECKING, Generator
 from urllib.parse import quote
 
-from supabase import Client, create_client
-
 from app.core.logging_config import logger
+
+# Imported lazily in _get_client: the desktop build (requirements-desktop.txt) ships
+# without supabase and only ever uses LocalStorageService.
+if TYPE_CHECKING:
+    from supabase import Client
 
 SIGNALS_BUCKET = "eeg-signals"
 ASSETS_BUCKET = "eeg-assets"
@@ -48,10 +51,12 @@ SIGNED_URL_TTL_SECONDS = 3600
 
 class SupabaseStorageService:
     def __init__(self):
-        self._client: Client | None = None
+        self._client: "Client | None" = None
 
-    def _get_client(self) -> Client:
+    def _get_client(self) -> "Client":
         if not self._client:
+            from supabase import create_client
+
             from app.core.config import settings
             self._client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
         return self._client
