@@ -20,6 +20,14 @@ datas += datas_edf
 binaries += binaries_edf
 
 datas += collect_data_files("app")
+# The ONNX models infer.py runs, and the resampling filter table NeuroTransformer's
+# pipeline loads. get_resource_path() resolves the models against sys._MEIPASS.
+datas.append((os.path.join(project_root, "external", "models", "neurogate.onnx"), "external/models"))
+datas.append((os.path.join(project_root, "external", "models", "neurotransformer.onnx"), "external/models"))
+datas.append((
+    os.path.join(project_root, "external", "CereProcess", "datasets", "kaiser_fast.npz"),
+    "external/CereProcess/datasets",
+))
 # Absent in a fresh clone (its only contents are generated plots, which are untracked);
 # entry_point.py creates it at runtime either way.
 static_dir = os.path.join(project_root, "app", "static")
@@ -45,9 +53,17 @@ hiddenimports = [
     "app.schemas",
     "app.services",
     "external.edf_preprocess",
-    # Desktop mode runs the Celery tasks eagerly in-process (DESKTOP_CELERY_CONFIG);
-    # infer.py imports torch and the models lazily, so bundling it pulls neither in.
+    # Desktop mode runs the Celery tasks eagerly in-process (DESKTOP_CELERY_CONFIG).
+    # infer.py imports everything below lazily, inside the tasks, so PyInstaller's
+    # import scan cannot see any of it.
     "inference.infer",
+    "external.pdr",
+    "external.CereProcess.datasets.pipeline",
+    "external.CereProcess.datasets.channels",
+    "external.CereProcess.datasets._kaiser_resample",
+    "app.services.brain_viz_service",
+    "onnxruntime",
+    "openai",
     "app.services.inference_service",
     "kombu.transport.memory",
     "celery.backends.cache",
@@ -118,6 +134,11 @@ hiddenimports = [
     *_extra_hiddenimports,
 ]
 
+# The models run as ONNX (external/models/*.onnx), so torch and the torch model
+# definitions stay out. CereProcess is needed for its preprocessing pipelines, but not
+# its training code or its torch/tqdm dataset wrappers. numba/llvmlite (~100 MB) came
+# only through resampy, which _kaiser_resample replaces. onnxruntime depends on sympy
+# and onnx, but only its offline `tools` use them.
 excluded_modules = [
     "torch",
     "torchvision",
@@ -125,9 +146,19 @@ excluded_modules = [
     "triton",
     "nvidia",
     "ollama",
-    "external.CereProcess",
     "external.models.neurogate",
     "external.models.neurotransformer",
+    "external.CereProcess.train",
+    "external.CereProcess.datasets.pytordataset",
+    "external.CereProcess.datasets.dataset",
+    "resampy",
+    "numba",
+    "llvmlite",
+    "onnx",
+    "onnxruntime.tools",
+    "onnxruntime.transformers",
+    "onnxruntime.quantization",
+    "sympy",
 ]
 
 a = Analysis(

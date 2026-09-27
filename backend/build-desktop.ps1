@@ -4,7 +4,7 @@ Param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Building desktop backend (no AI)" -ForegroundColor Cyan
+Write-Host "Building desktop backend (ONNX models + local LLM)" -ForegroundColor Cyan
 
 Set-Location -Path (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
@@ -26,5 +26,23 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 if (-Not (Test-Path "dist\$OutputName\$OutputName.exe")) {
   throw "dist\$OutputName\$OutputName.exe was not produced"
 }
+
+# Size guards. The models run as ONNX and resampling is numpy, so torch and numba have
+# no business in the bundle; one stray top-level import would quietly add 100-700 MB.
+$internal = "dist\$OutputName\_internal"
+foreach ($heavy in @("torch", "numba", "llvmlite", "sympy")) {
+  if (Test-Path (Join-Path $internal $heavy)) {
+    throw "$heavy was bundled into $internal. Find the import that pulls it in, or add it to excludes in desktop.spec"
+  }
+}
+foreach ($model in @("neurogate.onnx", "neurotransformer.onnx")) {
+  if (-Not (Test-Path (Join-Path $internal "external\models\$model"))) {
+    throw "external\models\$model is missing from $internal"
+  }
+}
+$backendSize = (Get-ChildItem -Recurse -File "dist\$OutputName" | Measure-Object -Property Length -Sum).Sum / 1MB
+Write-Host ("Backend bundle: {0:N0} MB" -f $backendSize)
+
+& (Join-Path $PSScriptRoot "fetch-desktop-llm.ps1")
 
 Write-Host "Build complete: dist\$OutputName" -ForegroundColor Green

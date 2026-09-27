@@ -10,3 +10,5 @@ Adversarial
 models
 *.png
 *.txt
+# resampy's filter table, loaded at inference time by datasets/_kaiser_resample.py
+!datasets/kaiser_fast.npz

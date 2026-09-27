@@ -70,9 +70,10 @@ jobs:
             backend/requirements.txt
             backend/requirements-dev.txt
 
-      # requirements-ai.txt (torch, openai) is deliberately not installed. Every
-      # test is designed to run without the ML stack — inference/infer.py imports
-      # torch and openai lazily — and installing torch here would dominate the job.
+      # requirements-ai.txt is deliberately not installed: inference/infer.py imports
+      # onnxruntime and openai lazily, and openai is stubbed wherever it is tested.
+      # requirements-dev.txt does bring onnxruntime (~15 MB), so test_onnx_inference.py
+      # runs the real models. torch is never installed anywhere.
       #
       # requirements.txt is still a pip freeze carrying PyQt5, jupyter and other
       # cruft, so the uncached install is slow. See the plan's follow-ups.
@@ -182,7 +183,7 @@ jobs:
       - name: Install npm 12
         run: npm install -g npm@12
 
-      # Base requirements only: AI is off, so torch and openai are never imported.
+      # Base requirements only: AI is off, so onnxruntime and openai are never imported.
       # stack.sh calls backend/cere_env's binaries by path, as every dev script does.
       - name: Install backend
         run: |

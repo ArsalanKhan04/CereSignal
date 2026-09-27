@@ -29,8 +29,9 @@ if os.getenv("DESKTOP_MODE", "false").lower() == "true":
     os.makedirs(data_dir, exist_ok=True)
     os.environ.setdefault("DATABASE_URL", "sqlite:///" + os.path.join(data_dir, "cere_signal.db"))
     os.environ.setdefault("LOCAL_STORAGE_ROOT", os.path.join(data_dir, "local_storage"))
-    # The desktop build ships without torch (requirements-desktop.txt).
-    os.environ.setdefault("AI_INFERENCE_ENABLED", "false")
+    # The desktop build ships the ONNX models and onnxruntime (requirements-desktop.txt),
+    # and main.js points OLLAMA_* at its bundled llama-server for the report text.
+    os.environ.setdefault("AI_INFERENCE_ENABLED", "true")
     # The window loads frontend/build over file://, which sends `Origin: null`.
     os.environ.setdefault("BACKEND_CORS_ORIGINS", '["null"]')
 

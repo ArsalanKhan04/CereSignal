@@ -1,0 +1,9 @@
+# Only for regenerating external/models/*.onnx from the .pt/.pth weights:
+#     pip install -r requirements.txt -r requirements-export.txt
+#     python -m scripts.export_onnx
+# Nothing at runtime imports torch — inference/infer.py runs the exported models with
+# onnxruntime (requirements-ai.txt). The CPU wheel is enough:
+#     pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch
+onnx
+onnxruntime

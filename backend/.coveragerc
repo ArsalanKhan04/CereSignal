@@ -5,9 +5,9 @@ omit =
     # not this project's to test. See .gitmodules.
     external/CereProcess/*
     external/full_edf_viewer/*
-    # Torch model definitions. CI deliberately does not install the ML stack
-    # (see requirements-ai.txt), so these 211 statements are unreachable there
-    # and measuring them pins the floor ~3 points below the honest number.
+    # Torch model definitions, used only by scripts/export_onnx.py; inference runs
+    # the ONNX exports and nothing installs torch, so these 211 statements are
+    # unreachable and measuring them pins the floor ~3 points below the honest number.
     external/models/*
     # Entry points and one-shot scripts rather than importable behaviour.
     entry_point.py

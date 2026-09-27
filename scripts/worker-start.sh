@@ -32,8 +32,8 @@ if command -v docker >/dev/null 2>&1 && ! redis_running; then
 fi
 
 # The cd is mandatory, not cosmetic. inference/infer.py loads the NeuroGate and
-# NeuroTransformer weights via os.path.abspath(".") + external/models/..., so
-# from any other directory torch.load raises FileNotFoundError. The SQLite
+# NeuroTransformer ONNX models via os.path.abspath(".") + external/models/..., so
+# from any other directory onnxruntime cannot find them. The SQLite
 # DATABASE_URL is cwd-relative too.
 cd "$BACKEND"
 

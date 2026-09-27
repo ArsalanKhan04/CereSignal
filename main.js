@@ -3,10 +3,12 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const crypto = require('crypto');
+const net = require('net');
 
 let mainWindow;
 let backendProcess;
 let workerProcess;
+let llmProcess;
 let desktopLogPath;
 
 const isWindowsPackaged = process.platform === 'win32' && app.isPackaged;
@@ -28,7 +30,78 @@ function getBinaryPath(binaryName) {
     return path.join(__dirname, 'resources', binaryName);
 }
 
-function startBackend() {
+// The model name the backend asks llama-server for (OLLAMA_MODEL).
+const LLM_ALIAS = 'ceresignal-llm';
+
+function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address();
+            server.close(() => resolve(port));
+        });
+    });
+}
+
+/**
+ * Starts the bundled llama-server (backend/fetch-desktop-llm.ps1 stages it) for report
+ * text, and returns the environment that points the backend at it. The backend talks
+ * to it through its Ollama settings, since both speak the OpenAI API.
+ *
+ * Loopback only, on a free port, behind a per-launch API key passed through the
+ * environment rather than argv. Without the staged files (an unpackaged checkout that
+ * never ran the fetch script) it returns nothing, and reports are left for manual entry.
+ */
+async function startLlm() {
+    const llmDir = app.isPackaged ? path.join(process.resourcesPath, 'llm') : path.join(__dirname, 'desktop-llm');
+    const serverExe = path.join(llmDir, 'llama-server.exe');
+    const modelPath = path.join(llmDir, 'model.gguf');
+
+    if (!isDesktopMode || !fs.existsSync(serverExe) || !fs.existsSync(modelPath)) {
+        writeDesktopLog({ level: 'warn', message: 'Local LLM not found; report text will need manual entry', context: 'BOOT', data: { path: llmDir } });
+        return {};
+    }
+
+    const port = await getFreePort();
+    const apiKey = crypto.randomBytes(32).toString('hex');
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    fs.mkdirSync(logDir, { recursive: true });
+    const logFd = fs.openSync(path.join(logDir, 'llama-server.log'), 'w');
+
+    writeDesktopLog({ level: 'info', message: 'Starting local LLM', context: 'BOOT', data: { path: serverExe, port } });
+
+    // --reasoning off: the backend's JSON response_format leaves no room for a
+    // thinking preamble. Threads are left to llama.cpp, which uses the physical cores.
+    llmProcess = spawn(serverExe, [
+        '-m', modelPath,
+        '--host', '127.0.0.1',
+        '--port', String(port),
+        '--alias', LLM_ALIAS,
+        '-c', '4096',
+        '--no-webui',
+        '--reasoning', 'off'
+    ], {
+        cwd: llmDir,
+        stdio: ['ignore', logFd, logFd],
+        windowsHide: true,
+        env: { ...process.env, LLAMA_API_KEY: apiKey }
+    });
+    fs.closeSync(logFd);
+
+    llmProcess.on('exit', (code, signal) => {
+        writeDesktopLog({ level: 'error', message: 'Local LLM process exited', context: 'BOOT', data: { code, signal } });
+    });
+
+    return {
+        OLLAMA_BASE_URL: `http://127.0.0.1:${port}/v1`,
+        OLLAMA_MODEL: LLM_ALIAS,
+        OLLAMA_API_KEY: apiKey
+    };
+}
+
+function startBackend(extraEnv = {}) {
     let backendExe;
     let backendDir;
     let backendArgs = [];
@@ -65,7 +138,8 @@ function startBackend() {
             DESKTOP_SESSION_SECRET: desktopSecret || '',
             CERE_DATA_DIR: app.getPath('userData'),
             CERE_LOG_DIR: backendLogDir,
-            CERE_LOG_KEEP_FOREVER: '1'
+            CERE_LOG_KEEP_FOREVER: '1',
+            ...extraEnv
         }
     });
     
@@ -147,8 +221,15 @@ async function waitForServer(url, maxRetries = 30, retryDelayMs = 500) {
 }
 
 async function createWindow() {
-    // 1. Start Background Services
-    startBackend();
+    // 1. Start Background Services. The LLM loads its model in the background; the
+    // backend only needs its address, and first calls it after inference.
+    let llmEnv = {};
+    try {
+        llmEnv = await startLlm();
+    } catch (err) {
+        writeDesktopLog({ level: 'error', message: 'Failed to start local LLM', context: 'BOOT', data: { error: String(err) } });
+    }
+    startBackend(llmEnv);
     startWorker();
 
     // 2. Create the Window immediately (but don't load the UI yet)
@@ -246,6 +327,7 @@ ipcMain.on('desktop-session-secret', (event) => {
 app.on('will-quit', () => {
     if (backendProcess) backendProcess.kill();
     if (workerProcess) workerProcess.kill();
+    if (llmProcess) llmProcess.kill();
 });
 
 app.on('window-all-closed', () => {
