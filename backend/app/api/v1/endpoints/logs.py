@@ -2,15 +2,17 @@
 Client logging endpoints
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.core.logging_config import logger
+from app.core.rate_limit import rate_limit
 from app.schemas.log import ClientLogEntry
 
 router = APIRouter()
 
 
-@router.post("/client")
+# The schema caps each request; this caps each client.
+@router.post("/client", dependencies=[Depends(rate_limit("client-log", limit=300, window_seconds=60))])
 async def ingest_client_log(entry: ClientLogEntry):
     """Ingest a client log entry and write to server logs"""
 

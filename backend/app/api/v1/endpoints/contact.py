@@ -6,13 +6,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.models.contact import ContactSubmission
 from app.schemas.contact import ContactSubmissionCreate, ContactSubmissionResponse
 
 router = APIRouter()
 
 
-@router.post("/", response_model=ContactSubmissionResponse, status_code=201)
+@router.post(
+    "/",
+    response_model=ContactSubmissionResponse,
+    status_code=201,
+    dependencies=[Depends(rate_limit("contact", limit=5, window_seconds=3600))],
+)
 async def submit_contact(
     submission: ContactSubmissionCreate,
     db: Session = Depends(get_db),

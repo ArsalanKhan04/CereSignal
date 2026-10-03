@@ -171,7 +171,7 @@ class TestSingleDownloads:
 
 class TestBulkDownload:
     def test_zip_holds_the_recordings_and_pdfs(
-        self, client, auth_headers, superuser, hospital_a, report_with_pdf
+        self, client, auth_headers, superuser, hospital_a, recording, report_with_pdf
     ):
         response = client.get(
             f"{BASE}/hospitals/{hospital_a.id}/download", headers=auth_headers(superuser)
@@ -180,7 +180,8 @@ class TestBulkDownload:
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/zip"
         archive = zipfile.ZipFile(io.BytesIO(response.content))
-        assert archive.read("edf/rec.edf") == b"EDF-BYTES"
+        # The id prefix keeps two uploads of the same name apart in one archive.
+        assert archive.read(f"edf/{recording.id}_rec.edf") == b"EDF-BYTES"
         assert archive.read(f"reports/Jane_Doe_{report_with_pdf.id}.pdf") == b"%PDF-1.4 fake"
 
     def test_a_missing_object_is_skipped_not_fatal(

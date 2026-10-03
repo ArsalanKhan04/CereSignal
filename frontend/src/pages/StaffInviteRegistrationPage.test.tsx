@@ -1,5 +1,7 @@
 /**
- * Staff onboarding from an emailed /register/invite/:token link.
+ * Staff onboarding from an emailed /register/invite/:token link. Both calls carry the
+ * token in the body (POST /auth/invite/validate, POST /auth/register/invite) so it
+ * never reaches a request log.
  *
  * Two halves: the token check (a used, expired, unknown or merely unreachable
  * invitation each say something different, and a server failure must not claim the
@@ -47,7 +49,7 @@ describe('invitation token', () => {
     [404, { detail: 'Not found' }, /invalid or not found/],
     [500, {}, /Couldn't verify this invitation right now/],
   ])('a %s answer shows the matching message', async (status, body, message) => {
-    mock.onGet('/auth/invite/tok').reply(status, body);
+    mock.onPost('/auth/invite/validate').reply(status, body);
     renderPage();
 
     expect(await screen.findByText('Invitation Invalid')).toBeInTheDocument();
@@ -55,7 +57,7 @@ describe('invitation token', () => {
   });
 
   it('shows the form with the invited email locked in', async () => {
-    mock.onGet('/auth/invite/tok').reply(200, INVITE);
+    mock.onPost('/auth/invite/validate').reply(200, INVITE);
     renderPage();
 
     const email = await screen.findByLabelText(/^email/i);
@@ -66,7 +68,7 @@ describe('invitation token', () => {
 
 describe('registration form', () => {
   beforeEach(() => {
-    mock.onGet('/auth/invite/tok').reply(200, INVITE);
+    mock.onPost('/auth/invite/validate').reply(200, INVITE);
   });
 
   async function fillRequired(user: ReturnType<typeof userEvent.setup>, overrides: Record<string, string> = {}) {
@@ -95,12 +97,13 @@ describe('registration form', () => {
     await user.click(submit());
 
     expect(await screen.findByText('Passwords do not match.')).toBeInTheDocument();
-    expect(mock.history.post).toHaveLength(0);
+    // The token check is itself a POST, so count only the registration call.
+    expect(mock.history.post.filter((r) => r.url === '/auth/register/invite')).toHaveLength(0);
   });
 
   it('registers, signs in and opens the dashboard', async () => {
     const user = userEvent.setup();
-    mock.onPost('/auth/register/invite/tok').reply(201, { id: 5 });
+    mock.onPost('/auth/register/invite').reply(201, { id: 5 });
     mock.onPost('/auth/login').reply(200, { access_token: 'fresh' });
     mock.onGet('/auth/me').reply(200, { id: 5, username: 'new_doc', user_type: 'doctor' });
     renderPage();
@@ -109,7 +112,8 @@ describe('registration form', () => {
     await user.click(submit());
 
     expect(await screen.findByText('DASHBOARD')).toBeInTheDocument();
-    const sent = JSON.parse(mock.history.post[0].data);
+    const registration = mock.history.post.find((r) => r.url === '/auth/register/invite')!;
+    const sent = JSON.parse(registration.data);
     expect(sent).toMatchObject({ username: 'new_doc', first_name: 'New', last_name: 'Doctor' });
     // A blank phone goes out as absent: the backend pattern rejects "".
     expect(sent).not.toHaveProperty('phone');
@@ -120,7 +124,7 @@ describe('registration form', () => {
     // string in `detail` AND the per-field list in `errors`. Reading `detail` first
     // finds a string and never looks at `errors`.
     const user = userEvent.setup();
-    mock.onPost('/auth/register/invite/tok').reply(422, {
+    mock.onPost('/auth/register/invite').reply(422, {
       detail: 'Username may only contain letters, numbers and underscores.',
       errors: [{ field: 'username', message: 'Username may only contain letters, numbers and underscores.' }],
     });
@@ -135,7 +139,7 @@ describe('registration form', () => {
 
   it('shows a plain-string failure as the form error', async () => {
     const user = userEvent.setup();
-    mock.onPost('/auth/register/invite/tok').reply(400, { detail: 'Username already registered' });
+    mock.onPost('/auth/register/invite').reply(400, { detail: 'Username already registered' });
     renderPage();
 
     await fillRequired(user);

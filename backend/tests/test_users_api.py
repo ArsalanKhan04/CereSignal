@@ -156,15 +156,19 @@ class TestReportDeliveryActions:
         assert call["to_email"] == "delivery@example.com"
         assert call["portal_url"].endswith(f"/#/patient/portal/{patient.portal_token}")
 
-    def test_portal_email_keeps_an_existing_token(
+    def test_portal_email_reissues_the_token(
         self, client, auth_headers, doctor_a, patient, sent, db_session
     ):
+        """Every send mints a fresh link, so the previous one stops working."""
         patient.portal_token = "existing-token"
         db_session.commit()
 
         client.post(f"/api/v1/users/{patient.id}/send-portal-email", headers=auth_headers(doctor_a))
 
-        assert sent[0]["portal_url"].endswith("/existing-token")
+        db_session.refresh(patient)
+        assert patient.portal_token != "existing-token"
+        assert not sent[0]["portal_url"].endswith("/existing-token")
+        assert sent[0]["portal_url"].endswith(f"/{patient.portal_token}")
 
     def test_portal_email_without_an_address_is_400(
         self, client, auth_headers, doctor_a, patient, sent, db_session

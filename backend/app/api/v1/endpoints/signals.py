@@ -3,6 +3,7 @@ Signal management endpoints
 """
 
 import base64
+import io
 import os
 import time
 import uuid
@@ -10,6 +11,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.core.access import (
@@ -44,7 +46,11 @@ from app.services.eeg_cache_service import eeg_cache
 from app.services.inference_service import inference_service as _inference_service
 from app.services.pdf_service import pdf_generator
 from app.services.storage_service import ASSETS_BUCKET, SIGNALS_BUCKET, storage_service
-from app.utils.file_processing import process_signal_file, save_uploaded_file
+from app.utils.file_processing import (
+    content_disposition,
+    process_signal_file,
+    save_uploaded_file,
+)
 
 EEG_CHANNEL_ORDER = [
     "FP1",
@@ -300,7 +306,7 @@ async def upload_signal_file(
         log_error(e, f"File upload failed for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error uploading file: {str(e)}",
+            detail="Error uploading file",
         )
 
 
@@ -351,6 +357,23 @@ async def create_file_bookmark(
 
     forbid_patients(current_user, "Patients cannot create bookmarks")
 
+    image_data = bookmark_data.image_base64
+    if "," in image_data:
+        image_data = image_data.split(",", 1)[1]
+
+    # Validated before anything is replaced or stored. A decodable image is checked by
+    # fully loading it: ReportLab decodes lazily, so a corrupt one used to be accepted
+    # here and then fail every later PDF build for this file.
+    try:
+        image_bytes = base64.b64decode(image_data)
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.load()
+    except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image data",
+        )
+
     if bookmark_data.replace_id:
         bookmark_to_replace = (
             db.query(EEGBookmark)
@@ -369,18 +392,6 @@ async def create_file_bookmark(
             storage_service.delete(ASSETS_BUCKET, bookmark_to_replace.image_path)
         db.delete(bookmark_to_replace)
         db.commit()
-
-    image_data = bookmark_data.image_base64
-    if "," in image_data:
-        image_data = image_data.split(",", 1)[1]
-
-    try:
-        image_bytes = base64.b64decode(image_data)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid image data",
-        )
 
     bookmark = EEGBookmark(
         file_id=file.id,
@@ -560,9 +571,10 @@ async def get_plot_data(
     try:
         meta = eeg_cache.load_file(file.id, file.file_path)
     except Exception as e:
+        log_error(e, "Failed to load EEG file")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load EEG file: {e}",
+            detail="Failed to load EEG file",
         )
 
     # Until preprocessing has converted it, file_path still points at the raw upload:
@@ -592,9 +604,10 @@ async def get_plot_data(
             try:
                 import numpy as np
             except Exception as e:
+                log_error(e, "Failed to load numpy for montage")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to load numpy for montage: {e}",
+                    detail="Failed to load numpy for montage",
                 )
 
             raw_channels = {
@@ -709,9 +722,10 @@ async def get_plot_data(
         # this the generic handler below re-wraps it as a 500.
         raise
     except Exception as e:
+        log_error(e, "Error extracting plot data")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error extracting plot data: {e}",
+            detail="Error extracting plot data",
         )
 
 
@@ -927,11 +941,12 @@ async def check_inference_status(
         }
 
     except Exception as e:
+        log_error(e, "Error checking inference status")
         return {
             "file_id": file_id,
             "condition": file.condition,
             "inference_status": "error",
-            "message": f"Error checking inference status: {str(e)}",
+            "message": "Error checking inference status",
             "task_id": file.task_id,
             "report_task_id": report_task_id,
         }
@@ -1024,8 +1039,9 @@ async def get_file_report_status(
         # this the generic handler below re-wraps it as a 500.
         raise
     except Exception as e:
+        log_error(e, "Error checking report status")
         raise HTTPException(
-            status_code=500, detail=f"Error checking report status: {str(e)}"
+            status_code=500, detail="Error checking report status"
         )
 
 
@@ -1057,9 +1073,10 @@ async def delete_signal_file(
 
     except Exception as e:
         db.rollback()
+        log_error(e, "Error deleting file")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting file: {str(e)}",
+            detail="Error deleting file",
         )
 
 
@@ -1078,7 +1095,7 @@ async def download_file(file: SignalFile = Depends(get_accessible_file)):
     return Response(
         content=data,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{file.original_filename}"'},
+        headers={"Content-Disposition": content_disposition(file.original_filename)},
     )
 
 

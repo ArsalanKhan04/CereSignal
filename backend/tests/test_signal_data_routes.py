@@ -8,6 +8,7 @@ once it lets the caller in.
 """
 
 import base64
+import io
 
 import pytest
 
@@ -16,6 +17,15 @@ from app.services.eeg_cache_service import eeg_cache
 from app.services.storage_service import ASSETS_BUCKET, SIGNALS_BUCKET
 
 BASE = "/api/v1/signals/files"
+
+
+def _png_base64(size=(4, 4)):
+    """A real PNG: bookmark uploads are decoded, so magic bytes alone are refused."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", size).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 @pytest.fixture(autouse=True)
@@ -215,7 +225,7 @@ class TestTopomap:
 class TestDeleteBookmark:
     @pytest.fixture
     def bookmark(self, client, auth_headers, doctor_a, stored_file, db_session):
-        png = base64.b64encode(b"\x89PNG fake").decode()
+        png = _png_base64()
         response = client.post(
             f"{BASE}/{stored_file.id}/bookmarks",
             json={"comment": "spike here", "image_base64": f"data:image/png;base64,{png}"},

@@ -34,6 +34,7 @@ from app.schemas.dev_admin import (
 )
 from app.schemas.field_types import PageLimit, PageOffset, ResourceId
 from app.services.storage_service import SIGNALS_BUCKET, storage_service
+from app.utils.file_processing import content_disposition, safe_basename
 
 logger = logging.getLogger(__name__)
 
@@ -310,9 +311,7 @@ async def download_hospital_file(
     return StreamingResponse(
         iter([data]),
         media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{signal_file.original_filename}"'
-        },
+        headers={"Content-Disposition": content_disposition(signal_file.original_filename)},
     )
 
 
@@ -340,11 +339,11 @@ async def download_hospital_report(
         logger.error(f"Failed to download report {report_id}: {e}")
         raise HTTPException(500, detail="PDF download failed")
 
-    safe_name = f"report_{report.patient_name.replace(' ', '_')}_{report_id}.pdf"
+    name = f"report_{report.patient_name.replace(' ', '_')}_{report_id}.pdf"
     return StreamingResponse(
         iter([data]),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+        headers={"Content-Disposition": content_disposition(name)},
     )
 
 
@@ -374,7 +373,9 @@ async def bulk_download_hospital(
             try:
                 data = storage_service.download(SIGNALS_BUCKET, sf.file_path)
                 if data:
-                    zf.writestr(f"edf/{sf.original_filename}", data)
+                    # Prefixed with the id: original_filename is the raw upload name,
+                    # so it can traverse ("../../x.edf") and two uploads can share it.
+                    zf.writestr(f"edf/{sf.id}_{safe_basename(sf.original_filename)}", data)
             except Exception as e:
                 logger.warning(f"Skipping file {sf.id} in ZIP: {e}")
 
@@ -382,7 +383,7 @@ async def bulk_download_hospital(
             try:
                 data = storage_service.download(SIGNALS_BUCKET, r.pdf_file_path)
                 if data:
-                    safe_name = r.patient_name.replace(" ", "_").replace("/", "_")
+                    safe_name = safe_basename(r.patient_name.replace(" ", "_").replace("/", "_"))
                     zf.writestr(f"reports/{safe_name}_{r.id}.pdf", data)
             except Exception as e:
                 logger.warning(f"Skipping report {r.id} in ZIP: {e}")
@@ -394,5 +395,5 @@ async def bulk_download_hospital(
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition(filename)},
     )

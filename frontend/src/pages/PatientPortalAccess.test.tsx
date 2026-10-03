@@ -1,7 +1,7 @@
 /**
  * The patient's only way in: the emailed /patient/portal/:token link, exchanged for a
- * JWT at GET /auth/patient-portal/{token}. A bad link must stay on the error and
- * store nothing.
+ * JWT at POST /auth/patient-portal, which carries the token in the body so it never
+ * reaches a request log. A bad link must stay on the error and store nothing.
  */
 
 import MockAdapter from 'axios-mock-adapter';
@@ -34,7 +34,9 @@ const renderAt = (token: string) =>
   );
 
 it('exchanges the token, stores the JWT and opens the dashboard', async () => {
-  mock.onGet('/auth/patient-portal/good-token').reply(200, { access_token: 'patient-jwt' });
+  mock
+    .onPost('/auth/patient-portal', { token: 'good-token' })
+    .reply(200, { access_token: 'patient-jwt' });
   mock.onGet('/auth/me').reply(200, { id: 9, username: 'p', user_type: 'patient' });
 
   renderAt('good-token');
@@ -45,7 +47,7 @@ it('exchanges the token, stores the JWT and opens the dashboard', async () => {
 });
 
 it('shows the server detail for a rejected link and stores nothing', async () => {
-  mock.onGet('/auth/patient-portal/bad').reply(404, { detail: 'Portal link not found' });
+  mock.onPost('/auth/patient-portal').reply(404, { detail: 'Portal link not found' });
 
   renderAt('bad');
 
@@ -55,7 +57,7 @@ it('shows the server detail for a rejected link and stores nothing', async () =>
 });
 
 it('falls back to a generic message when the server gives no detail', async () => {
-  mock.onGet('/auth/patient-portal/bad').networkError();
+  mock.onPost('/auth/patient-portal').networkError();
 
   renderAt('bad');
 
@@ -64,7 +66,7 @@ it('falls back to a generic message when the server gives no detail', async () =
 
 it('offers a way back to the login page', async () => {
   const user = userEvent.setup();
-  mock.onGet('/auth/patient-portal/bad').reply(404, { detail: 'nope' });
+  mock.onPost('/auth/patient-portal').reply(404, { detail: 'nope' });
   renderAt('bad');
 
   await user.click(await screen.findByRole('button', { name: /back to login/i }));

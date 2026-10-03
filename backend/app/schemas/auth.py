@@ -93,6 +93,16 @@ class TokenData(BaseModel):
 
     username: Optional[str] = None
     user_id: Optional[int] = None
+    pwd: Optional[str] = None  # password fingerprint, see core/auth.create_user_token
+
+
+class TokenBody(BaseModel):
+    """
+    A portal or invitation token. Sent in the body rather than the path, because
+    paths land in our request log, uvicorn's access log and Railway's edge logs.
+    """
+
+    token: str = Field(..., min_length=1, max_length=255)
 
 
 class AuthUserResponse(BaseModel):

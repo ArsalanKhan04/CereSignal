@@ -41,7 +41,7 @@ class TestBlankConstrainedFieldsBecomeNone:
     def test_staff_invite_phone(self, blank):
         """The exact payload behind the 422s in the log."""
         invite = StaffInviteRegister(
-            **CREDS, first_name="A", last_name="B", phone=blank
+            **CREDS, token="invite-token", first_name="A", last_name="B", phone=blank
         )
         assert invite.phone is None
 
