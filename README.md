@@ -1,11 +1,11 @@
 # CereSignal
 
 A full-stack medical EEG analysis platform. Clinicians upload EDF recordings; CereSignal runs them
-through two pre-trained PyTorch models, generates clinical report text with an LLM, and presents the
-results alongside an interactive EEG viewer.
+through two pre-trained neural models (trained in PyTorch, run with onnxruntime), generates clinical
+report text with an LLM, and presents the results alongside an interactive EEG viewer.
 
 It ships as a multi-tenant web application (Railway + Supabase) and as a Windows desktop app
-(Electron + PyInstaller).
+(Electron + PyInstaller) that runs the models and a bundled local LLM entirely offline.
 
 ## Features
 
@@ -44,8 +44,8 @@ It ships as a multi-tenant web application (Railway + Supabase) and as a Windows
 ## Architecture
 
 Analysis is asynchronous. The upload endpoint does the fast work inline and hands the rest to a
-Celery worker over Redis; the frontend polls for completion. `CLAUDE.md` documents each stage in
-detail.
+Celery worker over Redis; the frontend polls for completion. The worker's tasks live in
+`backend/inference/infer.py`.
 
 1. The frontend uploads an EDF/CSV/JSON/TXT file to `POST /api/v1/signals/upload`.
 2. The backend stores it through `storage_service` (Supabase, or local disk when `SUPABASE_URL`
@@ -131,8 +131,7 @@ CereSignal/
 ├── preload.js
 ├── docker-compose.yml
 ├── HOWTORUN.md                    # Development setup walkthrough
-├── DESKTOP_BUILD_WINDOWS.md       # Windows desktop build guide
-└── CLAUDE.md                      # Architecture notes for AI coding agents
+└── DESKTOP_BUILD_WINDOWS.md       # Windows desktop build guide
 ```
 
 ## Getting Started
@@ -287,8 +286,8 @@ padlock icon there marks which routes carry an auth dependency.
 
 ## Configuration
 
-Configured through environment variables in `backend/.env`; see `backend/.env.example` for the full
-template and `CLAUDE.md` for what each one does. Key options:
+Configured through environment variables in `backend/.env`; `backend/.env.example` is the full
+template, with a comment on what each one does. Key options:
 
 - `DATABASE_URL` — Postgres in deployment; SQLite works for local development
 - `SECRET_KEY` — JWT signing key

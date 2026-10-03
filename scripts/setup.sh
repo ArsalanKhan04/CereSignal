@@ -3,15 +3,16 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# --no-ai sets up a manual-entry-only install: no torch/openai, and
-# AI_INFERENCE_ENABLED=False in the generated .env. See "No-AI Mode" in CLAUDE.md.
+# --no-ai sets up a manual-entry-only install: no onnxruntime/openai, and
+# AI_INFERENCE_ENABLED=False in the generated .env. Uploads are still converted for
+# the viewer, then wait for a manual normal/abnormal label; reports are typed by hand.
 INSTALL_AI=true
 for arg in "$@"; do
     case "$arg" in
         --no-ai) INSTALL_AI=false ;;
         -h|--help)
             echo "usage: $0 [--no-ai]"
-            echo "  --no-ai   skip torch/openai and configure a manual-entry-only backend"
+            echo "  --no-ai   skip onnxruntime/openai and configure a manual-entry-only backend"
             exit 0
             ;;
         *) die "unknown option: $arg (try --help)" ;;
@@ -38,13 +39,13 @@ fi
 # backend/requirements.txt is the one CI (.github/workflows) and
 # backend/Dockerfile.backend install.
 #
-# torch and openai live in backend/requirements-ai.txt and are needed only when
+# onnxruntime and openai live in backend/requirements-ai.txt and are needed only when
 # AI_INFERENCE_ENABLED=True, which is the default — so install them unless --no-ai.
 log "installing backend dependencies (this takes a while — mne is large)"
 "$PIP" install --quiet --upgrade pip
 "$PIP" install -r "$BACKEND/requirements.txt"
 if [ "$INSTALL_AI" = "true" ]; then
-    log "installing ML dependencies (torch is large — pass --no-ai to skip)"
+    log "installing ML dependencies (pass --no-ai to skip)"
     "$PIP" install -r "$BACKEND/requirements-ai.txt"
     ok "backend dependencies installed (with ML stack)"
 else
@@ -65,7 +66,7 @@ else
 fi
 
 # Only meaningful when the ML stack was skipped — leaving the default True would
-# give a worker that dies on `import torch` at the first inference task.
+# give a worker that dies on `import onnxruntime` at the first inference task.
 # .env.example ships this commented out, so the default (True, from
 # app/core/config.py) applies and `AI_INFERENCE_ENABLED=False ./scripts/...` can
 # still override per run. --no-ai is the case where the mode is the persistent

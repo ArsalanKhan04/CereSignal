@@ -28,3 +28,6 @@ httptools
 python-json-logger
 pyinstaller
 celery
+# AI inference (inference/infer.py): the ONNX models and the report LLM client.
+onnxruntime
+openai

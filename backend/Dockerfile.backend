@@ -10,7 +10,7 @@ RUN mkdir -p $APP_HOME
 WORKDIR $APP_HOME
 
 # Install dependencies.
-# Set INSTALL_AI=false to build a manual-entry-only image that omits torch/openai
+# Set INSTALL_AI=false to build a manual-entry-only image that omits onnxruntime/openai
 # (see requirements-ai.txt and the AI_INFERENCE_ENABLED setting).
 ARG INSTALL_AI=true
 COPY ./requirements.txt ./requirements-ai.txt ./

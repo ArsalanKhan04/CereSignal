@@ -20,6 +20,10 @@
       {
         "from": "backend/dist/cere-engine",
         "to": "backend"
+      },
+      {
+        "from": "desktop-llm",
+        "to": "llm"
       }
     ],
     "win": {

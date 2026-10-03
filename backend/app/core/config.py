@@ -63,9 +63,12 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
 
     # Local Ollama, used for report drafting when OPENAI_API_KEY is empty. With
-    # OLLAMA_MODEL empty, the most recently pulled model is used.
+    # OLLAMA_MODEL empty, the most recently pulled model is used. Any OpenAI-compatible
+    # local server works: the desktop app points these at its bundled llama-server
+    # (main.js), which, unlike Ollama, checks OLLAMA_API_KEY.
     OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
     OLLAMA_MODEL: str = ""
+    OLLAMA_API_KEY: str = "ollama"
 
     # Supabase client credentials (for future use: storage, auth)
     SUPABASE_URL: str = ""

@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 CereSignal is a full-stack medical EEG analysis platform. It processes EDF files through two
-pre-trained PyTorch models (NeuroGate + NeuroTransformer) and generates clinical report text via
-the OpenAI API. It is a multi-tenant SaaS deployed on Railway, with Supabase for Postgres and file
+pre-trained models (NeuroGate + NeuroTransformer, trained in PyTorch and run as ONNX with
+onnxruntime) and generates clinical report text via the OpenAI API. It is a multi-tenant SaaS deployed on Railway, with Supabase for Postgres and file
 storage; local development needs no cloud account. A Windows desktop build (Electron + PyInstaller)
 also exists.
 
@@ -150,8 +150,9 @@ Four things that will bite when writing a new frontend test:
 `./scripts/test.sh --cov` and CI enforce the identical number and it can only ratchet up.
 It is in `.coveragerc` rather than `pytest.ini` addopts on purpose: `.coveragerc` is inert
 unless `--cov` is passed, so a plain `pytest` pays no tracing overhead. `external/models/*`
-is omitted alongside the submodules — those two files need torch, which CI deliberately does
-not install, so measuring them pinned the floor ~3 points below the honest number. Caveat:
+is omitted alongside the submodules — those two files are the torch model definitions, used
+only by `scripts/export_onnx.py`, and nothing installs torch, so measuring them pinned the
+floor ~3 points below the honest number. Caveat:
 `./scripts/test.sh --cov -k <subset>` will trip the floor; escape with `--cov-fail-under=0`.
 
 `xfail(strict=True)` is the house convention for pinning a defect that is found but not yet
@@ -169,7 +170,7 @@ be left behind. There are none right now.
    queueing the `preprocess_edf` Celery task via Redis
 4. `preprocess_edf` (`backend/inference/infer.py`) converts the EDF, uploads `<name>_processed.edf`
    for the viewer, then chains to the `infer` task
-5. `infer` runs the two models sequentially:
+5. `infer` runs the two models sequentially, with onnxruntime on CPU (see "Models" below):
    - **NeuroGate** — 21-channel binary classifier (Normal/Abnormal + probability)
    - **NeuroTransformer** — per-channel 3-class classifier (normal/spike/slow wave)
 6. It then computes focus points and PDR, builds a regional report, generates a topomap image, and
@@ -185,6 +186,23 @@ be left behind. There are none right now.
 8. Results are saved to the database; the frontend polls
    `GET /signals/files/{id}/inference-status` and `/report-status`, then displays the EEG
    visualization and report
+
+### Models
+`external/models/neurogate.onnx` and `neurotransformer.onnx` are what runs; the `.pt`/`.pth`
+weights beside them are the source of truth. `scripts/export_onnx.py` (deps in
+`requirements-export.txt`, the only place torch appears) regenerates the `.onnx` files and
+refuses to finish unless torch and onnxruntime agree on logits and on every decision `infer.py`
+derives from them. Rerun it whenever the weights change. The exports have a dynamic batch axis
+but a fixed time axis — the legacy tracer bakes the sequence length into the attention reshapes
+— which costs nothing, because `PaddedCropData` always yields 10 minutes (60000 samples at
+100 Hz) and NeuroTransformer windows are always 2 s at 200 Hz.
+
+NeuroTransformer's pipeline resamples with resampy's `kaiser_fast` filter, because that is what
+it was trained on. `external/CereProcess/datasets/_kaiser_resample.py` is a numpy port of it
+(`tests/test_kaiser_resample.py` pins it to resampy's output within 1e-9), since resampy
+itself drags in numba + llvmlite, about 100 MB in the desktop build, for this one call. Do not
+swap it for `mne`'s or scipy's resampler: a different anti-aliasing filter changes the input to
+a model that is already sharply amplitude-sensitive (see Known Data Issues).
 
 Note: inference is triggered by the upload endpoint, not by a separate process call. The
 `/api/v1/processing/*` router that used to sit alongside it was deleted — it was unauthenticated,
@@ -282,13 +300,26 @@ anywhere else. Logs go to `AppData/Roaming`.
   targets. On desktop `/` renders `DesktopWorkspace`, and `Patients` lets the doctor create
   patients and upload recordings.
 - **No Redis, no worker.** With `DESKTOP_MODE=true` both Celery apps load
-  `DESKTOP_CELERY_CONFIG` (`inference/infer.py`): tasks run eagerly inside the upload request and
-  store their results in Celery's in-memory backend, one module-level cache per process, so the
-  ordinary `inference-status` polling finds them. That is why `main.js` skips the worker.
+  `DESKTOP_CELERY_CONFIG` (`inference/infer.py`): tasks run eagerly and store their results in
+  Celery's in-memory backend, one module-level cache per process, so the ordinary
+  `inference-status` polling finds them. That is why `main.js` skips the worker.
+  Every task is started through `dispatch()` in `inference/infer.py`, which on desktop runs it
+  on its own thread and returns its id at once. Run eagerly, a chained `.delay()` executes
+  inside its caller, so the upload would hang through both models and the LLM report, and
+  `preprocess_edf`'s result (which is what hands the viewer the converted recording) would
+  wait for all of it too: 35 s or more, against the viewer's 60 s patience.
+- **AI runs offline.** The desktop build ships the ONNX models and onnxruntime, and a local LLM
+  for report text: llama.cpp's `llama-server` plus a Q4 GGUF, pinned by version and SHA-256 in
+  `backend/fetch-desktop-llm.ps1`, which stages them in `desktop-llm/` for electron-builder.
+  `main.js` starts it on a free loopback port behind a per-launch API key (`LLAMA_API_KEY`) and
+  hands the backend `OLLAMA_BASE_URL`, `OLLAMA_MODEL` and `OLLAMA_API_KEY`, so report generation
+  takes the same Ollama path as a web install without an OpenAI key. Without `desktop-llm/`
+  (an unpackaged checkout) nothing starts and reports are left for manual entry.
+  `build-desktop.ps1` fails the build if torch, numba, llvmlite or sympy lands in the bundle.
 - **`entry_point.py` supplies what a packaged app has no `.env` for**, before importing settings:
   SQLite and `LOCAL_STORAGE_ROOT` under `CERE_DATA_DIR` (Electron's per-user data folder, since
-  the install directory is not writable), `AI_INFERENCE_ENABLED=false` (the desktop build ships
-  no torch), and `null` in the CORS origins, because a `file://` page sends `Origin: null`.
+  the install directory is not writable), `AI_INFERENCE_ENABLED=true`, and `null` in the CORS
+  origins, because a `file://` page sends `Origin: null`.
   `SECRET_KEY` is random per process.
 - A dev backend already on `:8000` wins the port: Electron attaches to it, the session exchange
   404s, and the window says so. Stop `./scripts/backend-start.sh` before `npm run start:desktop`.
@@ -368,7 +399,9 @@ on `main` requiring `Lint (ruff)`, `Backend (pytest)`, `Frontend (jest)` and `Co
 | `backend/app/api/v1/endpoints/` | Route handlers (auth, users, signals, reports, admin, dev_admin, notifications, logs, contact, config) |
 | `backend/app/services/` | Storage (Supabase or local disk), PDF generation, brain visualization, inference dispatch |
 | `backend/inference/infer.py` | Celery tasks — preprocessing, ML pipeline, LLM report |
-| `backend/external/` | NeuroGate/NeuroTransformer model wrappers, EDF utilities |
+| `backend/external/` | NeuroGate/NeuroTransformer weights, their ONNX exports and torch definitions, EDF utilities |
+| `backend/scripts/export_onnx.py` | Regenerates and parity-checks the ONNX models (needs `requirements-export.txt`) |
+| `backend/fetch-desktop-llm.ps1` | Stages the pinned llama-server and GGUF for the desktop installer |
 | `frontend/src/pages/` | Top-level page components |
 | `frontend/src/components/` | Shared UI components |
 | `frontend/src/contexts/` | Auth and demo React contexts |
@@ -387,7 +420,7 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
 - `SUPABASE_URL`, `SUPABASE_SECRET_KEY` — file storage. Leave `SUPABASE_URL` empty to store
   files on local disk instead (`SUPABASE_PUBLISHABLE_KEY` is the client-side key)
 - `OPENAI_API_KEY`, `OPENAI_MODEL` — LLM report generation (default `gpt-4o-mini`)
-- `OLLAMA_BASE_URL`, `OLLAMA_MODEL` — local fallback used when `OPENAI_API_KEY` is empty
+- `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_API_KEY` — local fallback used when `OPENAI_API_KEY` is empty
   (default `http://localhost:11434/v1`; empty model = most recently pulled)
 - `RESEND_API_KEY` — invitation email; `MAIL_*` variables are the SMTP fallback
 - `FRONTEND_URL` — used to build invitation email links
@@ -404,11 +437,11 @@ still go through `preprocess_edf` (channel conversion for the EEG viewer), and l
 `pending_review` condition awaiting a manual normal/abnormal label from the existing
 `PATCH /signals/files/{id}/label` flow. Reports are typed by hand.
 
-Because `inference/infer.py` imports `torch`, `openai` and everything under `external/`
+Because `inference/infer.py` imports `onnxruntime`, `openai` and everything under `external/`
 lazily, a no-AI deployment can skip the ML stack entirely:
 
 ```bash
-./scripts/setup.sh --no-ai                       # base deps only, no torch/openai
+./scripts/setup.sh --no-ai                       # base deps only, no onnxruntime/openai
 docker compose build --build-arg INSTALL_AI=false
 ```
 
@@ -431,9 +464,10 @@ Celery worker are still required — `preprocess_edf` runs in both modes.
 
 - **Frontend:** React 19 + TypeScript 6, MUI v9, React Router v7, Plotly.js, Recharts
 - **Backend:** FastAPI, SQLAlchemy (SQLite locally, Postgres/Supabase in deployment), Celery + Redis, PyJWT
-- **ML:** PyTorch, MNE-Python, OpenAI API (`gpt-4o-mini`)
+- **ML:** onnxruntime (models trained and exported with PyTorch), MNE-Python, OpenAI API
+  (`gpt-4o-mini`) or a local OpenAI-compatible LLM (Ollama; llama.cpp on desktop)
 - **Storage:** Supabase Storage in deployment; local disk for development
-- **Desktop:** Electron 44, PyInstaller, electron-builder (NSIS installer)
+- **Desktop:** Electron 44, PyInstaller, electron-builder (NSIS installer), llama.cpp `llama-server`
 - **Toolchain:** Node 26 (`.nvmrc`) with npm 12, Python 3.14. CI and both frontend
   Dockerfiles install npm 12 explicitly: the npm bundled with Node is a different major,
   and npm majors write lockfiles the other's `npm ci` rejects

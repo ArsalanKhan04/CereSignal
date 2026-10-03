@@ -4,8 +4,8 @@ to the data in the pipeline
 
 import mne
 import numpy as np
-import resampy
 
+from ._kaiser_resample import resample as kaiser_fast_resample
 from .channels import (
     CHANNELS,
     NEUROTRANSFORMER_CHANNELS,
@@ -106,8 +106,8 @@ class ResampleData(Preprocess):
 
 
 class ResampleDataKaiser(Preprocess):
-    """Responsible for resampling the data to 100 Hz using resampy
-    to match the notebook's implementation exactly.
+    """Responsible for resampling the data to 100 Hz with resampy's kaiser_fast
+    filter, to match the notebook's implementation exactly (see _kaiser_resample).
     Inputs: raw EEG data in MNE format
     Outputs: raw EEG data resampled to target_rate
     """
@@ -123,10 +123,8 @@ class ResampleDataKaiser(Preprocess):
         # 1. Extract data as numpy array (Channels x Time)
         data_np = data.get_data()
 
-        # 2. Resample using resampy with 'kaiser_fast' (Matching Notebook)
-        resampled_data_np = resampy.resample(
-            data_np, sfreq, self.sample_rate, axis=1, filter="kaiser_fast"
-        )
+        # 2. Resample with resampy's 'kaiser_fast' (Matching Notebook)
+        resampled_data_np = kaiser_fast_resample(data_np, sfreq, self.sample_rate, axis=1)
 
         # 3. Wrap back into MNE RawArray
         # We must update the info structure with the new sampling rate
