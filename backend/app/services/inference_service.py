@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 from celery import Celery
 from celery.result import AsyncResult
 
+from app.core.config import settings
 from app.core.logging_config import logger
 
 # Add the project root to Python path for imports
@@ -22,10 +23,10 @@ CELERY_RESULT_BACKEND = _redis_url
 # Initialize Celery app
 inference_app = Celery('inference', broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
-if os.environ.get("DESKTOP_MODE", "").lower() == "true":
-    from inference.infer import DESKTOP_CELERY_CONFIG
+if settings.tasks_in_process:
+    from inference.infer import IN_PROCESS_CELERY_CONFIG
 
-    inference_app.conf.update(DESKTOP_CELERY_CONFIG)
+    inference_app.conf.update(IN_PROCESS_CELERY_CONFIG)
 
 class InferenceService:
     """Service for managing EEG inference tasks"""

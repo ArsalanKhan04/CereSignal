@@ -8,9 +8,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -103,7 +103,7 @@ def verify_token(token: str) -> TokenData:
         token_data = TokenData(username=username, user_id=user_id, pwd=payload.get("pwd"))
         return token_data
 
-    except JWTError:
+    except jwt.PyJWTError:
         raise credentials_exception
 
 
@@ -143,7 +143,7 @@ def get_current_user(
 
         return user
 
-    except JWTError:
+    except jwt.PyJWTError:
         raise credentials_exception
 
 

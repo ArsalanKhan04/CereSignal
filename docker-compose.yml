@@ -3,7 +3,8 @@
 # scripts/ workflow uses, which makes the two setups interchangeable.
 #
 # Run ./scripts/setup.sh first: it writes backend/.env, which the containers
-# read for SECRET_KEY and the rest. The variables set below override it.
+# read for SECRET_KEY and the rest. The variables given a value below override
+# it; the bare ones override it only when they are exported in the shell.
 
 services:
 
@@ -60,13 +61,17 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=sqlite:///./cere_signal.db
       - AI_INFERENCE_ENABLED=${AI_INFERENCE_ENABLED:-True}
-      # Optional. Without it the report text is drafted by Ollama on the host, which
-      # must listen beyond loopback (OLLAMA_HOST=0.0.0.0) for the container to reach
-      # it. If that fails too, inference still completes and the report text is blank.
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Optional; read from backend/.env, or from the shell when exported there.
+      # Listed bare: `=${OPENAI_API_KEY:-}` sets "" when the shell lacks it, and
+      # pydantic-settings ranks an environment variable, even an empty one, above
+      # backend/.env, which would hide the key there. Without a key the report text
+      # is drafted by Ollama on the host, which must listen beyond loopback
+      # (OLLAMA_HOST=0.0.0.0) for the container to reach it. If that fails too,
+      # inference still completes and the report text is blank.
+      - OPENAI_API_KEY
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
-      # Empty means the most recently pulled model.
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-}
+      # Bare for the same reason. Unset in both places means the newest pulled model.
+      - OLLAMA_MODEL
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

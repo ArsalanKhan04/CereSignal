@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     DESKTOP_MODE: bool = False
     DESKTOP_SESSION_SECRET: str = ""
 
+    # Run the Celery tasks inside the API process, with no Redis and no worker, as the
+    # desktop app does. For Windows development (scripts/backend-start.ps1 sets it), since
+    # Redis has no Windows build. One API process only: results are kept in its memory.
+    IN_PROCESS_TASKS: bool = False
+
+    @property
+    def tasks_in_process(self) -> bool:
+        return self.DESKTOP_MODE or self.IN_PROCESS_TASKS
+
     # OpenAI settings
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"

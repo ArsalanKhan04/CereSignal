@@ -379,16 +379,16 @@ def desktop_celery(monkeypatch):
     Both Celery apps as desktop mode configures them: no broker, tasks run inline, and
     results kept in Celery's in-memory backend.
 
-    Production applies DESKTOP_CELERY_CONFIG before any task is bound. Here the tasks
+    Production applies IN_PROCESS_CELERY_CONFIG before any task is bound. Here the tasks
     are already bound, so store_eager_result is set on them directly and each app's
     thread-local backend is dropped so the memory backend replaces it.
     """
     from app.services.inference_service import inference_app
-    from inference.infer import DESKTOP_CELERY_CONFIG
+    from inference.infer import IN_PROCESS_CELERY_CONFIG
     from inference.infer import app as tasks_app
 
     for celery_app in (tasks_app, inference_app):
-        for key, value in DESKTOP_CELERY_CONFIG.items():
+        for key, value in IN_PROCESS_CELERY_CONFIG.items():
             monkeypatch.setitem(celery_app.conf, key, value)
         monkeypatch.delattr(celery_app._local, "backend", raising=False)
     for task in (preprocess_edf, infer):
@@ -431,7 +431,7 @@ class TestDesktopRunsWithoutABroker:
 
         import inference.infer as infer_module
 
-        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", True)
+        monkeypatch.setattr(infer_module, "_IN_PROCESS", True)
         headers = auth_headers(technician_a)
         with open(tiny_edf["path"], "rb") as handle:
             upload = client.post(
@@ -476,7 +476,7 @@ class TestDesktopBackgroundDispatch:
         import inference.infer as infer_module
 
         task = _BlockingTask()
-        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", True)
+        monkeypatch.setattr(infer_module, "_IN_PROCESS", True)
         monkeypatch.setattr(infer_module, "preprocess_edf", task)
 
         try:
@@ -491,7 +491,7 @@ class TestDesktopBackgroundDispatch:
 
         task = MagicMock()
         task.delay.return_value.id = "queued-id"
-        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", False)
+        monkeypatch.setattr(infer_module, "_IN_PROCESS", False)
         monkeypatch.setattr(infer_module, "preprocess_edf", task)
 
         assert InferenceService().start_inference("signals/tiny.edf") == "queued-id"
@@ -508,7 +508,7 @@ class TestDesktopBackgroundDispatch:
         import inference.infer as infer_module
 
         slow_infer = _BlockingTask()
-        monkeypatch.setattr(infer_module, "_DESKTOP_MODE", True)
+        monkeypatch.setattr(infer_module, "_IN_PROCESS", True)
         monkeypatch.setattr(infer_module, "infer", slow_infer)
 
         try:
@@ -525,3 +525,21 @@ class TestDesktopBackgroundDispatch:
             assert result.result["inference_task_id"] == slow_infer.calls[0][1]
         finally:
             slow_infer.release.set()
+
+
+class TestInProcessTasksSetting:
+    """
+    The desktop app always runs the tasks in-process. IN_PROCESS_TASKS does the same for a
+    web install, which is how Windows development runs without Redis.
+    """
+
+    @pytest.mark.parametrize(
+        ("flags", "expected"),
+        [({}, False), ({"DESKTOP_MODE": True}, True), ({"IN_PROCESS_TASKS": True}, True)],
+    )
+    def test_it_follows_either_flag(self, flags, expected):
+        from app.core.config import Settings
+
+        settings = Settings(_env_file=None, **{"DESKTOP_MODE": False, "IN_PROCESS_TASKS": False, **flags})
+
+        assert settings.tasks_in_process is expected

@@ -53,7 +53,7 @@ hiddenimports = [
     "app.schemas",
     "app.services",
     "external.edf_preprocess",
-    # Desktop mode runs the Celery tasks eagerly in-process (DESKTOP_CELERY_CONFIG).
+    # Desktop mode runs the Celery tasks eagerly in-process (IN_PROCESS_CELERY_CONFIG).
     # infer.py imports everything below lazily, inside the tasks, so PyInstaller's
     # import scan cannot see any of it.
     "inference.infer",

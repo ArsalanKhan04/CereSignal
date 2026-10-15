@@ -8,9 +8,9 @@ relies on.
 
 from datetime import timedelta
 
+import jwt
 import pytest
 from fastapi import HTTPException
-from jose import jwt
 
 from app.core import auth as auth_module
 from app.core.auth import (
@@ -72,7 +72,7 @@ class TestAccessTokens:
 
     def test_a_token_signed_with_another_key_is_rejected(self):
         forged = jwt.encode(
-            {"sub": "alice", "user_id": 7}, "a-different-secret", algorithm=ALGORITHM
+            {"sub": "alice", "user_id": 7}, "a-different-secret-of-at-least-32-bytes", algorithm=ALGORITHM
         )
         with pytest.raises(HTTPException) as exc:
             verify_token(forged)

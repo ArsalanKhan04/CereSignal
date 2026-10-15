@@ -16,6 +16,8 @@ CereSignal runs as **4 components**:
 - Docker (for Redis) — or a local `redis-server` on 6379
 - No cloud account required
 
+On Windows, see [Windows](#windows) instead: it needs neither Docker nor Redis.
+
 ## First-time setup
 
 ```bash
@@ -33,7 +35,8 @@ bookmark images are served from `/static/eeg-assets/` only with a signed,
 expiring URL, and everything else goes through authenticated API routes.
 Set `SUPABASE_URL` + `SUPABASE_SECRET_KEY` and it switches to Supabase Storage
 automatically — that is how the deployed app runs. `OPENAI_API_KEY` is optional
-too; without it inference still runs and the report text is simply left blank.
+too; without it a local Ollama model drafts the report text, and with neither the
+text is left blank for manual entry.
 
 > **Note:** inference runs on CPU with onnxruntime, from the ONNX exports in
 > `backend/external/models/`, so no install needs torch. torch is only for
@@ -77,6 +80,49 @@ skip the prompt in a script.
 Without `--fresh` the backend continues from the last run: missing tables are
 created, existing rows are left alone, and seeding is a no-op if the demo data
 is already there.
+
+## Windows
+
+The bash scripts above do not run on Windows, and Redis has no Windows build. The
+`scripts\*.ps1` scripts run the website there with **two** components: the backend
+runs the Celery tasks itself (`IN_PROCESS_TASKS`), so there is no Redis and no
+worker.
+
+Prerequisites: Python 3.14 (`py -0` must list it), Node.js 26 and npm 12, and
+Windows PowerShell 5.1 or later. Docker is not needed.
+
+```powershell
+# Once. Add -NoAi for a manual-entry-only install.
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+
+# Terminal 1 - Backend (prepares the DB, seeds demo data, then serves)
+powershell -ExecutionPolicy Bypass -File scripts\backend-start.ps1
+
+# Terminal 2 - Frontend
+npm --prefix frontend run dev
+```
+
+`backend-start.ps1` takes `-Fresh`, `-Yes` and `-NoAi`, as `backend-start.sh` does,
+and `scripts\stop.ps1` stops it. `scripts\test.ps1` runs the suites (`-Backend`,
+`-Frontend`, `-Cov`, `-Lint`). The Playwright suite needs bash, so it runs in CI only.
+
+Run the scripts through `powershell -ExecutionPolicy Bypass -File`. Windows blocks
+scripts by default, and a new process keeps the `backend\.env` values that a script
+loads out of your own shell.
+
+To draft reports with OpenAI, set `OPENAI_API_KEY` in `backend\.env` and restart the
+backend.
+
+If you built the desktop app before, `backend\cere_env` may be its virtualenv.
+`setup.ps1` stops if it is. Delete that folder and run setup again: the desktop build
+now uses its own `backend\desktop_env` ([DESKTOP_BUILD_WINDOWS.md](DESKTOP_BUILD_WINDOWS.md)).
+
+Two differences from the four-terminal setup:
+
+- **A restart drops work in progress.** Task results live in the backend's memory.
+  When `--reload` restarts it after a code change, an analysis that was running is
+  lost: upload the file again.
+- **Run one backend only.** A second process cannot see the first one's results.
 
 ## Verification
 
@@ -169,9 +215,19 @@ The production build and dev server both run with a raised Node heap
 
 ### Reports come out blank
 
-Report drafting calls OpenAI. Without `OPENAI_API_KEY` in `backend/.env`,
-inference still completes and the report text is simply left empty for manual
-entry.
+The process that runs the tasks names the cause, on a line that starts with
+`LLM report error`. That is the Celery worker's terminal, the backend's on Windows,
+and `docker compose logs celery_worker` under Compose. The model in brackets shows
+which LLM was tried:
+
+- `gpt-4o-mini`, or your `OPENAI_MODEL`: OpenAI was called and refused. The rest of
+  the line gives the reason, for example `401` for a wrong key, or `429` with
+  `insufficient_quota` for an account with no credit.
+- `ollama` or an Ollama model name: that process did not see `OPENAI_API_KEY`. Set
+  it in `backend/.env` and restart the process.
+
+Without a key, a local Ollama model drafts the report. With neither, inference
+still completes and the report text is left empty for manual entry.
 
 ### Every upload lands in "Needs Review"
 

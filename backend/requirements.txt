@@ -40,7 +40,6 @@ defusedxml
 discid
 dnspython
 docutils
-ecdsa
 edfio
 email-validator
 executing
@@ -109,7 +108,6 @@ proxy_tools
 pscript
 psutil
 pure_eval
-pyasn1
 pycparser
 pydantic
 pydantic-settings
@@ -122,7 +120,6 @@ PyQt5_sip
 python-dateutil
 python-dotenv
 python-engineio
-python-jose
 python-json-logger
 python-multipart
 python-picard
@@ -141,7 +138,6 @@ rfc3339-validator
 rfc3986-validator
 rfc3987-syntax
 rpds-py
-rsa
 scikit-learn
 scipy
 Send2Trash
