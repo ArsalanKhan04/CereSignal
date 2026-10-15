@@ -83,16 +83,10 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
 
       # Audits the installed environment (see requirements-dev.txt for why not -r).
-      #
-      # One ignore, and it is load-bearing rather than convenient:
-      #   PYSEC-2026-1325 — ecdsa Minerva P-256 timing attack. No fix exists and
-      #   upstream has declined to ship one. ecdsa arrives transitively via
-      #   python-jose; app/core/auth.py pins ALGORITHM = "HS256" and decodes with
-      #   algorithms=["HS256"], so no ECDSA code path is reachable.
       - name: Audit backend dependencies
         run: |
           pip install --upgrade 'setuptools>=83.0.0'
-          pip-audit --strict --ignore-vuln PYSEC-2026-1325
+          pip-audit --strict
 
       # --cov activates .coveragerc, which carries the fail_under ratchet. A plain
       # `pytest` stays untraced (and fast) because the floor lives there, not here.

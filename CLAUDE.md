@@ -373,10 +373,9 @@ upgrade PRs, so dependency and toolchain upgrades are done by hand, deliberately
 
 **`pip-audit` audits the installed environment, not `-r requirements.txt`** — that file is
 largely unpinned, so `-r` makes pip-audit resolve its own set rather than auditing what the
-tests actually ran against. It carries exactly one ignore, and it is load-bearing rather than
-convenient: `PYSEC-2026-1325` (ecdsa, Minerva P-256 timing) has **no upstream fix and won't
-get one**. `ecdsa` arrives transitively via `python-jose`; `app/core/auth.py` sets
-`ALGORITHM = "HS256"` and decodes with `algorithms=["HS256"]`, so no ECDSA path is reachable.
+tests actually ran against. It carries no ignores. `python-jose` was replaced with PyJWT on
+2026-10-15: it had `CVE-2026-85394` with no fix, and it was the only thing pulling in `ecdsa`,
+whose `PYSEC-2026-1325` used to need an ignore. Do not reintroduce it.
 The CI step upgrades `setuptools>=83.0.0` first, which clears the only other finding.
 
 **gitleaks is not used.** GitHub's native secret scanning is free here and covers every
