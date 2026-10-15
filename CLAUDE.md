@@ -29,7 +29,9 @@ Seeded demo login: `admin` / `password`
 
 There is **no** `cere_env` pyenv virtualenv — the environment is `backend/cere_env/`, and the scripts call its binaries directly rather than activating anything. The backend and worker must run with `backend/` as cwd: `inference/infer.py` resolves model weights relative to the current directory and `DATABASE_URL` is cwd-relative.
 
-`docker compose up` is the containerised equivalent of all four, once `./scripts/setup.sh` has written `backend/.env`. The backend and worker services both bind-mount `./backend`, so they share the same `cere_signal.db` and `local_storage/` as the scripts above — the worker resolves the storage object paths it receives over Redis against its own filesystem, so they must.
+`docker compose up` is the containerised equivalent of all four, once `./scripts/setup.sh` has written `backend/.env`. The backend and worker services both bind-mount `./backend`, so they share the same `cere_signal.db` and `local_storage/` as the scripts above — the worker resolves the storage object paths it receives over Redis against its own filesystem, so they must. A setting that `backend/.env` may also hold goes into `environment:` bare (`- OPENAI_API_KEY`), never as `${VAR:-}`: Compose then sets an empty variable, and pydantic-settings ranks any environment variable above the dotenv file. That once hid the OpenAI key from the worker.
+
+**Windows** runs the website with `scripts\*.ps1` (`setup.ps1`, `backend-start.ps1`, `stop.ps1`, `test.ps1`) and two components only, because neither the bash scripts nor Redis run there. `backend-start.ps1` sets `IN_PROCESS_TASKS=true`, so the API process runs the Celery tasks and no worker starts (see Desktop Mode, which works the same way). Keep the `.ps1` files pure ASCII and compatible with Windows PowerShell 5.1; `scripts/lib.ps1` notes the traps. The desktop build has its own venv, `backend\desktop_env`, so that web requirements stay out of the PyInstaller bundle.
 
 Access points: Frontend → `localhost:3000`, API → `localhost:8000`, Docs → `localhost:8000/api/v1/docs`
 
@@ -300,10 +302,12 @@ anywhere else. Logs go to `AppData/Roaming`.
   targets. On desktop `/` renders `DesktopWorkspace`, and `Patients` lets the doctor create
   patients and upload recordings.
 - **No Redis, no worker.** With `DESKTOP_MODE=true` both Celery apps load
-  `DESKTOP_CELERY_CONFIG` (`inference/infer.py`): tasks run eagerly and store their results in
+  `IN_PROCESS_CELERY_CONFIG` (`inference/infer.py`): tasks run eagerly and store their results in
   Celery's in-memory backend, one module-level cache per process, so the ordinary
   `inference-status` polling finds them. That is why `main.js` skips the worker.
-  Every task is started through `dispatch()` in `inference/infer.py`, which on desktop runs it
+  `IN_PROCESS_TASKS=true` turns on the same mode for a web install; Windows development uses
+  it (`settings.tasks_in_process` is either flag).
+  Every task is started through `dispatch()` in `inference/infer.py`, which in this mode runs it
   on its own thread and returns its id at once. Run eagerly, a chained `.delay()` executes
   inside its caller, so the upload would hang through both models and the LLM report, and
   `preprocess_edf`'s result (which is what hands the viewer the converted recording) would
@@ -390,7 +394,7 @@ on `main` requiring `Lint (ruff)`, `Backend (pytest)`, `Frontend (jest)` and `Co
 
 | Path | Purpose |
 |------|---------|
-| `scripts/` | Dev workflow — `setup.sh`, `redis-start.sh`, `backend-start.sh`, `worker-start.sh`, `stop.sh` |
+| `scripts/` | Dev workflow — `setup.sh`, `redis-start.sh`, `backend-start.sh`, `worker-start.sh`, `stop.sh`; Windows: `setup.ps1`, `backend-start.ps1`, `stop.ps1`, `test.ps1` |
 | `backend/migrate.py` | Table creation + superuser bootstrap (`--reset` to drop). No Alembic — this is the whole migration system |
 | `backend/scripts/` | Admin/superuser creation, plus `seed_demo.py` (idempotent demo data) |
 | `backend/app/main.py` | FastAPI app, router registration, CORS config |
@@ -426,6 +430,8 @@ Copy `backend/.env.example` to `backend/.env` (`./scripts/setup.sh` does this fo
 - `FRONTEND_URL` — used to build invitation email links
 - `DESKTOP_MODE`, `DESKTOP_SESSION_SECRET` — set by `main.js` for the desktop app, never in a
   web deployment (see Desktop Mode)
+- `IN_PROCESS_TASKS` — run the Celery tasks inside the API process, with no Redis and no worker.
+  `scripts/backend-start.ps1` sets it on Windows. One API process only: results live in its memory
 - `MAX_FILE_SIZE` — default 100 MB
 - `ALLOWED_FILE_TYPES` — `.edf,.csv,.json,.txt`
 

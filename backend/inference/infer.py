@@ -25,35 +25,40 @@ from celery.utils import uuid
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _BACKEND_DIR)
 
+# Through settings, unlike REDIS_URL below, so IN_PROCESS_TASKS=true in backend/.env
+# takes effect even when no script has exported the file into the environment.
+from app.core.config import settings  # noqa: E402
+
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 app = Celery("tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
-# The desktop app runs no Redis and no worker. Tasks run inline in the API process and
-# keep their results in Celery's in-memory backend, whose cache is module-global, so
-# inference_service's AsyncResult lookups find them with no broker at all.
-DESKTOP_CELERY_CONFIG = {
+# The desktop app, and a web install with IN_PROCESS_TASKS, run no Redis and no worker.
+# Tasks run inline in the API process and keep their results in Celery's in-memory
+# backend, whose cache is module-global, so inference_service's AsyncResult lookups find
+# them with no broker at all.
+IN_PROCESS_CELERY_CONFIG = {
     "broker_url": "memory://",
     "result_backend": "cache+memory://",
     "task_always_eager": True,
     "task_store_eager_result": True,
 }
-_DESKTOP_MODE = os.environ.get("DESKTOP_MODE", "").lower() == "true"
-if _DESKTOP_MODE:
-    app.conf.update(DESKTOP_CELERY_CONFIG)
+_IN_PROCESS = settings.tasks_in_process
+if _IN_PROCESS:
+    app.conf.update(IN_PROCESS_CELERY_CONFIG)
 
 
 def dispatch(task, *args):
-    """Queue `task` and return its id; on desktop, run it on a background thread.
+    """Queue `task` and return its id; with in-process tasks, run it on a background thread.
 
-    Desktop tasks run eagerly, so .delay() would run the whole task inside its caller.
+    In-process tasks run eagerly, so .delay() would run the whole task inside its caller.
     preprocess_edf would then not return, and the viewer would not get the converted
     recording, until inference and the LLM report behind it had finished too: 35 s or
     more, against the viewer's 60 s patience. One thread per task lets each stage finish
     and store its result (task_store_eager_result) on its own, as it does on a worker.
     """
-    if not _DESKTOP_MODE:
+    if not _IN_PROCESS:
         return task.delay(*args).id
     task_id = uuid()
     threading.Thread(

@@ -25,6 +25,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_SCRATCH, 'unused.db')}"
 os.environ["SECRET_KEY"] = "test-secret-key-not-used-in-production"
 os.environ["SUPABASE_URL"] = ""
 os.environ["OPENAI_API_KEY"] = ""
+os.environ["IN_PROCESS_TASKS"] = "false"
 os.environ["RESEND_API_KEY"] = ""
 os.environ["CERE_LOG_DIR"] = _SCRATCH
 # ----------------------------------------------------------------------------------

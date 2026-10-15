@@ -15,7 +15,7 @@ The desktop build runs **the full AI pipeline offline**, and is kept small in th
 
 It needs no Redis and no worker: with `DESKTOP_MODE=true`, Celery tasks run eagerly on a
 background thread in the backend process and keep their results in memory
-(`DESKTOP_CELERY_CONFIG` in `backend/inference/infer.py`). `main.js` starts `llama-server`
+(`IN_PROCESS_CELERY_CONFIG` in `backend/inference/infer.py`). `main.js` starts `llama-server`
 on a free loopback port with a per-launch API key and points the backend at it.
 
 ## Prerequisites
@@ -36,13 +36,16 @@ From the repo root, in PowerShell:
 
 1. Create the backend virtualenv and activate it:
    ```powershell
-   py -3.14 -m venv backend\cere_env
-   backend\cere_env\Scripts\Activate.ps1
+   py -3.14 -m venv backend\desktop_env
+   backend\desktop_env\Scripts\Activate.ps1
    ```
    Keep it active for the build. `build-desktop.ps1` calls whichever `pip` and `pyinstaller`
    are first on `PATH`, and installs `requirements-desktop.txt` (which includes PyInstaller)
    into it itself — do **not** install `requirements.txt` here: it carries web-only and
-   notebook dependencies the desktop build does not need.
+   notebook dependencies the desktop build does not need. For the same reason this is not
+   `backend\cere_env`, which is the website's virtualenv on Windows (`scripts\setup.ps1`,
+   see HOWTORUN.md). An older checkout may have the desktop venv there: delete it, since a
+   moved venv's `pip.exe` and `pyinstaller.exe` still point at the old path.
    `py -3.14` rather than `python` avoids picking up some other Python on `PATH`.
 
 2. Install the Node dependencies:

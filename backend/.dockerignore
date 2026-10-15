@@ -1,8 +1,10 @@
 # Dockerfile.backend does `COPY . .`, which without this file copies the 6.6 GB
 # cere_env/ virtualenv and the host's database into every image build.
 
-# Local virtualenv — Linux-specific and full of absolute host paths.
+# Local virtualenvs — host-specific and full of absolute host paths. desktop_env/
+# is the Windows desktop build's.
 cere_env/
+desktop_env/
 
 # Python bytecode. Patterns are matched against the whole relative path, so
 # the ** prefix is what makes these apply below the top level.
